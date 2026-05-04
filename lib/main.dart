@@ -1,10 +1,16 @@
+import 'package:flutter/material.dart';
+
 // ignore_for_file: depend_on_referenced_packages, avoid_print, empty_catches, deprecated_member_use
 
 import 'package:flips_app/providers/auth.provider.dart';
 import 'package:flips_app/screens/home/home.screen.dart';
-import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:flips_app/constants.dart';
+
+void main() {
+  WidgetsFlutterBinding.ensureInitialized();
+  runApp(const MyApp());
+}
 
 class MyApp extends StatelessWidget {
   const MyApp({super.key});
