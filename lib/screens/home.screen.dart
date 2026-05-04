@@ -34,11 +34,11 @@ class _HomeScreenState extends State<HomeScreen> {
         tooltip: 'Ir a diarios',
         child: const Icon(Icons.home),
       ),
-      floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
+      floatingActionButtonLocation: FloatingActionButtonLocation.endDocked,
       bottomNavigationBar: AnimatedBottomNavigationBar(
         icons: _icons,
         activeIndex: _activeIndex,
-        gapLocation: GapLocation.center,
+        gapLocation: GapLocation.end,
         notchSmoothness: NotchSmoothness.verySmoothEdge,
         leftCornerRadius: 24,
         rightCornerRadius: 24,
