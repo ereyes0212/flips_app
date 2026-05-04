@@ -4,6 +4,7 @@ import 'package:flips_app/controllers/auth.controller.dart';
 import 'package:flips_app/globals/widgets/widgets.dart';
 import 'package:flips_app/providers/auth.provider.dart';
 import 'package:flips_app/screens/login/login.screen.dart';
+import 'package:flips_app/screens/mi_perfil/mi_perfil.screen.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
@@ -146,9 +147,16 @@ class _HomeScreenState extends State<HomeScreen> {
                           children: [
                             Expanded(
                               child: GridItem(
-                                icono: Icons.card_membership_outlined,
-                                funcion: () {},
-                                texto: 'Membresías',
+                                icono: Icons.person_outline,
+                                funcion: () {
+                                  Navigator.push(
+                                    context,
+                                    MaterialPageRoute(
+                                      builder: (_) => const MiPerfilScreen(),
+                                    ),
+                                  );
+                                },
+                                texto: 'Mi perfil',
                               ),
                             ),
                             const SizedBox(width: 7),
