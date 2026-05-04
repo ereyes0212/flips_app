@@ -1,3 +1,4 @@
+import 'dart:io';
 
 import 'package:flips_app/globals/functions/functions.dart';
 import 'package:flips_app/globals/widgets/widgets.dart';
@@ -6,10 +7,8 @@ import 'package:flips_app/screens/home/home.screen.dart';
 import 'package:flips_app/screens/login/login.screen.dart';
 import 'package:flips_app/services/auth.service.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:provider/provider.dart';
-
-
+import 'package:shared_preferences/shared_preferences.dart';
 
 class AuthController {
   final cuerpoController = CuerpoDeController();
@@ -23,111 +22,65 @@ class AuthController {
     if (usuario.isEmpty || password.isEmpty) {
       alertError(context, mensaje: 'Por favor complete todos los campos');
       authprovider.error = true;
-    } else {
-      authprovider.loading = true;
-      final respuesta =
-          await AuthService().login(usuario.trim(), password.trim());
-      if (respuesta == 1) {
-        const storage = FlutterSecureStorage();
-        storage.write(key: 'token', value: respuesta.toString());
-        storage.write(key: 'user', value: usuario.trim());
-        authprovider.nombreUsuario = usuario;
-        authprovider.password = password;
-
-        Navigator.pushAndRemoveUntil(
-            context,
-            MaterialPageRoute(builder: (_) => const HomeScreen()),
-            (Route<dynamic> route) => false);
-        authprovider.loading = false;
-        return true;
-      } else {
-        switch (respuesta) {
-          case 0:
-            globalSnackBar('Usuario o contraseña incorrectos.');
-            break;
-          case 401:
-            globalSnackBar(
-                'Por favor inicie sesión para realizar esta acción.');
-            break;
-          case 500:
-            alertError(context,
-                mensaje:
-                    'Ocurrió un error interno en el servidor al cargar la información, contacte con soporte técnico.');
-            break;
-          case 1200:
-            alertError(context,
-                mensaje: 'Ocurrió un error al cargar la información.');
-            break;
-          case 4501:
-            alertError(context,
-                mensaje:
-                    'Ocurrió un error al cargar la información, verifique si:  tiene conexión a internet, los datos móviles o el wifi están activados, se encuentra conectado a una red interna sin acceso al servidor.');
-            break;
-          default:
-        }
-        authprovider.loading = false;
-      }
+      return false;
     }
-    return false;
-  }
 
-  Future<bool> loginWithGoogleController(context) async {
-    final authprovider = Provider.of<AuthProvider>(context, listen: false);
     authprovider.loading = true;
 
-    final respuesta = await AuthService().loginWithGoogle('google-oauth-token');
-    if (respuesta == 1) {
-      const storage = FlutterSecureStorage();
-      storage.write(key: 'token', value: respuesta.toString());
-      storage.write(key: 'user', value: 'google-user');
-      authprovider.nombreUsuario = 'google-user';
+    try {
+      final response = await service.login(usuario.trim(), password.trim());
 
-      Navigator.pushAndRemoveUntil(
+      if (response != null && response.ok) {
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setString('token', response.token);
+        await prefs.setString('user', response.data.user);
+        await prefs.setString('idUser', response.data.idUser);
+        await prefs.setString('nombre', response.data.nombre);
+
+        authprovider.nombreUsuario = response.data.nombre;
+        authprovider.user = response.data.user;
+        authprovider.idUser = response.data.idUser;
+        authprovider.token = response.token;
+
+        Navigator.pushAndRemoveUntil(
           context,
           MaterialPageRoute(builder: (_) => const HomeScreen()),
-          (Route<dynamic> route) => false);
-      authprovider.loading = false;
-      return true;
+          (Route<dynamic> route) => false,
+        );
+
+        authprovider.loading = false;
+        return true;
+      }
+
+      globalSnackBar('Usuario o contraseña incorrectos.');
+    } on SocketException {
+      alertError(
+        context,
+        mensaje:
+            'Ocurrió un error de conexión. Verifique su internet e intente nuevamente.',
+      );
+    } catch (_) {
+      alertError(context, mensaje: 'Ocurrió un error al iniciar sesión.');
     }
 
-    switch (respuesta) {
-      case 401:
-        globalSnackBar('Por favor inicie sesión para realizar esta acción.');
-        break;
-      case 500:
-        alertError(context,
-            mensaje:
-                'Ocurrió un error interno en el servidor al cargar la información, contacte con soporte técnico.');
-        break;
-      case 1200:
-        alertError(context, mensaje: 'Ocurrió un error al cargar la información.');
-        break;
-      case 4501:
-        alertError(context,
-            mensaje:
-                'Ocurrió un error al cargar la información, verifique su conexión a internet o acceso al servidor.');
-        break;
-      default:
-        globalSnackBar('No se pudo iniciar sesión con Google.');
-    }
     authprovider.loading = false;
     return false;
   }
- Future logoutController(context) async {
+
+  Future logoutController(context) async {
     try {
-      const storage = FlutterSecureStorage();
-      await storage.delete(key: 'token');
-      await storage.delete(key: 'user');
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.remove('token');
+      await prefs.remove('user');
+      await prefs.remove('idUser');
+      await prefs.remove('nombre');
+    } finally {
       Navigator.pushAndRemoveUntil(
-          context,
-          MaterialPageRoute(builder: (_) => const LoginScreen()),
-          (Route<dynamic> route) => false);
-    } catch (e) {
-      Navigator.pushAndRemoveUntil(
-          context,
-          MaterialPageRoute(builder: (_) => const LoginScreen()),
-          (Route<dynamic> route) => false);
+        context,
+        MaterialPageRoute(builder: (_) => const LoginScreen()),
+        (Route<dynamic> route) => false,
+      );
+      resetProviders(context);
     }
-    resetProviders(context);
   }
 }

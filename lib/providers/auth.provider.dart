@@ -4,6 +4,9 @@ class AuthProvider with ChangeNotifier {
   bool _loading = false;
   bool _error = false;
   String _nombreUsuario = '';
+  String _user = '';
+  String _idUser = '';
+  String _token = '';
   String _password = '';
 
   bool get loading => _loading;
@@ -26,6 +29,27 @@ class AuthProvider with ChangeNotifier {
     _nombreUsuario = value;
     notifyListeners();
   }
+  String get user => _user;
+
+  set user(String value) {
+    _user = value;
+    notifyListeners();
+  }
+
+  String get idUser => _idUser;
+
+  set idUser(String value) {
+    _idUser = value;
+    notifyListeners();
+  }
+
+  String get token => _token;
+
+  set token(String value) {
+    _token = value;
+    notifyListeners();
+  }
+
   String get password => _password;
 
   set password(String value) {
@@ -37,6 +61,10 @@ class AuthProvider with ChangeNotifier {
     _loading = false;
     _error = false;
     _nombreUsuario = '';
+    _user = '';
+    _idUser = '';
+    _token = '';
+    _password = '';
     notifyListeners();
   }
 }

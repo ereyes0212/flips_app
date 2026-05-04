@@ -1,12 +1,14 @@
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:flips_app/constants.dart';
+import 'package:flips_app/models/login_response.model.dart';
 import 'package:flips_app/services/http.service.dart';
 
 class AuthService {
   final HttpService _httpService = HttpService();
 
-  Future<int> login(String email, String password) async {
+  Future<LoginResponseModel?> login(String email, String password) async {
     try {
       final response = await _httpService.post(
         '${apiUrl}auth/login',
@@ -14,44 +16,13 @@ class AuthService {
       );
 
       if (response.statusCode == 200) {
-        // Aquí puedes parsear el token o la respuesta que recibas del servidor
-        return 1; // Simulando un login exitoso
-      } else if (response.statusCode == 401) {
-        return 401; // Usuario no autorizado
-      } else if (response.statusCode == 500) {
-        return 500; // Error interno del servidor
-      } else {
-        return 1200; // Otro error
+        return LoginResponseModel.fromJson(jsonDecode(response.body));
       }
+      return null;
     } on SocketException {
-      return 4501; // Error de conexión
-    } catch (e) {
-      print('Error en login: $e');
-      return 1200; // Otro error
-    }
-  }
-
-  Future<int> loginWithGoogle(String googleToken) async {
-    try {
-      final response = await _httpService.post(
-        '${apiUrl}auth/login',
-        body: {'provider': 'google', 'token': googleToken},
-      );
-
-      if (response.statusCode == 200) {
-        return 1;
-      } else if (response.statusCode == 401) {
-        return 401;
-      } else if (response.statusCode == 500) {
-        return 500;
-      } else {
-        return 1200;
-      }
-    } on SocketException {
-      return 4501;
-    } catch (e) {
-      print('Error en login con Google: $e');
-      return 1200;
+      rethrow;
+    } catch (_) {
+      return null;
     }
   }
 }

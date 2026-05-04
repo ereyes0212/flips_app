@@ -1,13 +1,13 @@
 // ignore_for_file: use_build_context_synchronously
 
+import 'package:flips_app/controllers/auth.controller.dart';
 import 'package:flips_app/globals/widgets/widgets.dart';
 import 'package:flips_app/providers/auth.provider.dart';
 import 'package:flips_app/screens/login/login.screen.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
-
-
+import 'package:shared_preferences/shared_preferences.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -20,15 +20,49 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   void initState() {
     super.initState();
-    Future.microtask(() {
-      final authprovider = Provider.of<AuthProvider>(context, listen: false);
-      if (authprovider.nombreUsuario.isEmpty) {
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(builder: (_) => const LoginScreen()),
-        );
-      }
-    });
+    Future.microtask(_validarSesion);
+  }
+
+  Future<void> _validarSesion() async {
+    final prefs = await SharedPreferences.getInstance();
+    final token = prefs.getString('token') ?? '';
+
+    if (token.isEmpty) {
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (_) => const LoginScreen()),
+      );
+      return;
+    }
+
+    final authProvider = Provider.of<AuthProvider>(context, listen: false);
+    authProvider.token = token;
+    authProvider.nombreUsuario = prefs.getString('nombre') ?? '';
+    authProvider.user = prefs.getString('user') ?? '';
+    authProvider.idUser = prefs.getString('idUser') ?? '';
+  }
+
+  void _confirmarCerrarSesion() {
+    showDialog(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Cerrar sesión'),
+        content: const Text('¿Deseas cerrar sesión ahora?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text('Cancelar'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.pop(dialogContext);
+              AuthController().logoutController(context);
+            },
+            child: const Text('Cerrar sesión'),
+          ),
+        ],
+      ),
+    );
   }
 
   ({String saludo, IconData icono}) _saludoDelDia() {
@@ -47,7 +81,7 @@ class _HomeScreenState extends State<HomeScreen> {
     final tema = Theme.of(context).colorScheme;
     final size = MediaQuery.of(context).size;
     final saludo = _saludoDelDia();
-    final nombre = "Lesly";
+    final nombre = context.watch<AuthProvider>().nombreUsuario;
 
     return Scaffold(
       backgroundColor: tema.onSecondary,
@@ -88,7 +122,7 @@ class _HomeScreenState extends State<HomeScreen> {
                               ),
                             ),
                             Text(
-                              nombre,
+                              nombre.isEmpty ? 'Usuario' : nombre,
                               style: GoogleFonts.poppins(
                                 fontSize: 21,
                                 fontWeight: FontWeight.w700,
@@ -107,24 +141,13 @@ class _HomeScreenState extends State<HomeScreen> {
                   const SizedBox(height: 12),
                   Column(
                     children: [
-                      
-                      
-                      
                       IntrinsicHeight(
                         child: Row(
                           children: [
                             Expanded(
                               child: GridItem(
                                 icono: Icons.card_membership_outlined,
-                                funcion: () {
-                                  // MembresiaLocalesController().traerAllMebresiaLocales(context);
-                                  // Navigator.push(
-                                  //   context,
-                                  //   MaterialPageRoute(
-                                  //     builder: (_) => const MembresiaVisorScreen(titulo: 'Membresía'),
-                                  //   ),
-                                  // );
-                                },
+                                funcion: () {},
                                 texto: 'Membresías',
                               ),
                             ),
@@ -132,12 +155,7 @@ class _HomeScreenState extends State<HomeScreen> {
                             Expanded(
                               child: GridItem(
                                 icono: Icons.account_balance_wallet_outlined,
-                                funcion: () {
-                                  // Navigator.push(
-                                  //   context,
-                                  //   MaterialPageRoute(builder: (_) => const FinanzasScreen()),
-                                  // );
-                                },
+                                funcion: () {},
                                 texto: 'Finanzas',
                               ),
                             ),
@@ -150,15 +168,7 @@ class _HomeScreenState extends State<HomeScreen> {
                             Expanded(
                               child: GridItem(
                                 icono: Icons.message_outlined,
-                                funcion: () {
-                                  // MensajeLocalesController().traerAllMensajesLocales(context);
-                                  // Navigator.push(
-                                  //   context,
-                                  //   MaterialPageRoute(
-                                  //     builder: (_) => const MensajeVisorScreen(titulo: 'Mensajes'),
-                                  //   ),
-                                  // );
-                                },
+                                funcion: () {},
                                 texto: 'Mensajes',
                               ),
                             ),
@@ -166,15 +176,7 @@ class _HomeScreenState extends State<HomeScreen> {
                             Expanded(
                               child: GridItem(
                                 icono: Icons.logout_rounded,
-                                funcion: () {
-                                  // dialogDecision(
-                                  //   'Cerrar sesión',
-                                  //   '¿Está seguro que desea cerrar sesión?',
-                                  //   () => AuthController(authProvider: authprovider).logoutController(context),
-                                  //   () => Navigator.pop(context),
-                                  //   context,
-                                  // );
-                                },
+                                funcion: _confirmarCerrarSesion,
                                 texto: 'Cerrar Sesión',
                               ),
                             ),

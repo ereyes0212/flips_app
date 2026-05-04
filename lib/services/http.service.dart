@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:http/http.dart' as http;
 
 class HttpService {
@@ -13,7 +14,8 @@ class HttpService {
     String url, {
     Map<String, String>? headers,
   }) async {
-    return _request(() => http.get(Uri.parse(url), headers: headers));
+    final allHeaders = await _headersWithToken(headers, useJson: false);
+    return _request(() => http.get(Uri.parse(url), headers: allHeaders));
   }
 
   Future<http.Response> post(
@@ -21,10 +23,11 @@ class HttpService {
     Map<String, String>? headers,
     Map<String, dynamic>? body,
   }) async {
+    final allHeaders = await _headersWithToken(headers, useJson: true);
     return _request(
       () => http.post(
         Uri.parse(url),
-        headers: _jsonHeaders(headers),
+        headers: allHeaders,
         body: body == null ? null : jsonEncode(body),
       ),
     );
@@ -35,10 +38,11 @@ class HttpService {
     Map<String, String>? headers,
     Map<String, dynamic>? body,
   }) async {
+    final allHeaders = await _headersWithToken(headers, useJson: true);
     return _request(
       () => http.put(
         Uri.parse(url),
-        headers: _jsonHeaders(headers),
+        headers: allHeaders,
         body: body == null ? null : jsonEncode(body),
       ),
     );
@@ -49,10 +53,11 @@ class HttpService {
     Map<String, String>? headers,
     Map<String, dynamic>? body,
   }) async {
+    final allHeaders = await _headersWithToken(headers, useJson: true);
     return _request(
       () => http.delete(
         Uri.parse(url),
-        headers: _jsonHeaders(headers),
+        headers: allHeaders,
         body: body == null ? null : jsonEncode(body),
       ),
     );
@@ -68,9 +73,16 @@ class HttpService {
     }
   }
 
-  Map<String, String> _jsonHeaders(Map<String, String>? headers) {
+  Future<Map<String, String>> _headersWithToken(
+    Map<String, String>? headers, {
+    required bool useJson,
+  }) async {
+    final prefs = await SharedPreferences.getInstance();
+    final token = prefs.getString('token');
+
     return {
-      'Content-Type': 'application/json',
+      if (useJson) 'Content-Type': 'application/json',
+      if (token != null && token.isNotEmpty) 'Authorization': 'Bearer $token',
       ...?headers,
     };
   }
