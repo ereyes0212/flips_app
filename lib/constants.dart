@@ -6,7 +6,8 @@ import 'package:flutter/material.dart';
 // String apiUrl = 'http://192.168.1.25:7780/api/';
 // String apiUrl = 'http://192.168.1.21:8080/api/';
 // String apiUrl = 'http://192.141.7.174:7780/api/';
-String apiUrl = 'http://192.141.7.174:7780/api/';
+const String urlBase = 'http://192.168.2.20:3000/api/';
+String apiUrl = urlBase;
 
 // String apiUrl = 'http://192.168.0.33:7781/api/';
 
