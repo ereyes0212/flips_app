@@ -5,8 +5,10 @@ import 'package:http/http.dart' as http;
 import '../models/models.dart';
 
 class NewspapersService {
+  static const String _baseUrl = 'http://192.168.2.20:3000';
+
   Future<List<DiarioModel>> fetchDiarios() async {
-    final response = await http.get(Uri.parse('https://example.com/api/diarios'));
+    final response = await http.get(Uri.parse('$_baseUrl/api/notas-plan'));
     if (response.statusCode != 200) {
       return _mockDiarios();
     }
@@ -15,11 +17,11 @@ class NewspapersService {
     return data
         .map(
           (e) => DiarioModel(
-            id: e['id'] as String,
-            titulo: e['titulo'] as String,
-            fecha: DateTime.parse(e['fecha'] as String),
-            pdfUrl: e['pdfUrl'] as String,
-            portadaUrl: e['portadaUrl'] as String,
+            id: (e['id'] ?? e['_id'] ?? '').toString(),
+            titulo: (e['titulo'] ?? e['nombre'] ?? 'Sin título').toString(),
+            fecha: DateTime.tryParse((e['fecha'] ?? e['createdAt'] ?? '').toString()) ?? DateTime.now(),
+            pdfUrl: (e['pdfUrl'] ?? e['archivoUrl'] ?? e['url'] ?? '').toString(),
+            portadaUrl: (e['portadaUrl'] ?? e['imagenUrl'] ?? '').toString(),
           ),
         )
         .toList();
