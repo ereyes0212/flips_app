@@ -1,41 +1,42 @@
-import 'package:flutter/foundation.dart';
+import 'package:flutter/material.dart';
 
-import '../models/models.dart';
-import '../services/services.dart';
-
-class AuthProvider extends ChangeNotifier {
-  final AuthService _authService = AuthService();
-
-  UsuarioModel? _usuario;
+class AuthProvider with ChangeNotifier {
   bool _loading = false;
+  bool _error = false;
+  String _nombreUsuario = '';
+  String _password = '';
 
-  UsuarioModel? get usuario => _usuario;
-  bool get isLoading => _loading;
-  bool get isLoggedIn => _usuario != null;
+  bool get loading => _loading;
 
-  Future<void> signInWithEmailPassword(String email, String password) async {
-    _loading = true;
-    notifyListeners();
-
-    _usuario = await _authService.signInWithEmailPassword(email, password);
-
-    _loading = false;
+  set loading(bool value) {
+    _loading = value;
     notifyListeners();
   }
 
-  Future<void> signInWithGoogle() async {
-    _loading = true;
-    notifyListeners();
+  bool get error => _error;
 
-    _usuario = await _authService.signInWithGoogle();
-
-    _loading = false;
+  set error(bool value) {
+    _error = value;
     notifyListeners();
   }
 
-  Future<void> signOut() async {
-    await _authService.signOut();
-    _usuario = null;
+  String get nombreUsuario => _nombreUsuario;
+
+  set nombreUsuario(String value) {
+    _nombreUsuario = value;
+    notifyListeners();
+  }
+  String get password => _password;
+
+  set password(String value) {
+    _password = value;
+    notifyListeners();
+  }
+
+  resetProvider() {
+    _loading = false;
+    _error = false;
+    _nombreUsuario = '';
     notifyListeners();
   }
 }

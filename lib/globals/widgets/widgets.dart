@@ -1,2 +1,15 @@
-export 'primary_button.widget.dart';
-export 'diario_card.widget.dart';
+export 'alerterror.widget.dart';
+export 'buttonxxl.widget.dart';
+export 'customappbar.widget.dart';
+export 'dialogdecision.widget.dart';
+export 'globlalsnackbar.widget.dart';
+export 'griditem.component.dart';
+export 'my_painter.dart';
+export 'nodata.widget.dart';
+export 'textoprincipal.widget.dart';
+export 'textparrafo.widget.dart';
+export 'cargando.widget.dart';
+export 'textsecundario.widget.dart';
+export 'parteabajo.widget.dart';
+export 'mantemientoalert.widget.dart';
+export 'snackbarglobal.helper.global.dart';

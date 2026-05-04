@@ -1,8 +1,20 @@
-class UsuarioModel {
-  const UsuarioModel({required this.uid, required this.nombre, required this.email, this.photoUrl});
 
-  final String uid;
-  final String nombre;
-  final String email;
-  final String? photoUrl;
+class Usuario {
+  Usuario({
+    required this.idUsuario,
+    required this.usuario,
+    required this.contrasena,
+  });
+
+  int idUsuario;
+  String usuario;
+  String contrasena;
+
+  factory Usuario.fromJson(Map<String, dynamic> json) => Usuario(
+      idUsuario: json["IdUsuario"],
+      usuario: json["Usuario"],
+      contrasena: json["Contraseña"]);
+
+  Map<String, dynamic> toJson() =>
+      {"IdUsuario": idUsuario, "Usuario": usuario, "Contraseña": contrasena};
 }
