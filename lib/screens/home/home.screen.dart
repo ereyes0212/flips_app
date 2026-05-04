@@ -3,13 +3,14 @@
 import 'package:flips_app/controllers/auth.controller.dart';
 import 'package:flips_app/globals/widgets/widgets.dart';
 import 'package:flips_app/providers/auth.provider.dart';
-import 'package:flips_app/screens/login/login.screen.dart';
 import 'package:flips_app/screens/diarios_digitales/diarios_digitales.screen.dart';
+import 'package:flips_app/screens/login/login.screen.dart';
 import 'package:flips_app/screens/mi_perfil/mi_perfil.screen.dart';
 import 'package:flips_app/screens/mis_facturas/mis_facturas.screen.dart';
 import 'package:flips_app/screens/sitio_web/sitio_web.screen.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:persistent_bottom_nav_bar/persistent_bottom_nav_bar.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -21,9 +22,12 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
+  late final PersistentTabController _tabController;
+
   @override
   void initState() {
     super.initState();
+    _tabController = PersistentTabController(initialIndex: 0);
     Future.microtask(_validarSesion);
   }
 
@@ -69,176 +73,123 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  ({String saludo, IconData icono}) _saludoDelDia() {
-    final hora = DateTime.now().hour;
-    if (hora < 12) {
-      return (saludo: 'Buenos días', icono: Icons.wb_sunny_outlined);
-    }
-    if (hora < 19) {
-      return (saludo: 'Buenas tardes', icono: Icons.wb_twilight_outlined);
-    }
-    return (saludo: 'Buenas noches', icono: Icons.nightlight_round);
+  List<Widget> _pantallas() {
+    return [
+      const DiariosDigitalesScreen(),
+      const SitioWebScreen(),
+      const MiPerfilScreen(),
+      _MasOpcionesScreen(onCerrarSesion: _confirmarCerrarSesion),
+    ];
+  }
+
+  List<PersistentBottomNavBarItem> _items(ColorScheme tema) {
+    return [
+      PersistentBottomNavBarItem(
+        icon: const Icon(Icons.picture_as_pdf_outlined),
+        title: 'Diarios',
+        activeColorPrimary: tema.primary,
+        inactiveColorPrimary: tema.secondary,
+      ),
+      PersistentBottomNavBarItem(
+        icon: const Icon(Icons.public),
+        title: 'Sitio web',
+        activeColorPrimary: tema.primary,
+        inactiveColorPrimary: tema.secondary,
+      ),
+      PersistentBottomNavBarItem(
+        icon: const Icon(Icons.person_outline),
+        title: 'Mi perfil',
+        activeColorPrimary: tema.primary,
+        inactiveColorPrimary: tema.secondary,
+      ),
+      PersistentBottomNavBarItem(
+        icon: const Icon(Icons.more_horiz),
+        title: 'Más',
+        activeColorPrimary: tema.primary,
+        inactiveColorPrimary: tema.secondary,
+      ),
+    ];
   }
 
   @override
   Widget build(BuildContext context) {
     final tema = Theme.of(context).colorScheme;
-    final size = MediaQuery.of(context).size;
-    final saludo = _saludoDelDia();
-    final nombre = context.watch<AuthProvider>().nombreUsuario;
 
     return Scaffold(
       backgroundColor: tema.onSecondary,
-      body: ListView(
-        children: [
-          SafeArea(
-            bottom: true,
-            child: Padding(
-              padding: EdgeInsets.only(
-                left: size.width * 0.03,
-                top: size.height * 0.02,
-                right: size.width * 0.03,
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.all(10),
-                        decoration: BoxDecoration(
-                          color: tema.primaryContainer,
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: Icon(saludo.icono, color: tema.primary),
-                      ),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              '${saludo.saludo},',
-                              style: GoogleFonts.poppins(
-                                fontSize: 18,
-                                fontWeight: FontWeight.w600,
-                                color: tema.secondary,
-                              ),
-                            ),
-                            Text(
-                              nombre.isEmpty ? 'Usuario' : nombre,
-                              style: GoogleFonts.poppins(
-                                fontSize: 21,
-                                fontWeight: FontWeight.w700,
-                                color: tema.primary,
-                              ),
-                            ),
-                            TextParrafo(
-                              texto: '¿Qué deseas hacer hoy?',
-                              colorTexto: tema.secondary,
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 12),
-                  Column(
-                    children: [
-                      IntrinsicHeight(
-                        child: Row(
-                          children: [
-                            Expanded(
-                              child: GridItem(
-                                icono: Icons.person_outline,
-                                funcion: () {
-                                  Navigator.push(
-                                    context,
-                                    MaterialPageRoute(
-                                      builder: (_) => const MiPerfilScreen(),
-                                    ),
-                                  );
-                                },
-                                texto: 'Mi perfil',
-                              ),
-                            ),
-                            const SizedBox(width: 7),
-                            Expanded(
-                              child: GridItem(
-                                icono: Icons.receipt_long_outlined,
-                                funcion: () {
-                                  Navigator.push(
-                                    context,
-                                    MaterialPageRoute(
-                                      builder: (_) => const MisFacturasScreen(),
-                                    ),
-                                  );
-                                },
-                                texto: 'Mis facturas',
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      IntrinsicHeight(
-                        child: Row(
-                          children: [
-                            Expanded(
-                              child: GridItem(
-                                icono: Icons.picture_as_pdf_outlined,
-                                funcion: () {
-                                  Navigator.push(
-                                    context,
-                                    MaterialPageRoute(
-                                      builder: (_) => const DiariosDigitalesScreen(),
-                                    ),
-                                  );
-                                },
-                                texto: 'Diarios Digitales',
-                              ),
-                            ),
-                            const SizedBox(width: 7),
-                            Expanded(
-                              child: GridItem(
-                                icono: Icons.public,
-                                funcion: () {
-                                  Navigator.push(
-                                    context,
-                                    MaterialPageRoute(
-                                      builder: (_) => const SitioWebScreen(),
-                                    ),
-                                  );
-                                },
-                                texto: 'Sitio web',
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
+      body: PersistentTabView(
+        context,
+        controller: _tabController,
+        screens: _pantallas(),
+        items: _items(tema),
+        backgroundColor: Colors.white,
+        navBarStyle: NavBarStyle.style6,
+        resizeToAvoidBottomInset: true,
+        decoration: NavBarDecoration(
+          borderRadius: BorderRadius.circular(12),
+          colorBehindNavBar: tema.onSecondary,
+        ),
+      ),
+    );
+  }
+}
 
-                      const SizedBox(height: 7),
-                      IntrinsicHeight(
-                        child: Row(
-                          children: [
-                            Expanded(
-                              child: GridItem(
-                                icono: Icons.logout_rounded,
-                                funcion: _confirmarCerrarSesion,
-                                texto: 'Cerrar Sesión',
-                              ),
-                            ),
-                            const SizedBox(width: 7),
-                            const Expanded(child: SizedBox()),
-                          ],
+class _MasOpcionesScreen extends StatelessWidget {
+  const _MasOpcionesScreen({required this.onCerrarSesion});
+
+  final VoidCallback onCerrarSesion;
+
+  @override
+  Widget build(BuildContext context) {
+    final tema = Theme.of(context).colorScheme;
+    final nombre = context.watch<AuthProvider>().nombreUsuario;
+
+    return SafeArea(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Más opciones',
+              style: GoogleFonts.poppins(
+                fontSize: 20,
+                fontWeight: FontWeight.w700,
+                color: tema.primary,
+              ),
+            ),
+            const SizedBox(height: 4),
+            TextParrafo(
+              texto: nombre.isEmpty ? 'Selecciona una opción.' : 'Hola, $nombre.',
+              colorTexto: tema.secondary,
+            ),
+            const SizedBox(height: 12),
+            Expanded(
+              child: ListView(
+                children: [
+                  GridItem(
+                    icono: Icons.receipt_long_outlined,
+                    funcion: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => const MisFacturasScreen(),
                         ),
-                      ),
-                    ],
+                      );
+                    },
+                    texto: 'Mis facturas',
+                  ),
+                  const SizedBox(height: 7),
+                  GridItem(
+                    icono: Icons.logout_rounded,
+                    funcion: onCerrarSesion,
+                    texto: 'Cerrar sesión',
                   ),
                 ],
               ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
