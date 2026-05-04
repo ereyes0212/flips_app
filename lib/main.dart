@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 // ignore_for_file: depend_on_referenced_packages, avoid_print, empty_catches, deprecated_member_use
 
 import 'package:flips_app/providers/auth.provider.dart';
 import 'package:flips_app/screens/home/home.screen.dart';
+import 'package:flips_app/screens/login/login.screen.dart';
 import 'package:provider/provider.dart';
 import 'package:flips_app/constants.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
@@ -116,7 +118,16 @@ class MyApp extends StatelessWidget {
           ),
         ),
         title: 'Zona Fitness',
-        home: const HomeScreen(),
+        home: FutureBuilder<String?>(
+          future: SharedPreferences.getInstance().then((prefs) => prefs.getString('token')),
+          builder: (context, snapshot) {
+            if (!snapshot.hasData) {
+              return const Scaffold(body: Center(child: CircularProgressIndicator()));
+            }
+            final token = snapshot.data ?? '';
+            return token.isEmpty ? const LoginScreen() : const HomeScreen();
+          },
+        ),
       ),
     );
   }
