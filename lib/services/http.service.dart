@@ -2,8 +2,8 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
-import 'package:shared_preferences/shared_preferences.dart';
 import 'package:http/http.dart' as http;
+import 'package:localstorage/localstorage.dart';
 
 class HttpService {
   final Duration timeout;
@@ -77,12 +77,12 @@ class HttpService {
     Map<String, String>? headers, {
     required bool useJson,
   }) async {
-    final prefs = await SharedPreferences.getInstance();
-    final token = prefs.getString('token');
+    await initLocalStorage();
+    final token = localStorage.getItem('token')?.toString() ?? '';
 
     return {
       if (useJson) 'Content-Type': 'application/json',
-      if (token != null && token.isNotEmpty) 'Authorization': 'Bearer $token',
+      if (token.isNotEmpty) 'Authorization': 'Bearer $token',
       ...?headers,
     };
   }

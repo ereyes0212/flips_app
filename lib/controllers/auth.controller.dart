@@ -8,6 +8,7 @@ import 'package:flips_app/screens/login/login.screen.dart';
 import 'package:flips_app/services/auth.service.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:localstorage/localstorage.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class AuthController {
@@ -32,6 +33,8 @@ class AuthController {
 
       if (response != null && response.ok) {
         final prefs = await SharedPreferences.getInstance();
+        await initLocalStorage();
+        await localStorage.setItem('token', response.token);
         await prefs.setString('token', response.token);
         await prefs.setString('user', response.data.user);
         await prefs.setString('idUser', response.data.idUser);
@@ -70,6 +73,8 @@ class AuthController {
   Future logoutController(context) async {
     try {
       final prefs = await SharedPreferences.getInstance();
+      await initLocalStorage();
+      await localStorage.deleteItem('token');
       await prefs.remove('token');
       await prefs.remove('user');
       await prefs.remove('idUser');
