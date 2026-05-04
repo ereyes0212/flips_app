@@ -3,17 +3,14 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:http/http.dart' as http;
-import 'package:localstorage/localstorage.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class HttpService {
   final Duration timeout;
 
   HttpService({this.timeout = const Duration(seconds: 20)});
 
-  Future<http.Response> get(
-    String url, {
-    Map<String, String>? headers,
-  }) async {
+  Future<http.Response> get(String url, {Map<String, String>? headers}) async {
     final allHeaders = await _headersWithToken(headers, useJson: false);
     return _request(() => http.get(Uri.parse(url), headers: allHeaders));
   }
@@ -63,7 +60,9 @@ class HttpService {
     );
   }
 
-  Future<http.Response> _request(Future<http.Response> Function() request) async {
+  Future<http.Response> _request(
+    Future<http.Response> Function() request,
+  ) async {
     try {
       return await request().timeout(timeout);
     } on SocketException {
@@ -77,13 +76,17 @@ class HttpService {
     Map<String, String>? headers, {
     required bool useJson,
   }) async {
-    await initLocalStorage();
-    final token = localStorage.getItem('token')?.toString() ?? '';
-
-    return {
+    final prefs = await SharedPreferences.getInstance();
+    final token = prefs.getString('token') ?? '';
+    final allHeaders = {
+      'Accept': 'application/json',
       if (useJson) 'Content-Type': 'application/json',
       if (token.isNotEmpty) 'Authorization': 'Bearer $token',
       ...?headers,
     };
+
+
+
+    return allHeaders;
   }
 }
