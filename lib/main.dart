@@ -6,7 +6,7 @@ import 'package:flips_app/providers/auth.provider.dart';
 import 'package:flips_app/screens/home/home.screen.dart';
 import 'package:provider/provider.dart';
 import 'package:flips_app/constants.dart';
-
+import 'package:flutter_localizations/flutter_localizations.dart';
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
   runApp(const MyApp());
@@ -40,9 +40,9 @@ class MyApp extends StatelessWidget {
       ],
       child: MaterialApp(
         localizationsDelegates: const [
-          // GlobalMaterialLocalizations.delegate,
-          // GlobalWidgetsLocalizations.delegate,
-          // GlobalCupertinoLocalizations.delegate,
+          GlobalMaterialLocalizations.delegate,
+          GlobalWidgetsLocalizations.delegate,
+          GlobalCupertinoLocalizations.delegate,
         ],
         supportedLocales: const [Locale('es', 'ES')],
         locale: const Locale('es', 'ES'),

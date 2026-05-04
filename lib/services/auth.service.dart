@@ -10,7 +10,7 @@ class AuthService {
     try {
       final response = await _httpService.post(
         '${apiUrl}auth/login',
-        body: {'email': email, 'password': password},
+        body: {'identifier': email, 'contrasena': password},
       );
 
       if (response.statusCode == 200) {
