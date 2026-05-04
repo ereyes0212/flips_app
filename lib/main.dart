@@ -121,10 +121,14 @@ class MyApp extends StatelessWidget {
         home: FutureBuilder<String?>(
           future: SharedPreferences.getInstance().then((prefs) => prefs.getString('token')),
           builder: (context, snapshot) {
-            print('Token en main.dart: ${snapshot.data}');
-            if (!snapshot.hasData) {
+            if (snapshot.connectionState == ConnectionState.waiting) {
               return const Scaffold(body: Center(child: CircularProgressIndicator()));
             }
+
+            if (snapshot.hasError) {
+              return const LoginScreen();
+            }
+
             final token = snapshot.data ?? '';
             return token.isEmpty ? const LoginScreen() : const HomeScreen();
           },
