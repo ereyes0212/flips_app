@@ -13,6 +13,16 @@ class AuthProvider extends ChangeNotifier {
   bool get isLoading => _loading;
   bool get isLoggedIn => _usuario != null;
 
+  Future<void> signInWithEmailPassword(String email, String password) async {
+    _loading = true;
+    notifyListeners();
+
+    _usuario = await _authService.signInWithEmailPassword(email, password);
+
+    _loading = false;
+    notifyListeners();
+  }
+
   Future<void> signInWithGoogle() async {
     _loading = true;
     notifyListeners();
