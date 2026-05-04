@@ -7,6 +7,7 @@ import 'package:flips_app/screens/login/login.screen.dart';
 import 'package:flips_app/screens/diarios_digitales/diarios_digitales.screen.dart';
 import 'package:flips_app/screens/mi_perfil/mi_perfil.screen.dart';
 import 'package:flips_app/screens/mis_facturas/mis_facturas.screen.dart';
+import 'package:flips_app/screens/sitio_web/sitio_web.screen.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
@@ -199,11 +200,35 @@ class _HomeScreenState extends State<HomeScreen> {
                             const SizedBox(width: 7),
                             Expanded(
                               child: GridItem(
+                                icono: Icons.public,
+                                funcion: () {
+                                  Navigator.push(
+                                    context,
+                                    MaterialPageRoute(
+                                      builder: (_) => const SitioWebScreen(),
+                                    ),
+                                  );
+                                },
+                                texto: 'Sitio web',
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+
+                      const SizedBox(height: 7),
+                      IntrinsicHeight(
+                        child: Row(
+                          children: [
+                            Expanded(
+                              child: GridItem(
                                 icono: Icons.logout_rounded,
                                 funcion: _confirmarCerrarSesion,
                                 texto: 'Cerrar Sesión',
                               ),
                             ),
+                            const SizedBox(width: 7),
+                            const Expanded(child: SizedBox()),
                           ],
                         ),
                       ),
