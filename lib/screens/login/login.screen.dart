@@ -149,7 +149,7 @@ class _LoginScreenState extends State<LoginScreen> {
                           width: double.infinity,
                           child: OutlinedButton.icon(
                             onPressed: () {
-                              AuthController().loginWithGoogleController(context);
+                              // AuthController().loginWithGoogleController(context);
                             },
                             icon: const Icon(Icons.g_mobiledata, size: 28),
                             label: const Text('Iniciar sesión con Google'),

@@ -121,6 +121,7 @@ class MyApp extends StatelessWidget {
         home: FutureBuilder<String?>(
           future: SharedPreferences.getInstance().then((prefs) => prefs.getString('token')),
           builder: (context, snapshot) {
+            print('Token en main.dart: ${snapshot.data}');
             if (!snapshot.hasData) {
               return const Scaffold(body: Center(child: CircularProgressIndicator()));
             }
