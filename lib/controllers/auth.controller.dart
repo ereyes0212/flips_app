@@ -70,6 +70,49 @@ class AuthController {
     }
     return false;
   }
+
+  Future<bool> loginWithGoogleController(context) async {
+    final authprovider = Provider.of<AuthProvider>(context, listen: false);
+    authprovider.loading = true;
+
+    final respuesta = await AuthService().loginWithGoogle('google-oauth-token');
+    if (respuesta == 1) {
+      const storage = FlutterSecureStorage();
+      storage.write(key: 'token', value: respuesta.toString());
+      storage.write(key: 'user', value: 'google-user');
+      authprovider.nombreUsuario = 'google-user';
+
+      Navigator.pushAndRemoveUntil(
+          context,
+          MaterialPageRoute(builder: (_) => const HomeScreen()),
+          (Route<dynamic> route) => false);
+      authprovider.loading = false;
+      return true;
+    }
+
+    switch (respuesta) {
+      case 401:
+        globalSnackBar('Por favor inicie sesión para realizar esta acción.');
+        break;
+      case 500:
+        alertError(context,
+            mensaje:
+                'Ocurrió un error interno en el servidor al cargar la información, contacte con soporte técnico.');
+        break;
+      case 1200:
+        alertError(context, mensaje: 'Ocurrió un error al cargar la información.');
+        break;
+      case 4501:
+        alertError(context,
+            mensaje:
+                'Ocurrió un error al cargar la información, verifique su conexión a internet o acceso al servidor.');
+        break;
+      default:
+        globalSnackBar('No se pudo iniciar sesión con Google.');
+    }
+    authprovider.loading = false;
+    return false;
+  }
  Future logoutController(context) async {
     try {
       const storage = FlutterSecureStorage();

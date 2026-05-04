@@ -83,7 +83,7 @@ class _LoginScreenState extends State<LoginScreen> {
                         ),
                         const SizedBox(height: 6),
                         Text(
-                          'Ingresá tus credenciales para continuar.',
+                          'Ingresá con Google o con correo y contraseña.',
                           style: GoogleFonts.poppins(fontSize: 14, color: Colors.black54),
                           textAlign: TextAlign.center,
                         ),
@@ -97,7 +97,7 @@ class _LoginScreenState extends State<LoginScreen> {
                           },
                           decoration: InputDecoration(
                             errorText: authprovider.error ? 'Este campo es obligatorio' : null,
-                            hintText: 'Usuario',
+                            hintText: 'Correo electrónico',
                             prefixIcon: const Icon(Icons.person_outline),
                           ),
                         ),
@@ -144,15 +144,17 @@ class _LoginScreenState extends State<LoginScreen> {
                             label: const Text('Iniciar sesión'),
                           ),
                         ),
-                        const SizedBox(height: 8),
-                        Text(
-                          'o usá tu huella',
-                          style: GoogleFonts.poppins(fontSize: 12, color: Colors.black54),
+                        const SizedBox(height: 10),
+                        SizedBox(
+                          width: double.infinity,
+                          child: OutlinedButton.icon(
+                            onPressed: () {
+                              AuthController().loginWithGoogleController(context);
+                            },
+                            icon: const Icon(Icons.g_mobiledata, size: 28),
+                            label: const Text('Iniciar sesión con Google'),
+                          ),
                         ),
-                        // IconButton(
-                        //   icon: Icon(Icons.fingerprint, size: 42, color: tema.primary),
-                        //   onPressed: _authenticateWithBiometrics,
-                        // ),
                       ],
                     ),
                   ),
