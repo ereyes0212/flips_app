@@ -32,6 +32,8 @@ dependencies:
     sdk: flutter
   cupertino_icons: ^1.0.8
   http: ^1.2.2
+  dio: ^5.9.0
+  flutter_secure_storage: ^9.2.4
   provider: ^6.1.2
   animate_do: ^4.2.0
   google_fonts: ^6.2.1
