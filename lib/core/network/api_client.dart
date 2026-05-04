@@ -9,7 +9,7 @@ class ApiClient {
         _dio = dio ??
             Dio(
               BaseOptions(
-                baseUrl: 'http://localhost:3000',
+                baseUrl: 'http://192.168.2.20:3000',
                 connectTimeout: const Duration(seconds: 15),
                 receiveTimeout: const Duration(seconds: 20),
                 sendTimeout: const Duration(seconds: 20),
@@ -35,7 +35,7 @@ class ApiClient {
           if (shouldRetry) {
             final retryCount = (error.requestOptions.extra['retryCount'] ?? 0) + 1;
             error.requestOptions.extra['retryCount'] = retryCount;
-            await Future<void>.delayed(Duration(milliseconds: 300 * retryCount));
+            await Future<void>.delayed(Duration(milliseconds: (300 * retryCount).toInt()));
             try {
               final response = await _dio.fetch(error.requestOptions);
               return handler.resolve(response);

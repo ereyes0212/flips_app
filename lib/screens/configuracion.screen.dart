@@ -15,7 +15,7 @@ class ConfiguracionScreen extends StatelessWidget {
         padding: const EdgeInsets.all(16),
         child: Column(
           children: [
-            const SfDateRangePicker(),
+            SfDateRangePicker(),
             const SizedBox(height: 16),
             FilledButton(
               onPressed: () => context.read<AuthProvider>().signOut(),

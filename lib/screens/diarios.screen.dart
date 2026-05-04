@@ -35,7 +35,6 @@ class _DiariosScreenState extends State<DiariosScreen> {
               final result = await showBoardDateTimePicker(
                 context: context,
                 pickerType: DateTimePickerType.date,
-                locale: 'es_MX',
               );
               if (result != null) {
                 setState(() => _selectedDate = result);
