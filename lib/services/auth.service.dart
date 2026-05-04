@@ -1,19 +1,16 @@
-import 'dart:async';
 import 'dart:io';
 
 import 'package:flips_app/constants.dart';
-import 'package:http/http.dart' as http;
-
+import 'package:flips_app/services/http.service.dart';
 
 class AuthService {
-
+  final HttpService _httpService = HttpService();
 
   Future<int> login(String usuario, String password) async {
     try {
-      final response = await http.post(
-        Uri.parse('${apiUrl}auth/login'),
-        headers: {'Content-Type': 'application/json'},
-        body: '{"username": "$usuario", "password": "$password"}',
+      final response = await _httpService.post(
+        '${apiUrl}auth/login',
+        body: {'username': usuario, 'password': password},
       );
 
       if (response.statusCode == 200) {
@@ -33,6 +30,5 @@ class AuthService {
       return 1200; // Otro error
     }
   }
-
-
 }
+
