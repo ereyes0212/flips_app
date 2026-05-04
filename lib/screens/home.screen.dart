@@ -1,25 +1,51 @@
 import 'package:flutter/material.dart';
-import 'package:persistent_bottom_nav_bar/persistent_bottom_nav_bar.dart';
+import 'package:animated_bottom_navigation_bar/animated_bottom_navigation_bar.dart';
 
 import 'screens.dart';
 
-class HomeScreen extends StatelessWidget {
+class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
 
   @override
-  Widget build(BuildContext context) {
-    final controller = PersistentTabController(initialIndex: 0);
+  State<HomeScreen> createState() => _HomeScreenState();
+}
 
-    return PersistentTabView(
-      context,
-      controller: controller,
-      screens: const [DiariosScreen(), PerfilScreen(), ConfiguracionScreen()],
-      items: [
-        PersistentBottomNavBarItem(icon: const Icon(Icons.newspaper), title: 'Diarios'),
-        PersistentBottomNavBarItem(icon: const Icon(Icons.person), title: 'Perfil'),
-        PersistentBottomNavBarItem(icon: const Icon(Icons.settings), title: 'Ajustes'),
-      ],
-      navBarStyle: NavBarStyle.style6,
+class _HomeScreenState extends State<HomeScreen> {
+  int _activeIndex = 0;
+
+  final List<Widget> _screens = const [
+    DiariosScreen(),
+    PerfilScreen(),
+    ConfiguracionScreen(),
+  ];
+
+  final List<IconData> _icons = const [
+    Icons.newspaper,
+    Icons.person,
+    Icons.settings,
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      body: _screens[_activeIndex],
+      floatingActionButton: FloatingActionButton.small(
+        onPressed: () => setState(() => _activeIndex = 0),
+        tooltip: 'Ir a diarios',
+        child: const Icon(Icons.home),
+      ),
+      floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
+      bottomNavigationBar: AnimatedBottomNavigationBar(
+        icons: _icons,
+        activeIndex: _activeIndex,
+        gapLocation: GapLocation.center,
+        notchSmoothness: NotchSmoothness.verySmoothEdge,
+        leftCornerRadius: 24,
+        rightCornerRadius: 24,
+        activeColor: Theme.of(context).colorScheme.primary,
+        inactiveColor: Colors.grey.shade500,
+        onTap: (index) => setState(() => _activeIndex = index),
+      ),
     );
   }
 }
