@@ -4,7 +4,9 @@ import 'package:flips_app/controllers/auth.controller.dart';
 import 'package:flips_app/globals/widgets/widgets.dart';
 import 'package:flips_app/providers/auth.provider.dart';
 import 'package:flips_app/screens/login/login.screen.dart';
+import 'package:flips_app/screens/diarios_digitales/diarios_digitales.screen.dart';
 import 'package:flips_app/screens/mi_perfil/mi_perfil.screen.dart';
+import 'package:flips_app/screens/mis_facturas/mis_facturas.screen.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
@@ -162,9 +164,16 @@ class _HomeScreenState extends State<HomeScreen> {
                             const SizedBox(width: 7),
                             Expanded(
                               child: GridItem(
-                                icono: Icons.account_balance_wallet_outlined,
-                                funcion: () {},
-                                texto: 'Finanzas',
+                                icono: Icons.receipt_long_outlined,
+                                funcion: () {
+                                  Navigator.push(
+                                    context,
+                                    MaterialPageRoute(
+                                      builder: (_) => const MisFacturasScreen(),
+                                    ),
+                                  );
+                                },
+                                texto: 'Mis facturas',
                               ),
                             ),
                           ],
@@ -175,9 +184,16 @@ class _HomeScreenState extends State<HomeScreen> {
                           children: [
                             Expanded(
                               child: GridItem(
-                                icono: Icons.message_outlined,
-                                funcion: () {},
-                                texto: 'Mensajes',
+                                icono: Icons.picture_as_pdf_outlined,
+                                funcion: () {
+                                  Navigator.push(
+                                    context,
+                                    MaterialPageRoute(
+                                      builder: (_) => const DiariosDigitalesScreen(),
+                                    ),
+                                  );
+                                },
+                                texto: 'Diarios Digitales',
                               ),
                             ),
                             const SizedBox(width: 7),
