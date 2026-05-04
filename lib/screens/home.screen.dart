@@ -41,7 +41,7 @@ class _HomeScreenState extends State<HomeScreen> {
         gapLocation: GapLocation.end,
         notchSmoothness: NotchSmoothness.verySmoothEdge,
         leftCornerRadius: 24,
-        rightCornerRadius: 24,
+        rightCornerRadius: 0,
         activeColor: Theme.of(context).colorScheme.primary,
         inactiveColor: Colors.grey.shade500,
         onTap: (index) => setState(() => _activeIndex = index),
