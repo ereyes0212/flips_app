@@ -62,34 +62,113 @@ class _PerfilData extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+
     return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        CircleAvatar(
-          radius: 40,
-          child: Text(
-            perfil.nombre.isEmpty ? '?' : perfil.nombre[0].toUpperCase(),
-            style: const TextStyle(fontSize: 28, fontWeight: FontWeight.bold),
+        Card(
+          elevation: 1,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          child: Padding(
+            padding: const EdgeInsets.all(20),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    CircleAvatar(
+                      radius: 32,
+                      backgroundColor: colorScheme.primaryContainer,
+                      child: Text(
+                        perfil.nombre.isEmpty
+                            ? '?'
+                            : perfil.nombre[0].toUpperCase(),
+                        style: TextStyle(
+                          fontSize: 24,
+                          fontWeight: FontWeight.bold,
+                          color: colorScheme.onPrimaryContainer,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            perfil.nombre.isEmpty ? 'Sin nombre' : perfil.nombre,
+                            style: const TextStyle(
+                              fontSize: 20,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            perfil.email.isEmpty ? '-' : perfil.email,
+                            style: TextStyle(color: colorScheme.onSurfaceVariant),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 20),
+                const Text(
+                  'Información personal',
+                  style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
+                ),
+                const SizedBox(height: 12),
+                _DataTile(
+                  label: 'Usuario',
+                  value: perfil.usuario,
+                  icon: Icons.person_outline_rounded,
+                ),
+                _DataTile(
+                  label: 'Teléfono',
+                  value: perfil.telefono,
+                  icon: Icons.call_outlined,
+                ),
+                _DataTile(
+                  label: 'Dirección',
+                  value: perfil.direccion,
+                  icon: Icons.home_outlined,
+                ),
+                _DataTile(
+                  label: 'Ciudad',
+                  value: perfil.ciudad,
+                  icon: Icons.location_city_outlined,
+                ),
+                const SizedBox(height: 16),
+                const Text(
+                  'Suscripción',
+                  style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
+                ),
+                const SizedBox(height: 12),
+                _DataTile(
+                  label: 'Rol',
+                  value: perfil.rol.nombre,
+                  icon: Icons.badge_outlined,
+                ),
+                _DataTile(
+                  label: 'Plan activo',
+                  value: perfil.suscripcionActiva?.plan ?? 'Sin plan activo',
+                  icon: Icons.workspace_premium_outlined,
+                ),
+                _DataTile(
+                  label: 'Estado suscripción',
+                  value: perfil.suscripcionActiva?.estado ?? 'N/A',
+                  icon: Icons.verified_user_outlined,
+                ),
+                _DataTile(
+                  label: 'Intervalo',
+                  value: perfil.suscripcionActiva?.intervalo ?? 'N/A',
+                  icon: Icons.date_range_outlined,
+                  showDivider: false,
+                ),
+              ],
+            ),
           ),
-        ),
-        const SizedBox(height: 20),
-        _DataTile(label: 'Nombre', value: perfil.nombre),
-        _DataTile(label: 'Usuario', value: perfil.usuario),
-        _DataTile(label: 'Email', value: perfil.email),
-        _DataTile(label: 'Teléfono', value: perfil.telefono),
-        _DataTile(label: 'Dirección', value: perfil.direccion),
-        _DataTile(label: 'Ciudad', value: perfil.ciudad),
-        _DataTile(label: 'Rol', value: perfil.rol.nombre),
-        _DataTile(
-          label: 'Plan activo',
-          value: perfil.suscripcionActiva?.plan ?? 'Sin plan activo',
-        ),
-        _DataTile(
-          label: 'Estado suscripción',
-          value: perfil.suscripcionActiva?.estado ?? 'N/A',
-        ),
-        _DataTile(
-          label: 'Intervalo',
-          value: perfil.suscripcionActiva?.intervalo ?? 'N/A',
         ),
       ],
     );
@@ -97,16 +176,58 @@ class _PerfilData extends StatelessWidget {
 }
 
 class _DataTile extends StatelessWidget {
-  const _DataTile({required this.label, required this.value});
+  const _DataTile({
+    required this.label,
+    required this.value,
+    required this.icon,
+    this.showDivider = true,
+  });
 
   final String label;
   final String value;
+  final IconData icon;
+  final bool showDivider;
 
   @override
   Widget build(BuildContext context) {
-    return Card(
-      margin: const EdgeInsets.only(bottom: 10),
-      child: ListTile(title: Text(label), subtitle: Text(value.isEmpty ? '-' : value)),
+    final colorScheme = Theme.of(context).colorScheme;
+
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 10),
+      decoration: BoxDecoration(
+        border: showDivider
+            ? Border(bottom: BorderSide(color: colorScheme.outlineVariant))
+            : null,
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(icon, color: colorScheme.primary),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  label,
+                  style: TextStyle(
+                    fontSize: 13,
+                    color: colorScheme.onSurfaceVariant,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  value.isEmpty ? '-' : value,
+                  style: const TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
