@@ -100,17 +100,17 @@ class _PaquetesScreenState extends State<PaquetesScreen> {
 
       final result = pixelpay.TransactionResult.fromResponse(rawResponse);
       final resultMap = {
-        'success': result.success,
-        'message': result.message,
+        'success': result.response_approved,
+        'message': result.response_reason,
         'payment_hash': result.payment_hash,
-        'data': rawResponse['data'],
+        'data': rawResponse.data,
       };
 
       final confirm = await _checkoutService.confirmarCheckout(
         pagoId: checkout.pagoId,
         planId: plan.id,
         result: resultMap,
-        isValidPayment: result.success == true,
+        isValidPayment: result.response_approved == true,
         reference: checkout.paymentData!.reference,
       );
 
