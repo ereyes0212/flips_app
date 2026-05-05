@@ -15,6 +15,7 @@ import 'package:pixelpay_sdk/models/order.dart' as pixelpay;
 import 'package:pixelpay_sdk/models/settings.dart' as pixelpay;
 import 'package:pixelpay_sdk/requests/sale_transaction.dart' as pixelpay;
 import 'package:pixelpay_sdk/services/transaction.dart' as pixelpay;
+import 'package:pixelpay_sdk/resources/locations.dart' as pixelpay;
 import 'package:provider/provider.dart';
 
 class PaquetesScreen extends StatefulWidget {
@@ -57,7 +58,12 @@ class _PaquetesScreenState extends State<PaquetesScreen> {
       }
 
       final settings = pixelpay.Settings();
-      settings.setupEndpoint('https://pixelpay.app');
+      final env = checkout.sdkConfig!.environment.toLowerCase();
+      if (env == 'sandbox' || env == 'test') {
+        settings.setupSandbox();
+      } else {
+        settings.setupEndpoint('https://pixelpay.app');
+      }
       settings.setupCredentials(checkout.sdkConfig!.publicKey, '');
 
       final order = pixelpay.Order();
@@ -72,6 +78,7 @@ class _PaquetesScreenState extends State<PaquetesScreen> {
       item.qty = 1;
       item.price = checkout.paymentData!.amount;
       order.addItem(item);
+      order.totalize();
 
       final card = pixelpay.Card();
       card.number = form.cardNumber;
@@ -88,6 +95,7 @@ class _PaquetesScreenState extends State<PaquetesScreen> {
       billing.phone = form.phone;
 
       final sale = pixelpay.SaleTransaction();
+      sale.lang = 'es';
       sale.setOrder(order);
       sale.setCard(card);
       sale.setBilling(billing);
@@ -241,6 +249,52 @@ class _CardPaymentFormState extends State<_CardPaymentForm> {
   final _state = TextEditingController(text: 'HN-CR');
   final _city = TextEditingController();
   final _phone = TextEditingController();
+  Map<String, dynamic> _countries = {};
+  Map<String, dynamic> _states = {};
+  bool _loadingLocations = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadLocations();
+  }
+
+  Future<void> _loadLocations() async {
+    try {
+      final countries = await pixelpay.Locations.countriesList();
+      final states = await pixelpay.Locations.statesList(_country.text);
+      if (!mounted) return;
+      setState(() {
+        _countries = countries;
+        _states = states;
+        _loadingLocations = false;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _loadingLocations = false);
+    }
+  }
+
+  Future<void> _onCountryChanged(String? country) async {
+    if (country == null || country.isEmpty) return;
+    setState(() {
+      _country.text = country;
+      _state.text = '';
+      _states = {};
+      _loadingLocations = true;
+    });
+    try {
+      final states = await pixelpay.Locations.statesList(country);
+      if (!mounted) return;
+      setState(() {
+        _states = states;
+        _loadingLocations = false;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _loadingLocations = false);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -253,8 +307,17 @@ class _CardPaymentFormState extends State<_CardPaymentForm> {
             Text('Pagar ${widget.plan.name}', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
             const SizedBox(height: 12),
             ...[
-              _field(_card, 'Número de tarjeta'), _field(_cvv, 'CVV'), _field(_expMonth, 'Mes exp (MM)'), _field(_expYear, 'Año exp (YYYY)'),
-              _field(_cardholder, 'Nombre en tarjeta'), _field(_email, 'Email'), _field(_address, 'Dirección'), _field(_country, 'País (ISO2)'), _field(_state, 'Departamento/Estado'), _field(_city, 'Ciudad'), _field(_phone, 'Teléfono'),
+              _field(_card, 'Número de tarjeta', keyboardType: TextInputType.number),
+              _field(_cvv, 'CVV', keyboardType: TextInputType.number),
+              _field(_expMonth, 'Mes exp (MM)', keyboardType: TextInputType.number),
+              _field(_expYear, 'Año exp (YYYY)', keyboardType: TextInputType.number),
+              _field(_cardholder, 'Nombre en tarjeta', keyboardType: TextInputType.name),
+              _field(_email, 'Email', keyboardType: TextInputType.emailAddress),
+              _field(_address, 'Dirección', keyboardType: TextInputType.streetAddress),
+              _countryDropdown(),
+              _stateDropdown(),
+              _field(_city, 'Ciudad', keyboardType: TextInputType.text),
+              _field(_phone, 'Teléfono', keyboardType: TextInputType.phone),
             ],
             const SizedBox(height: 12),
             SizedBox(
@@ -275,8 +338,48 @@ class _CardPaymentFormState extends State<_CardPaymentForm> {
     );
   }
 
-  Widget _field(TextEditingController c, String label) => Padding(
+  Widget _field(TextEditingController c, String label, {TextInputType? keyboardType}) => Padding(
     padding: const EdgeInsets.only(bottom: 8),
-    child: TextFormField(controller: c, decoration: InputDecoration(labelText: label), validator: (v) => (v == null || v.trim().isEmpty) ? 'Requerido' : null),
+    child: TextFormField(
+      controller: c,
+      keyboardType: keyboardType,
+      decoration: InputDecoration(labelText: label),
+      validator: (v) => (v == null || v.trim().isEmpty) ? 'Requerido' : null,
+    ),
+  );
+
+  Widget _countryDropdown() => Padding(
+    padding: const EdgeInsets.only(bottom: 8),
+    child: DropdownButtonFormField<String>(
+      value: _countries.containsKey(_country.text) ? _country.text : null,
+      decoration: const InputDecoration(labelText: 'País'),
+      items: _countries.keys
+          .map((code) => DropdownMenuItem<String>(
+                value: code,
+                child: Text(_countries[code]['title']?.toString() ?? code),
+              ))
+          .toList(),
+      onChanged: _onCountryChanged,
+      validator: (v) => (v == null || v.isEmpty) ? 'Requerido' : null,
+    ),
+  );
+
+  Widget _stateDropdown() => Padding(
+    padding: const EdgeInsets.only(bottom: 8),
+    child: DropdownButtonFormField<String>(
+      value: _states.containsKey(_state.text) ? _state.text : null,
+      decoration: InputDecoration(
+        labelText: 'Departamento/Estado',
+        suffixIcon: _loadingLocations ? const SizedBox(width: 16, height: 16, child: Padding(padding: EdgeInsets.all(12), child: CircularProgressIndicator(strokeWidth: 2))) : null,
+      ),
+      items: _states.keys
+          .map((code) => DropdownMenuItem<String>(
+                value: code,
+                child: Text(_states[code]['title']?.toString() ?? code),
+              ))
+          .toList(),
+      onChanged: (value) => setState(() => _state.text = value ?? ''),
+      validator: (v) => (v == null || v.isEmpty) ? 'Requerido' : null,
+    ),
   );
 }
