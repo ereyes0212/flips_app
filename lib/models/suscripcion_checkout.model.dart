@@ -29,15 +29,17 @@ class ContratarSuscripcionResponse {
 }
 
 class SdkConfig {
-  SdkConfig({required this.environment, required this.publicKey});
+  SdkConfig({required this.environment, required this.publicKey, this.secretKey});
 
   final String environment;
   final String publicKey;
+  final String? secretKey;
 
   factory SdkConfig.fromJson(Map<String, dynamic> json) {
     return SdkConfig(
       environment: json['environment']?.toString() ?? 'sandbox',
       publicKey: json['publicKey']?.toString() ?? '',
+      secretKey: json['secretKey']?.toString(),
     );
   }
 }

@@ -39,7 +39,14 @@ class _PaquetesScreenState extends State<PaquetesScreen> {
   String _currency(String divisa, int centavos) =>
       '$divisa ${NumberFormat('#,##0.00', 'es_HN').format(centavos / 100)}';
 
+  String _intervalLabel(PaqueteModel item) {
+    return item.intervalCount > 1
+        ? 'Cada ${item.intervalCount} ${item.interval}'
+        : 'Cada ${item.interval}';
+  }
+
   Future<void> _pagarSuscripcion(PaqueteModel plan) async {
+    print('Iniciando proceso de pago para el plan: ${plan.name} (ID: ${plan.id})');
     final form = await showModalBottomSheet<_CardFormData>(
       context: context,
       isScrollControlled: true,
@@ -52,6 +59,7 @@ class _PaquetesScreenState extends State<PaquetesScreen> {
     setState(() => _paying = true);
 
     try {
+      print('Iniciando checkout para plan: ${plan.id}');
       final checkout = await _checkoutService.iniciarCheckout(planId: plan.id);
       if (!checkout.ok || checkout.sdkConfig == null || checkout.paymentData == null) {
         throw Exception(checkout.message ?? 'No se pudo inicializar el checkout.');
@@ -61,10 +69,13 @@ class _PaquetesScreenState extends State<PaquetesScreen> {
       final env = checkout.sdkConfig!.environment.toLowerCase();
       if (env == 'sandbox' || env == 'test') {
         settings.setupSandbox();
+        print('Usando entorno sandbox');
       } else {
         settings.setupEndpoint('https://pixelpay.app');
+        print('Usando entorno producción');
       }
-      settings.setupCredentials(checkout.sdkConfig!.publicKey, '');
+      settings.setupCredentials(checkout.sdkConfig!.publicKey, checkout.sdkConfig!.secretKey ?? '');
+      print('Credenciales configuradas con publicKey: ${checkout.sdkConfig!.publicKey}, secretKey: ${checkout.sdkConfig!.secretKey != null ? 'proporcionada' : 'vacía'}');
 
       final order = pixelpay.Order();
       order.id = checkout.paymentData!.reference;
@@ -100,13 +111,17 @@ class _PaquetesScreenState extends State<PaquetesScreen> {
       sale.setCard(card);
       sale.setBilling(billing);
 
+      print('Enviando transacción a PixelPay...');
       final transaction = pixelpay.Transaction(settings);
       final rawResponse = await transaction.doSale(sale);
+      print('Respuesta cruda de PixelPay: $rawResponse');
       if (rawResponse == null || !pixelpay.TransactionResult.validateResponse(rawResponse)) {
+        print('Respuesta inválida: rawResponse es null o no válida');
         throw Exception('Transacción inválida en PixelPay.');
       }
 
       final result = pixelpay.TransactionResult.fromResponse(rawResponse);
+      print('Resultado de la transacción: aprobado=${result.response_approved}, razón=${result.response_reason}, hash=${result.payment_hash}');
       final resultMap = {
         'success': result.response_approved,
         'message': result.response_reason,
@@ -121,6 +136,7 @@ class _PaquetesScreenState extends State<PaquetesScreen> {
         isValidPayment: result.response_approved == true,
         reference: checkout.paymentData!.reference,
       );
+      print('Confirmación del backend: ok=${confirm.ok}, message=${confirm.message}, suscripcionId=${confirm.suscripcionId}');
 
       if (!mounted) return;
       if (confirm.ok && confirm.suscripcionId != null && confirm.suscripcionId!.isNotEmpty) {
@@ -130,13 +146,17 @@ class _PaquetesScreenState extends State<PaquetesScreen> {
       } else {
         _showSnack(confirm.message ?? 'No se pudo confirmar el pago.', error: true);
       }
-    } on SocketException {
+    } on SocketException catch (e) {
+      print('Error de conexión: $e');
       _showSnack('Sin conexión. Reintenta con internet estable.', error: true);
-    } on TimeoutException {
+    } on TimeoutException catch (e) {
+      print('Error de tiempo de espera: $e');
       _showSnack('Tiempo de espera agotado. Intenta nuevamente.', error: true);
     } on ApiHttpException catch (e) {
+      print('Error HTTP de API: ${e.message} (código: ${e.statusCode})');
       _showSnack(e.message, error: true);
     } catch (e) {
+      print('Error general al procesar pago: $e');
       _showSnack('Error al procesar pago: $e', error: true);
     } finally {
       if (mounted) setState(() => _paying = false);
@@ -145,7 +165,28 @@ class _PaquetesScreenState extends State<PaquetesScreen> {
 
   void _showSnack(String message, {bool error = false}) {
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(backgroundColor: error ? Colors.red : Colors.green, content: Text(message)),
+      SnackBar(
+        backgroundColor: error ? Colors.red : Colors.green,
+        content: Text(message),
+      ),
+    );
+  }
+
+  Widget _metaPill(BuildContext context, IconData icon, String text) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.surfaceContainerHighest.withValues(alpha: 0.65),
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 16),
+          const SizedBox(width: 6),
+          Text(text, style: const TextStyle(fontWeight: FontWeight.w600)),
+        ],
+      ),
     );
   }
 
@@ -164,49 +205,105 @@ class _PaquetesScreenState extends State<PaquetesScreen> {
               itemCount: provider.loading ? 1 : provider.paquetes.length + 1,
               itemBuilder: (context, index) {
                 if (index == 0) {
-                  if (provider.loading) return const Center(child: Padding(padding: EdgeInsets.only(top: 40), child: CircularProgressIndicator()));
+                  if (provider.loading) {
+                    return const Center(
+                      child: Padding(
+                        padding: EdgeInsets.only(top: 40),
+                        child: CircularProgressIndicator(),
+                      ),
+                    );
+                  }
                   if (provider.errorMessage.isNotEmpty) return Text(provider.errorMessage);
                   if (provider.paquetes.isEmpty) return const Text('No hay paquetes para mostrar.');
                   return const SizedBox.shrink();
                 }
+
                 final item = provider.paquetes[index - 1];
+
                 return Card(
                   elevation: 0,
-                  margin: const EdgeInsets.only(bottom: 12),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+                  margin: const EdgeInsets.only(bottom: 14),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
                   child: Container(
+                    padding: const EdgeInsets.all(16),
                     decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(18),
+                      borderRadius: BorderRadius.circular(20),
                       gradient: LinearGradient(
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
                         colors: [
-                          Theme.of(context).colorScheme.primaryContainer.withValues(alpha: 0.28),
+                          Theme.of(context).colorScheme.primaryContainer.withValues(alpha: 0.35),
                           Theme.of(context).colorScheme.surface,
                         ],
                       ),
-                    ),
-                    child: ListTile(
-                      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-                      title: Text(item.name, style: const TextStyle(fontWeight: FontWeight.bold)),
-                      subtitle: Text('${item.description}\n${item.interval} x${item.intervalCount}\n${item.active ? 'Activo' : 'Inactivo'}'),
-                      trailing: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        crossAxisAlignment: CrossAxisAlignment.end,
-                        children: [
-                          Text(_currency(item.currency, item.priceCents)),
-                          const SizedBox(height: 6),
-                          ElevatedButton(
-                            onPressed: _paying ? null : () => _pagarSuscripcion(item),
-                            child: const Text('Pagar'),
-                          ),
-                        ],
+                      border: Border.all(
+                        color: Theme.of(context).colorScheme.outlineVariant,
                       ),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Expanded(
+                              child: Text(
+                                item.name,
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.w700,
+                                  fontSize: 18,
+                                ),
+                              ),
+                            ),
+                            Chip(
+                              label: Text(item.active ? 'Activo' : 'Inactivo'),
+                              visualDensity: VisualDensity.compact,
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          item.description,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        const SizedBox(height: 12),
+                        Wrap(
+                          spacing: 8,
+                          runSpacing: 8,
+                          children: [
+                            _metaPill(
+                              context,
+                              Icons.schedule_rounded,
+                              _intervalLabel(item),
+                            ),
+                            _metaPill(
+                              context,
+                              Icons.payments_rounded,
+                              _currency(item.currency, item.priceCents),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 14),
+                        SizedBox(
+                          width: double.infinity,
+                          child: ElevatedButton.icon(
+                            onPressed: _paying ? null : () => _pagarSuscripcion(item),
+                            icon: const Icon(Icons.lock_outline_rounded),
+                            label: const Text('Pagar ahora'),
+                          ),
+                        ),
+                      ],
                     ),
                   ),
                 );
               },
             ),
           ),
-          if (_paying) const ColoredBox(color: Color(0x66000000), child: Center(child: CircularProgressIndicator())),
+          if (_paying)
+            const ColoredBox(
+              color: Color(0x66000000),
+              child: Center(child: CircularProgressIndicator()),
+            ),
         ],
       ),
     );
@@ -214,7 +311,20 @@ class _PaquetesScreenState extends State<PaquetesScreen> {
 }
 
 class _CardFormData {
-  _CardFormData({required this.cardNumber, required this.cvv, required this.expMonth, required this.expYear, required this.cardholder, required this.email, required this.address, required this.country, required this.state, required this.city, required this.phone});
+  _CardFormData({
+    required this.cardNumber,
+    required this.cvv,
+    required this.expMonth,
+    required this.expYear,
+    required this.cardholder,
+    required this.email,
+    required this.address,
+    required this.country,
+    required this.state,
+    required this.city,
+    required this.phone,
+  });
+
   final String cardNumber;
   final String cvv;
   final int expMonth;
@@ -249,9 +359,20 @@ class _CardPaymentFormState extends State<_CardPaymentForm> {
   final _state = TextEditingController(text: 'HN-CR');
   final _city = TextEditingController();
   final _phone = TextEditingController();
+
   Map<String, dynamic> _countries = {};
   Map<String, dynamic> _states = {};
   bool _loadingLocations = true;
+
+  String _locationLabel(dynamic locationValue, String fallback) {
+    if (locationValue is Map<String, dynamic>) {
+      return locationValue['title']?.toString() ?? fallback;
+    }
+    if (locationValue is Map) {
+      return locationValue['title']?.toString() ?? fallback;
+    }
+    return locationValue?.toString() ?? fallback;
+  }
 
   @override
   void initState() {
@@ -261,6 +382,11 @@ class _CardPaymentFormState extends State<_CardPaymentForm> {
 
   Future<void> _loadLocations() async {
     try {
+      final settings = pixelpay.Settings();
+      settings.setupEndpoint('https://hn.ficoposonline.com/');
+      // If locations require credentials, add them here, but probably not needed
+      
+
       final countries = await pixelpay.Locations.countriesList();
       final states = await pixelpay.Locations.statesList(_country.text);
       if (!mounted) return;
@@ -283,7 +409,12 @@ class _CardPaymentFormState extends State<_CardPaymentForm> {
       _states = {};
       _loadingLocations = true;
     });
+
     try {
+      final settings = pixelpay.Settings();
+      settings.setupEndpoint('https://hn.ficoposonline.com/');
+      settings.setupCredentials('FH1828955021', '2d98aaf75de7a9ba64574ad608412d9795605eb1aa7868d776dc38ff2c5aeee8c9c63c645b1edfaaacafba2c0841c6bc8e5f4f113f81bc636c1233f75ad0e4f0'); // Uncomment if needed
+
       final states = await pixelpay.Locations.statesList(country);
       if (!mounted) return;
       setState(() {
@@ -299,87 +430,130 @@ class _CardPaymentFormState extends State<_CardPaymentForm> {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: EdgeInsets.only(left: 16, right: 16, top: 16, bottom: MediaQuery.of(context).viewInsets.bottom + 16),
+      padding: EdgeInsets.only(
+        left: 16,
+        right: 16,
+        top: 16,
+        bottom: MediaQuery.of(context).viewInsets.bottom + 16,
+      ),
       child: SingleChildScrollView(
         child: Form(
           key: _formKey,
-          child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
-            Text('Pagar ${widget.plan.name}', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-            const SizedBox(height: 12),
-            ...[
-              _field(_card, 'Número de tarjeta', keyboardType: TextInputType.number),
-              _field(_cvv, 'CVV', keyboardType: TextInputType.number),
-              _field(_expMonth, 'Mes exp (MM)', keyboardType: TextInputType.number),
-              _field(_expYear, 'Año exp (YYYY)', keyboardType: TextInputType.number),
-              _field(_cardholder, 'Nombre en tarjeta', keyboardType: TextInputType.name),
-              _field(_email, 'Email', keyboardType: TextInputType.emailAddress),
-              _field(_address, 'Dirección', keyboardType: TextInputType.streetAddress),
-              _countryDropdown(),
-              _stateDropdown(),
-              _field(_city, 'Ciudad', keyboardType: TextInputType.text),
-              _field(_phone, 'Teléfono', keyboardType: TextInputType.phone),
-            ],
-            const SizedBox(height: 12),
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton(
-                onPressed: () {
-                  if (!(_formKey.currentState?.validate() ?? false)) return;
-                  Navigator.pop(context, _CardFormData(
-                    cardNumber: _card.text.trim(), cvv: _cvv.text.trim(), expMonth: int.parse(_expMonth.text.trim()), expYear: int.parse(_expYear.text.trim()), cardholder: _cardholder.text.trim(), email: _email.text.trim(), address: _address.text.trim(), country: _country.text.trim(), state: _state.text.trim(), city: _city.text.trim(), phone: _phone.text.trim(),
-                  ));
-                },
-                child: const Text('Procesar pago'),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                'Pagar ${widget.plan.name}',
+                style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
               ),
-            ),
-          ]),
+              const SizedBox(height: 12),
+              ...[
+                _field(_card, 'Número de tarjeta', keyboardType: TextInputType.number),
+                _field(_cvv, 'CVV', keyboardType: TextInputType.number),
+                _field(_expMonth, 'Mes exp (MM)', keyboardType: TextInputType.number),
+                _field(_expYear, 'Año exp (YYYY)', keyboardType: TextInputType.number),
+                _field(_cardholder, 'Nombre en tarjeta', keyboardType: TextInputType.name),
+                _field(_email, 'Email', keyboardType: TextInputType.emailAddress),
+                _field(_address, 'Dirección', keyboardType: TextInputType.streetAddress),
+                _countryDropdown(),
+                _stateDropdown(),
+                _field(_city, 'Ciudad', keyboardType: TextInputType.text),
+                _field(_phone, 'Teléfono', keyboardType: TextInputType.phone),
+              ],
+              const SizedBox(height: 12),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  onPressed: () {
+                    if (!(_formKey.currentState?.validate() ?? false)) return;
+                    Navigator.pop(
+                      context,
+                      _CardFormData(
+                        cardNumber: _card.text.trim(),
+                        cvv: _cvv.text.trim(),
+                        expMonth: int.parse(_expMonth.text.trim()),
+                        expYear: int.parse(_expYear.text.trim()),
+                        cardholder: _cardholder.text.trim(),
+                        email: _email.text.trim(),
+                        address: _address.text.trim(),
+                        country: _country.text.trim(),
+                        state: _state.text.trim(),
+                        city: _city.text.trim(),
+                        phone: _phone.text.trim(),
+                      ),
+                    );
+                  },
+                  child: const Text('Procesar pago'),
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
   }
 
-  Widget _field(TextEditingController c, String label, {TextInputType? keyboardType}) => Padding(
-    padding: const EdgeInsets.only(bottom: 8),
-    child: TextFormField(
-      controller: c,
-      keyboardType: keyboardType,
-      decoration: InputDecoration(labelText: label),
-      validator: (v) => (v == null || v.trim().isEmpty) ? 'Requerido' : null,
-    ),
-  );
+  Widget _field(
+    TextEditingController c,
+    String label, {
+    TextInputType? keyboardType,
+  }) =>
+      Padding(
+        padding: const EdgeInsets.only(bottom: 8),
+        child: TextFormField(
+          controller: c,
+          keyboardType: keyboardType,
+          decoration: InputDecoration(labelText: label),
+          validator: (v) => (v == null || v.trim().isEmpty) ? 'Requerido' : null,
+        ),
+      );
 
   Widget _countryDropdown() => Padding(
-    padding: const EdgeInsets.only(bottom: 8),
-    child: DropdownButtonFormField<String>(
-      value: _countries.containsKey(_country.text) ? _country.text : null,
-      decoration: const InputDecoration(labelText: 'País'),
-      items: _countries.keys
-          .map((code) => DropdownMenuItem<String>(
-                value: code,
-                child: Text(_countries[code]['title']?.toString() ?? code),
-              ))
-          .toList(),
-      onChanged: _onCountryChanged,
-      validator: (v) => (v == null || v.isEmpty) ? 'Requerido' : null,
-    ),
-  );
+        padding: const EdgeInsets.only(bottom: 8),
+        child: DropdownButtonFormField<String>(
+          value: _countries.containsKey(_country.text) ? _country.text : null,
+          decoration: const InputDecoration(labelText: 'País'),
+          items: _countries.keys
+              .map(
+                (code) => DropdownMenuItem<String>(
+                  value: code,
+                  child: Text(_locationLabel(_countries[code], code)),
+                ),
+              )
+              .toList(),
+          onChanged: _onCountryChanged,
+          validator: (v) => (v == null || v.isEmpty) ? 'Requerido' : null,
+        ),
+      );
 
   Widget _stateDropdown() => Padding(
-    padding: const EdgeInsets.only(bottom: 8),
-    child: DropdownButtonFormField<String>(
-      value: _states.containsKey(_state.text) ? _state.text : null,
-      decoration: InputDecoration(
-        labelText: 'Departamento/Estado',
-        suffixIcon: _loadingLocations ? const SizedBox(width: 16, height: 16, child: Padding(padding: EdgeInsets.all(12), child: CircularProgressIndicator(strokeWidth: 2))) : null,
-      ),
-      items: _states.keys
-          .map((code) => DropdownMenuItem<String>(
-                value: code,
-                child: Text(_states[code]['title']?.toString() ?? code),
-              ))
-          .toList(),
-      onChanged: (value) => setState(() => _state.text = value ?? ''),
-      validator: (v) => (v == null || v.isEmpty) ? 'Requerido' : null,
-    ),
-  );
+        padding: const EdgeInsets.only(bottom: 8),
+        child: DropdownButtonFormField<String>(
+          value: _states.containsKey(_state.text) ? _state.text : null,
+          decoration: InputDecoration(
+            labelText: 'Departamento/Estado',
+            suffixIcon: _loadingLocations
+                ? const SizedBox(
+                    width: 16,
+                    height: 16,
+                    child: Padding(
+                      padding: EdgeInsets.all(12),
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    ),
+                  )
+                : null,
+          ),
+          items: _states.keys
+              .map(
+                (code) => DropdownMenuItem<String>(
+                  value: code,
+                  child: Text(_locationLabel(_states[code], code)),
+                ),
+              )
+              .toList(),
+          onChanged: (value) => setState(() => _state.text = value ?? ''),
+          validator: (v) => (v == null || v.isEmpty) ? 'Requerido' : null,
+        ),
+      );
 }
