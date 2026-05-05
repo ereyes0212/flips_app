@@ -7,6 +7,9 @@ import 'package:flips_app/providers/auth.provider.dart';
 import 'package:flips_app/screens/diarios_digitales/diarios_digitales.screen.dart';
 import 'package:flips_app/screens/mi_perfil/mi_perfil.screen.dart';
 import 'package:flips_app/screens/mis_facturas/mis_facturas.screen.dart';
+import 'package:flips_app/screens/mis_pagos/mis_pagos.screen.dart';
+import 'package:flips_app/screens/mis_suscripcion/mis_suscripcion.screen.dart';
+import 'package:flips_app/screens/paquetes/paquetes.screen.dart';
 import 'package:flips_app/screens/sitio_web/sitio_web.screen.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -118,6 +121,45 @@ class _MasOpcionesScreen extends StatelessWidget {
             Expanded(
               child: ListView(
                 children: [
+                  GridItem(
+                    icono: Icons.inventory_2_outlined,
+                    funcion: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => const PaquetesScreen(),
+                        ),
+                      );
+                    },
+                    texto: 'Paquetes',
+                  ),
+                  const SizedBox(height: 7),
+                  GridItem(
+                    icono: Icons.payments_outlined,
+                    funcion: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => const MisPagosScreen(),
+                        ),
+                      );
+                    },
+                    texto: 'Mis pagos',
+                  ),
+                  const SizedBox(height: 7),
+                  GridItem(
+                    icono: Icons.workspace_premium_outlined,
+                    funcion: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => const MisSuscripcionScreen(),
+                        ),
+                      );
+                    },
+                    texto: 'Mi suscripción',
+                  ),
+                  const SizedBox(height: 7),
                   GridItem(
                     icono: Icons.receipt_long_outlined,
                     funcion: () {

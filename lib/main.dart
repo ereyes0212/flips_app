@@ -9,6 +9,9 @@ import 'package:flips_app/screens/login/login.screen.dart';
 import 'package:flips_app/providers/diarios_digitales.provider.dart';
 import 'package:flips_app/providers/mi_perfil.provider.dart';
 import 'package:flips_app/providers/mis_facturas.provider.dart';
+import 'package:flips_app/providers/mis_pagos.provider.dart';
+import 'package:flips_app/providers/mis_suscripcion.provider.dart';
+import 'package:flips_app/providers/paquetes.provider.dart';
 import 'package:provider/provider.dart';
 import 'package:flips_app/constants.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
@@ -36,6 +39,9 @@ class MyApp extends StatelessWidget {
         ChangeNotifierProvider(create: (context) => MiPerfilProvider()),
         ChangeNotifierProvider(create: (context) => MisFacturasProvider()),
         ChangeNotifierProvider(create: (context) => DiariosDigitalesProvider()),
+        ChangeNotifierProvider(create: (context) => PaquetesProvider()),
+        ChangeNotifierProvider(create: (context) => MisPagosProvider()),
+        ChangeNotifierProvider(create: (context) => MisSuscripcionProvider()),
         // ChangeNotifierProvider(create: (context) => ClienteProvider()),
         // ChangeNotifierProvider(create: (context) => SuscripcionProvider()),
         // ChangeNotifierProvider(create: (context) => PagosProvider()),
