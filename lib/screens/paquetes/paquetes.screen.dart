@@ -43,10 +43,27 @@ class _PaquetesScreenState extends State<PaquetesScreen> {
             }
             final item = provider.paquetes[index - 1];
             return Card(
-              child: ListTile(
-                title: Text(item.name, style: const TextStyle(fontWeight: FontWeight.bold)),
-                subtitle: Text('${item.description}\n${item.interval} x${item.intervalCount}\n${item.active ? 'Activo' : 'Inactivo'}'),
-                trailing: Text(_currency(item.currency, item.priceCents)),
+              elevation: 0,
+              margin: const EdgeInsets.only(bottom: 12),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(18),
+              ),
+              child: Container(
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(18),
+                  gradient: LinearGradient(
+                    colors: [
+                      Theme.of(context).colorScheme.primaryContainer.withValues(alpha: 0.28),
+                      Theme.of(context).colorScheme.surface,
+                    ],
+                  ),
+                ),
+                child: ListTile(
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                  title: Text(item.name, style: const TextStyle(fontWeight: FontWeight.bold)),
+                  subtitle: Text('${item.description}\n${item.interval} x${item.intervalCount}\n${item.active ? 'Activo' : 'Inactivo'}'),
+                  trailing: Text(_currency(item.currency, item.priceCents)),
+                ),
               ),
             );
           },

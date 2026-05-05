@@ -46,7 +46,23 @@ class _DiariosDigitalesScreenState extends State<DiariosDigitalesScreen> {
             }
             final diario = provider.diarios[index - 1];
             return Card(
-              child: ListTile(
+              elevation: 0,
+              margin: const EdgeInsets.only(bottom: 12),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(18),
+              ),
+              child: Container(
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(18),
+                  gradient: LinearGradient(
+                    colors: [
+                      Theme.of(context).colorScheme.primaryContainer.withValues(alpha: 0.28),
+                      Theme.of(context).colorScheme.surface,
+                    ],
+                  ),
+                ),
+                child: ListTile(
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
                 title: Text(diario.titulo),
                 subtitle: Text('Año: ${diario.anio}\nMes: ${_meses[diario.mes] ?? diario.mes}'),
                 trailing: TextButton(
@@ -54,6 +70,7 @@ class _DiariosDigitalesScreenState extends State<DiariosDigitalesScreen> {
                     Navigator.push(context, MaterialPageRoute(builder: (_) => PdfViewerScreen(diario: diario)));
                   },
                   child: const Text('Ver'),
+                ),
                 ),
               ),
             );

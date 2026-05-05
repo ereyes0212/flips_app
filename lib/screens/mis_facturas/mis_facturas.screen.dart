@@ -43,9 +43,26 @@ class _MisFacturasScreenState extends State<MisFacturasScreen> {
             final item = provider.facturas[index - 1];
             final emitida = DateTime.tryParse(item.emitidaEn);
             return Card(
-              child: ListTile(
+              elevation: 0,
+              margin: const EdgeInsets.only(bottom: 12),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(18),
+              ),
+              child: Container(
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(18),
+                  gradient: LinearGradient(
+                    colors: [
+                      Theme.of(context).colorScheme.primaryContainer.withValues(alpha: 0.28),
+                      Theme.of(context).colorScheme.surface,
+                    ],
+                  ),
+                ),
+                child: ListTile(
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
                 title: Text(_lempiras(item.totalCentavos), style: const TextStyle(fontWeight: FontWeight.bold)),
                 subtitle: Text('Emitida: ${emitida == null ? '-' : DateFormat('dd/MM/yyyy HH:mm').format(emitida.toLocal())}\nEstado: ${item.estado}'),
+                ),
               ),
             );
           },
