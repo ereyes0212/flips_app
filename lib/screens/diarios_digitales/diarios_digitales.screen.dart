@@ -1,4 +1,4 @@
-import 'package:flips_app/constants.dart';
+
 import 'package:flips_app/controllers/diarios_digitales.controller.dart';
 import 'package:flips_app/models/diarios_digitales.model.dart';
 import 'package:flips_app/providers/diarios_digitales.provider.dart';
@@ -71,7 +71,7 @@ class PdfViewerScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final url = 'http://192.168.2.20:3000/${diario.archivoRuta}';
+    final url = 'https://d3dr34vkycigpz.cloudfront.net/${diario.archivoRuta}';
     return Scaffold(
       appBar: AppBar(title: Text(diario.titulo)),
       body: SfPdfViewer.network(url),
