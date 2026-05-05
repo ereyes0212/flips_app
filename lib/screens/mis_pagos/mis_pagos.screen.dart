@@ -61,7 +61,12 @@ class _MisPagosScreenState extends State<MisPagosScreen> {
                 child: ListTile(
                   contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
                 title: Text(_lempiras(item.montoCentavos), style: const TextStyle(fontWeight: FontWeight.bold)),
-                subtitle: Text('Estado: ${item.estado}\nFecha: ${fecha == null ? '-' : DateFormat('dd/MM/yyyy HH:mm').format(fecha.toLocal())}'),
+                subtitle: Text(
+                  'Estado: ${item.estado}\n'
+                  'Método: ${item.metodoPago?.nombre.isNotEmpty == true ? item.metodoPago!.nombre : '-'}\n'
+                  'Plan: ${item.suscripcion?.plan?.name.isNotEmpty == true ? item.suscripcion!.plan!.name : '-'}\n'
+                  'Fecha: ${fecha == null ? '-' : DateFormat('dd/MM/yyyy HH:mm').format(fecha.toLocal())}',
+                ),
                 ),
               ),
             );
