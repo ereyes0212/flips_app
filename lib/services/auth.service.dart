@@ -10,10 +10,14 @@ class AuthService {
 
   Future<LoginResponseModel?> login(String email, String password) async {
     try {
+      print('Login url: ${apiUrl}auth/login');
       final response = await _httpService.post(
         '${apiUrl}auth/login',
         body: {'identifier': email, 'contrasena': password},
       );
+      print('Login response status: ${response.statusCode}');
+      print('Location: ${response.headers['location']}');
+      print('Body: ${response.body}');
 
       if (response.statusCode == 200) {
         return LoginResponseModel.fromJson(jsonDecode(response.body));

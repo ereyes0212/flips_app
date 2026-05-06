@@ -29,17 +29,37 @@ class ContratarSuscripcionResponse {
 }
 
 class SdkConfig {
-  SdkConfig({required this.environment, required this.publicKey, this.secretKey});
+  SdkConfig({
+    required this.environment,
+    required this.publicKey,
+    this.secretKey,
+    this.endpoint,
+    this.headers = const {},
+  });
 
   final String environment;
   final String publicKey;
   final String? secretKey;
+  final String? endpoint;
+  final Map<String, String> headers;
 
   factory SdkConfig.fromJson(Map<String, dynamic> json) {
+    final rawHeaders = json['headers'];
+    final headers = <String, String>{};
+    if (rawHeaders is Map) {
+      rawHeaders.forEach((key, value) {
+        if (key != null && value != null) {
+          headers[key.toString()] = value.toString();
+        }
+      });
+    }
+
     return SdkConfig(
       environment: json['environment']?.toString() ?? 'sandbox',
       publicKey: json['publicKey']?.toString() ?? '',
-      secretKey: json['secretKey']?.toString(),
+      secretKey: (json['secretKey'] ?? json['secretHash'] ?? json['hash'])?.toString(),
+      endpoint: json['endpoint']?.toString(),
+      headers: headers,
     );
   }
 }

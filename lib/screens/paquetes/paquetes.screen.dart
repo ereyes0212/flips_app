@@ -3,8 +3,10 @@ import 'dart:io';
 
 import 'package:flips_app/controllers/paquetes.controller.dart';
 import 'package:flips_app/models/paquetes.model.dart';
+import 'package:flips_app/models/suscripcion_checkout.model.dart';
 import 'package:flips_app/services/suscripcion_checkout.service.dart';
 import 'package:flips_app/providers/paquetes.provider.dart';
+import 'package:flips_app/constants.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:pixelpay_sdk/entities/transaction_result.dart' as pixelpay;
@@ -17,6 +19,15 @@ import 'package:pixelpay_sdk/requests/sale_transaction.dart' as pixelpay;
 import 'package:pixelpay_sdk/services/transaction.dart' as pixelpay;
 import 'package:pixelpay_sdk/resources/locations.dart' as pixelpay;
 import 'package:provider/provider.dart';
+
+class PixelPayCheckoutException implements Exception {
+  PixelPayCheckoutException(this.message);
+
+  final String message;
+
+  @override
+  String toString() => message;
+}
 
 class PaquetesScreen extends StatefulWidget {
   const PaquetesScreen({super.key});
@@ -62,20 +73,14 @@ class _PaquetesScreenState extends State<PaquetesScreen> {
       print('Iniciando checkout para plan: ${plan.id}');
       final checkout = await _checkoutService.iniciarCheckout(planId: plan.id);
       if (!checkout.ok || checkout.sdkConfig == null || checkout.paymentData == null) {
-        throw Exception(checkout.message ?? 'No se pudo inicializar el checkout.');
+        throw PixelPayCheckoutException(
+          checkout.message ?? 'No se pudo inicializar el checkout.',
+        );
       }
+      _validatePaymentData(checkout.paymentData!);
 
-      final settings = pixelpay.Settings();
-      final env = checkout.sdkConfig!.environment.toLowerCase();
-      if (env == 'sandbox' || env == 'test') {
-        settings.setupSandbox();
-        print('Usando entorno sandbox');
-      } else {
-        settings.setupEndpoint('https://pixelpay.app');
-        print('Usando entorno producción');
-      }
-      settings.setupCredentials(checkout.sdkConfig!.publicKey, checkout.sdkConfig!.secretKey ?? '');
-      print('Credenciales configuradas con publicKey: ${checkout.sdkConfig!.publicKey}, secretKey: ${checkout.sdkConfig!.secretKey != null ? 'proporcionada' : 'vacía'}');
+      final settings = _buildPixelPaySettings(checkout.sdkConfig!);
+      final secretHash = checkout.sdkConfig!.secretKey!.trim();
 
       final order = pixelpay.Order();
       order.id = checkout.paymentData!.reference;
@@ -117,15 +122,39 @@ class _PaquetesScreenState extends State<PaquetesScreen> {
       print('Respuesta cruda de PixelPay: $rawResponse');
       if (rawResponse == null || !pixelpay.TransactionResult.validateResponse(rawResponse)) {
         print('Respuesta inválida: rawResponse es null o no válida');
-        throw Exception('Transacción inválida en PixelPay.');
+        throw PixelPayCheckoutException(_pixelPayResponseMessage(rawResponse));
       }
 
       final result = pixelpay.TransactionResult.fromResponse(rawResponse);
-      print('Resultado de la transacción: aprobado=${result.response_approved}, razón=${result.response_reason}, hash=${result.payment_hash}');
+      final paymentHash = _nullableString(result.payment_hash);
+      final responseReason = _nullableString(result.response_reason);
+      final isApproved = result.response_approved == true;
+      final isValidPayment = isApproved && paymentHash.isNotEmpty &&
+          transaction.verifyPaymentHash(
+            paymentHash,
+            checkout.paymentData!.reference,
+            secretHash,
+          );
+
+      print(
+        'Resultado de la transacción: aprobado=$isApproved, '
+        'válido=$isValidPayment, razón=$responseReason, hash=$paymentHash',
+      );
+      if (!isValidPayment) {
+        throw PixelPayCheckoutException(
+          isApproved
+              ? 'PixelPay aprobó la respuesta, pero la firma del pago no es válida.'
+              : (responseReason.isNotEmpty
+                  ? responseReason
+                  : 'La transacción fue rechazada por PixelPay.'),
+        );
+      }
+
       final resultMap = {
-        'success': result.response_approved,
-        'message': result.response_reason,
-        'payment_hash': result.payment_hash,
+        'success': isApproved,
+        'message': responseReason,
+        'payment_hash': paymentHash,
+        'is_valid_payment': isValidPayment,
         'data': rawResponse.data,
       };
 
@@ -133,10 +162,13 @@ class _PaquetesScreenState extends State<PaquetesScreen> {
         pagoId: checkout.pagoId,
         planId: plan.id,
         result: resultMap,
-        isValidPayment: result.response_approved == true,
+        isValidPayment: isValidPayment,
         reference: checkout.paymentData!.reference,
       );
-      print('Confirmación del backend: ok=${confirm.ok}, message=${confirm.message}, suscripcionId=${confirm.suscripcionId}');
+      print(
+        'Confirmación del backend: ok=${confirm.ok}, '
+        'message=${confirm.message}, suscripcionId=${confirm.suscripcionId}',
+      );
 
       if (!mounted) return;
       if (confirm.ok && confirm.suscripcionId != null && confirm.suscripcionId!.isNotEmpty) {
@@ -155,6 +187,9 @@ class _PaquetesScreenState extends State<PaquetesScreen> {
     } on ApiHttpException catch (e) {
       print('Error HTTP de API: ${e.message} (código: ${e.statusCode})');
       _showSnack(e.message, error: true);
+    } on PixelPayCheckoutException catch (e) {
+      print('Error de PixelPay: ${e.message}');
+      _showSnack(e.message, error: true);
     } catch (e) {
       print('Error general al procesar pago: $e');
       _showSnack('Error al procesar pago: $e', error: true);
@@ -162,6 +197,60 @@ class _PaquetesScreenState extends State<PaquetesScreen> {
       if (mounted) setState(() => _paying = false);
     }
   }
+
+  void _validatePaymentData(PaymentData paymentData) {
+    if (paymentData.reference.trim().isEmpty) {
+      throw PixelPayCheckoutException('Falta la referencia de la orden PixelPay.');
+    }
+    if (paymentData.currency.trim().isEmpty) {
+      throw PixelPayCheckoutException('Falta la moneda de la orden PixelPay.');
+    }
+    if (paymentData.amount <= 0) {
+      throw PixelPayCheckoutException('El monto de la orden PixelPay no es válido.');
+    }
+  }
+
+  pixelpay.Settings _buildPixelPaySettings(SdkConfig config) {
+    final publicKey = config.publicKey.trim();
+    final secretHash = config.secretKey?.trim() ?? '';
+    final endpoint = config.endpoint?.trim() ?? '';
+    final environment = config.environment.trim().toLowerCase();
+
+    if (publicKey.isEmpty) {
+      throw PixelPayCheckoutException('Falta la llave pública de PixelPay.');
+    }
+    if (secretHash.isEmpty) {
+      throw PixelPayCheckoutException('Falta el hash secreto de PixelPay.');
+    }
+
+    final settings = pixelpay.Settings();
+    final effectiveEndpoint = endpoint.isNotEmpty ? endpoint : pixelpayEndpoint;
+    if (effectiveEndpoint.isNotEmpty) {
+      settings.setupEndpoint(effectiveEndpoint);
+      print('Usando endpoint PixelPay: $effectiveEndpoint');
+    } else if (environment == 'sandbox' || environment == 'test') {
+      settings.setupSandbox();
+      print('Usando entorno sandbox de PixelPay');
+    } else {
+      throw PixelPayCheckoutException('Falta el endpoint de PixelPay para producción.');
+    }
+
+    settings.setupCredentials(publicKey, secretHash);
+    if (config.headers.isNotEmpty) {
+      settings.setupHeaders(config.headers);
+    }
+    print('Credenciales PixelPay configuradas para ambiente: ${config.environment}');
+
+    return settings;
+  }
+
+  String _pixelPayResponseMessage(dynamic response) {
+    final message = _nullableString(response?.message);
+    if (message.isNotEmpty) return message;
+    return 'Transacción inválida en PixelPay.';
+  }
+
+  String _nullableString(dynamic value) => value?.toString() ?? '';
 
   void _showSnack(String message, {bool error = false}) {
     ScaffoldMessenger.of(context).showSnackBar(

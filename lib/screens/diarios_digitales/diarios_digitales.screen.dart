@@ -1,4 +1,6 @@
 
+// ignore_for_file: use_build_context_synchronously
+
 import 'package:flips_app/controllers/diarios_digitales.controller.dart';
 import 'package:flips_app/models/diarios_digitales.model.dart';
 import 'package:flips_app/providers/diarios_digitales.provider.dart';
