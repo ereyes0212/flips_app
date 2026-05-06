@@ -33,18 +33,21 @@ class DiariosDigitalesResponse {
 class PdfAccessModel {
   PdfAccessModel({
     required this.mode,
-    required this.expiresIn,
-    required this.expiresAt,
+    this.expiresIn,
+    this.expiresAt,
   });
 
   final String mode;
-  final int expiresIn;
-  final String expiresAt;
+  final int? expiresIn;
+  final DateTime? expiresAt;
 
   factory PdfAccessModel.fromJson(Map<String, dynamic> json) => PdfAccessModel(
     mode: json['mode'] ?? '',
-    expiresIn: json['expiresIn'] ?? 0,
-    expiresAt: json['expiresAt'] ?? '',
+    expiresIn: json['expiresIn'],
+    expiresAt:
+        json['expiresAt'] == null
+            ? null
+            : DateTime.tryParse(json['expiresAt'].toString()),
   );
 }
 
@@ -56,6 +59,18 @@ class DiarioDigitalModel {
     required this.mes,
     required this.archivoRuta,
     required this.pdfSignedUrl,
+    this.fechaPublicacion,
+    this.descripcion = '',
+    this.nombreArchivo = '',
+    this.tamanoBytes = 0,
+    this.mimeType = '',
+    this.creadoEn,
+    this.actualizadoEn,
+    this.pdfUrl = '',
+    this.pdfSignedUrlExpiresIn,
+    this.pdfSignedUrlExpiresAt,
+    this.coverUrl = '',
+    this.coverContentType = '',
   });
 
   final String id;
@@ -64,6 +79,25 @@ class DiarioDigitalModel {
   final int mes;
   final String archivoRuta;
   final String pdfSignedUrl;
+  final DateTime? fechaPublicacion;
+  final String descripcion;
+  final String nombreArchivo;
+  final int tamanoBytes;
+  final String mimeType;
+  final DateTime? creadoEn;
+  final DateTime? actualizadoEn;
+  final String pdfUrl;
+  final int? pdfSignedUrlExpiresIn;
+  final DateTime? pdfSignedUrlExpiresAt;
+  final String coverUrl;
+  final String coverContentType;
+
+  String get pdfViewerUrl =>
+      pdfSignedUrl.isNotEmpty ? pdfSignedUrl : pdfUrl;
+
+  bool get hasPdf => pdfViewerUrl.isNotEmpty;
+
+  bool get hasCover => coverUrl.isNotEmpty;
 
   factory DiarioDigitalModel.fromJson(Map<String, dynamic> json) =>
       DiarioDigitalModel(
@@ -73,5 +107,20 @@ class DiarioDigitalModel {
         mes: json['mes'] ?? 0,
         archivoRuta: json['archivoRuta'] ?? '',
         pdfSignedUrl: json['pdfSignedUrl'] ?? '',
+        fechaPublicacion: _parseDate(json['fechaPublicacion']),
+        descripcion: json['descripcion'] ?? '',
+        nombreArchivo: json['nombreArchivo'] ?? '',
+        tamanoBytes: json['tamanoBytes'] ?? 0,
+        mimeType: json['mimeType'] ?? '',
+        creadoEn: _parseDate(json['creadoEn']),
+        actualizadoEn: _parseDate(json['actualizadoEn']),
+        pdfUrl: json['pdfUrl'] ?? '',
+        pdfSignedUrlExpiresIn: json['pdfSignedUrlExpiresIn'],
+        pdfSignedUrlExpiresAt: _parseDate(json['pdfSignedUrlExpiresAt']),
+        coverUrl: json['coverUrl'] ?? '',
+        coverContentType: json['coverContentType'] ?? '',
       );
+
+  static DateTime? _parseDate(dynamic value) =>
+      value == null ? null : DateTime.tryParse(value.toString());
 }

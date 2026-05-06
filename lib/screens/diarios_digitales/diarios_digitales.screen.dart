@@ -1,8 +1,10 @@
+import 'package:flips_app/constants.dart';
 import 'package:flips_app/controllers/diarios_digitales.controller.dart';
 import 'package:flips_app/models/diarios_digitales.model.dart';
 import 'package:flips_app/providers/diarios_digitales.provider.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:syncfusion_flutter_pdfviewer/pdfviewer.dart';
 
 class DiariosDigitalesScreen extends StatefulWidget {
@@ -120,7 +122,7 @@ class _DiariosDigitalesScreenState extends State<DiariosDigitalesScreen> {
                       diario: diario,
                       mes: _meses[diario.mes] ?? diario.mes.toString(),
                       onTap:
-                          diario.pdfSignedUrl.isEmpty
+                          !diario.hasPdf
                               ? null
                               : () {
                                 Navigator.push(
@@ -157,7 +159,7 @@ class _DiarioPosterCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
-    final hasPdf = diario.pdfSignedUrl.isNotEmpty;
+    final hasPdf = diario.hasPdf;
 
     return InkWell(
       onTap: onTap,
@@ -279,14 +281,38 @@ class _DiarioPdfCover extends StatelessWidget {
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
 
-    if (diario.pdfSignedUrl.isEmpty) {
+    if (!diario.hasCover) {
       return _DiarioCoverPlaceholder(colorScheme: colorScheme);
     }
 
+    final coverUrl = _DiarioNetwork.resolveUrl(diario.coverUrl);
+
     return ColoredBox(
       color: colorScheme.surfaceContainerHighest,
-      child: AbsorbPointer(
-        child: SfPdfViewer.network(diario.pdfSignedUrl),
+      child: FutureBuilder<Map<String, String>>(
+        future: _DiarioNetwork.privateHeaders(),
+        builder: (context, snapshot) {
+          return Image.network(
+            coverUrl,
+            fit: BoxFit.cover,
+            headers: snapshot.data,
+            errorBuilder:
+                (_, __, ___) => _DiarioCoverPlaceholder(colorScheme: colorScheme),
+            loadingBuilder: (context, child, loadingProgress) {
+              if (loadingProgress == null) return child;
+
+              return Center(
+                child: CircularProgressIndicator(
+                  value:
+                      loadingProgress.expectedTotalBytes == null
+                          ? null
+                          : loadingProgress.cumulativeBytesLoaded /
+                              loadingProgress.expectedTotalBytes!,
+                ),
+              );
+            },
+          );
+        },
       ),
     );
   }
@@ -412,6 +438,32 @@ class _FiltrosDiarios extends StatelessWidget {
   }
 }
 
+class _DiarioNetwork {
+  static String resolveUrl(String value) {
+    if (value.isEmpty) return '';
+
+    final uri = Uri.tryParse(value);
+    if (uri != null && uri.hasScheme) return value;
+
+    final baseUri = Uri.parse(apiUrl);
+    final origin = '${baseUri.scheme}://${baseUri.authority}';
+
+    if (value.startsWith('/')) return '$origin$value';
+
+    return baseUri.resolve(value).toString();
+  }
+
+  static Future<Map<String, String>> privateHeaders() async {
+    final prefs = await SharedPreferences.getInstance();
+    final token = prefs.getString('token') ?? '';
+
+    return {
+      'Accept': '*/*',
+      if (token.isNotEmpty) 'Authorization': 'Bearer $token',
+    };
+  }
+}
+
 class PdfViewerScreen extends StatelessWidget {
   const PdfViewerScreen({super.key, required this.diario});
 
@@ -421,7 +473,20 @@ class PdfViewerScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: Text(diario.titulo)),
-      body: SfPdfViewer.network(diario.pdfSignedUrl),
+      body: FutureBuilder<Map<String, String>>(
+        future: _DiarioNetwork.privateHeaders(),
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting &&
+              !snapshot.hasData) {
+            return const Center(child: CircularProgressIndicator());
+          }
+
+          return SfPdfViewer.network(
+            _DiarioNetwork.resolveUrl(diario.pdfViewerUrl),
+            headers: snapshot.data,
+          );
+        },
+      ),
     );
   }
 }
