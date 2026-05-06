@@ -62,99 +62,258 @@ class _DiariosDigitalesScreenState extends State<DiariosDigitalesScreen> {
       appBar: AppBar(title: const Text('Diarios digitales')),
       body: RefreshIndicator(
         onRefresh: _buscarDiarios,
-        child: ListView.builder(
-          padding: const EdgeInsets.all(16),
-          itemCount: provider.loading ? 2 : provider.diarios.length + 1,
-          itemBuilder: (context, index) {
-            if (index == 0) {
-              return _FiltrosDiarios(
-                anios: _anios,
-                meses: _meses,
-                anioSeleccionado: _anioSeleccionado,
-                mesSeleccionado: _mesSeleccionado,
-                loading: provider.loading,
-                onAnioChanged: (value) {
-                  if (value == null) return;
-                  setState(() => _anioSeleccionado = value);
-                },
-                onMesChanged: (value) {
-                  if (value == null) return;
-                  setState(() => _mesSeleccionado = value);
-                },
-                onBuscar: _buscarDiarios,
-              );
-            }
-
-            if (index == 1 && provider.loading) {
-              return const Center(
-                child: Padding(
-                  padding: EdgeInsets.only(top: 40),
-                  child: CircularProgressIndicator(),
-                ),
-              );
-            }
-
-            if (index == 1 && provider.errorMessage.isNotEmpty) {
-              return Padding(
-                padding: const EdgeInsets.only(top: 12),
-                child: Text(provider.errorMessage),
-              );
-            }
-
-            if (index == 1 && provider.diarios.isEmpty) {
-              return const Padding(
-                padding: EdgeInsets.only(top: 12),
-                child: Text('No hay diarios para mostrar.'),
-              );
-            }
-
-            final diario = provider.diarios[index - 1];
-            return Card(
-              elevation: 0,
-              margin: const EdgeInsets.only(bottom: 12),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(18),
-              ),
-              child: Container(
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(18),
-                  gradient: LinearGradient(
-                    colors: [
-                      Theme.of(
-                        context,
-                      ).colorScheme.primaryContainer.withValues(alpha: 0.28),
-                      Theme.of(context).colorScheme.surface,
-                    ],
-                  ),
-                ),
-                child: ListTile(
-                  contentPadding: const EdgeInsets.symmetric(
-                    horizontal: 16,
-                    vertical: 10,
-                  ),
-                  title: Text(diario.titulo),
-                  subtitle: Text(
-                    'Año: ${diario.anio}\nMes: ${_meses[diario.mes] ?? diario.mes}',
-                  ),
-                  trailing: TextButton(
-                    onPressed:
-                        diario.pdfSignedUrl.isEmpty
-                            ? null
-                            : () {
-                              Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (_) => PdfViewerScreen(diario: diario),
-                                ),
-                              );
-                            },
-                    child: const Text('Ver'),
-                  ),
+        child: CustomScrollView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          slivers: [
+            SliverPadding(
+              padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+              sliver: SliverToBoxAdapter(
+                child: _FiltrosDiarios(
+                  anios: _anios,
+                  meses: _meses,
+                  anioSeleccionado: _anioSeleccionado,
+                  mesSeleccionado: _mesSeleccionado,
+                  loading: provider.loading,
+                  onAnioChanged: (value) {
+                    if (value == null) return;
+                    setState(() => _anioSeleccionado = value);
+                  },
+                  onMesChanged: (value) {
+                    if (value == null) return;
+                    setState(() => _mesSeleccionado = value);
+                  },
+                  onBuscar: _buscarDiarios,
                 ),
               ),
-            );
-          },
+            ),
+            if (provider.loading)
+              const SliverFillRemaining(
+                hasScrollBody: false,
+                child: Center(child: CircularProgressIndicator()),
+              )
+            else if (provider.errorMessage.isNotEmpty)
+              SliverPadding(
+                padding: const EdgeInsets.all(16),
+                sliver: SliverToBoxAdapter(child: Text(provider.errorMessage)),
+              )
+            else if (provider.diarios.isEmpty)
+              const SliverPadding(
+                padding: EdgeInsets.all(16),
+                sliver: SliverToBoxAdapter(
+                  child: Text('No hay diarios para mostrar.'),
+                ),
+              )
+            else
+              SliverPadding(
+                padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
+                sliver: SliverGrid.builder(
+                  itemCount: provider.diarios.length,
+                  gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
+                    maxCrossAxisExtent: 220,
+                    mainAxisSpacing: 18,
+                    crossAxisSpacing: 14,
+                    childAspectRatio: 0.56,
+                  ),
+                  itemBuilder: (context, index) {
+                    final diario = provider.diarios[index];
+                    return _DiarioPosterCard(
+                      diario: diario,
+                      mes: _meses[diario.mes] ?? diario.mes.toString(),
+                      onTap:
+                          diario.pdfSignedUrl.isEmpty
+                              ? null
+                              : () {
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder:
+                                        (_) => PdfViewerScreen(diario: diario),
+                                  ),
+                                );
+                              },
+                    );
+                  },
+                ),
+              ),
+          ],
         ),
+      ),
+    );
+  }
+}
+
+class _DiarioPosterCard extends StatelessWidget {
+  const _DiarioPosterCard({
+    required this.diario,
+    required this.mes,
+    required this.onTap,
+  });
+
+  final DiarioDigitalModel diario;
+  final String mes;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    final hasPdf = diario.pdfSignedUrl.isNotEmpty;
+
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(22),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Expanded(
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(22),
+                boxShadow: [
+                  BoxShadow(
+                    color: colorScheme.shadow.withValues(alpha: 0.20),
+                    blurRadius: 18,
+                    offset: const Offset(0, 10),
+                  ),
+                ],
+              ),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(22),
+                child: Stack(
+                  fit: StackFit.expand,
+                  children: [
+                    _DiarioPdfCover(diario: diario),
+                    Positioned.fill(
+                      child: DecoratedBox(
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            begin: Alignment.topCenter,
+                            end: Alignment.bottomCenter,
+                            colors: [
+                              Colors.transparent,
+                              Colors.black.withValues(alpha: 0.10),
+                              Colors.black.withValues(alpha: 0.42),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                    Positioned(
+                      left: 10,
+                      top: 10,
+                      child: DecoratedBox(
+                        decoration: BoxDecoration(
+                          color: Colors.black.withValues(alpha: 0.55),
+                          borderRadius: BorderRadius.circular(999),
+                        ),
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 10,
+                            vertical: 6,
+                          ),
+                          child: Text(
+                            '$mes ${diario.anio}',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: theme.textTheme.labelSmall?.copyWith(
+                              color: Colors.white,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                    if (!hasPdf)
+                      Positioned.fill(
+                        child: ColoredBox(
+                          color: Colors.black.withValues(alpha: 0.55),
+                          child: const Center(
+                            child: Text(
+                              'PDF no disponible',
+                              textAlign: TextAlign.center,
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    if (hasPdf)
+                      const Positioned(
+                        right: 10,
+                        bottom: 10,
+                        child: CircleAvatar(
+                          radius: 18,
+                          backgroundColor: Colors.white,
+                          child: Icon(Icons.visibility, size: 20),
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(height: 10),
+          Text(
+            diario.titulo,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: theme.textTheme.titleSmall?.copyWith(
+              color: colorScheme.onSurface,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _DiarioPdfCover extends StatelessWidget {
+  const _DiarioPdfCover({required this.diario});
+
+  final DiarioDigitalModel diario;
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+
+    if (diario.pdfSignedUrl.isEmpty) {
+      return _DiarioCoverPlaceholder(colorScheme: colorScheme);
+    }
+
+    return ColoredBox(
+      color: colorScheme.surfaceContainerHighest,
+      child: AbsorbPointer(
+        child: SfPdfViewer.network(diario.pdfSignedUrl),
+      ),
+    );
+  }
+}
+
+class _DiarioCoverPlaceholder extends StatelessWidget {
+  const _DiarioCoverPlaceholder({required this.colorScheme});
+
+  final ColorScheme colorScheme;
+
+  @override
+  Widget build(BuildContext context) {
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            colorScheme.primaryContainer.withValues(alpha: 0.70),
+            colorScheme.surfaceContainerHighest,
+          ],
+        ),
+      ),
+      child: Icon(
+        Icons.picture_as_pdf_outlined,
+        size: 54,
+        color: colorScheme.onSurfaceVariant,
       ),
     );
   }
