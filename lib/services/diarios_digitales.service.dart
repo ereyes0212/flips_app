@@ -7,8 +7,17 @@ import 'package:flips_app/services/http.service.dart';
 class DiariosDigitalesService {
   final HttpService _httpService = HttpService();
 
-  Future<List<DiarioDigitalModel>?> obtenerDiariosDigitales() async {
-    final response = await _httpService.get('${apiUrl}mis-notas');
+  Future<List<DiarioDigitalModel>?> obtenerDiariosDigitales({
+    required int anio,
+    required int mes,
+  }) async {
+    final uri = Uri.parse('${apiUrl}mis-notas').replace(
+      queryParameters: {
+        'anio': anio.toString(),
+        'mes': mes.toString(),
+      },
+    );
+    final response = await _httpService.get(uri.toString());
 
     if (response.statusCode != 200) {
       return null;

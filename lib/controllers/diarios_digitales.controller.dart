@@ -8,13 +8,21 @@ import 'package:provider/provider.dart';
 class DiariosDigitalesController {
   final DiariosDigitalesService _service = DiariosDigitalesService();
 
-  Future<void> cargarDiarios(BuildContext context) async {
+  Future<void> cargarDiarios(
+    BuildContext context, {
+    required int anio,
+    required int mes,
+  }) async {
     final provider = Provider.of<DiariosDigitalesProvider>(context, listen: false);
     provider.loading = true;
     provider.setError('');
+    provider.setDiarios([]);
 
     try {
-      final diarios = await _service.obtenerDiariosDigitales();
+      final diarios = await _service.obtenerDiariosDigitales(
+        anio: anio,
+        mes: mes,
+      );
       if (diarios == null) {
         provider.setError('No se pudo obtener los diarios digitales.');
       } else {
