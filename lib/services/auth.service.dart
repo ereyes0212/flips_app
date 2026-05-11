@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:flutter/foundation.dart';
 import 'package:flips_app/constants.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flips_app/models/login_response.model.dart';
 import 'package:flips_app/services/http.service.dart';
 import 'package:flips_app/services/session.service.dart';
@@ -27,7 +28,7 @@ class AuthService {
         body: {'identifier': email, 'contrasena': password},
         includeAuth: false,
       );
-
+  
       if (response.statusCode == 200) {
         final loginResponse = LoginResponseModel.fromJson(
           jsonDecode(response.body),
