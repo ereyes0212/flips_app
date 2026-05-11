@@ -93,11 +93,7 @@ class AuthController {
         return false;
       }
 
-      final result = await service.loginWithGoogle(
-        idToken: idToken,
-        email: account.email,
-        nombre: account.displayName ?? account.email,
-      );
+      final result = await service.loginWithGoogle(idToken: idToken);
 
       if (result.ok && result.response != null) {
         await _guardarSesion(result.response!, authprovider);
