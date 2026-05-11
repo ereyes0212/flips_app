@@ -2,9 +2,9 @@ import 'package:flips_app/constants.dart';
 import 'package:flips_app/controllers/diarios_digitales.controller.dart';
 import 'package:flips_app/models/diarios_digitales.model.dart';
 import 'package:flips_app/providers/diarios_digitales.provider.dart';
+import 'package:flips_app/services/session.service.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import 'package:syncfusion_flutter_pdfviewer/pdfviewer.dart';
 
 class DiariosDigitalesScreen extends StatefulWidget {
@@ -292,10 +292,20 @@ class _DiarioPdfCover extends StatelessWidget {
       child: FutureBuilder<Map<String, String>>(
         future: _DiarioNetwork.privateHeaders(),
         builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting &&
+              !snapshot.hasData) {
+            return const Center(child: CircularProgressIndicator());
+          }
+
+          if (snapshot.hasError) {
+            return _DiarioCoverPlaceholder(colorScheme: colorScheme);
+          }
+
           return Image.network(
             coverUrl,
+            key: ValueKey(coverUrl),
             fit: BoxFit.cover,
-            headers: snapshot.data,
+            headers: snapshot.data ?? const {},
             errorBuilder:
                 (_, __, ___) => _DiarioCoverPlaceholder(colorScheme: colorScheme),
             loadingBuilder: (context, child, loadingProgress) {
@@ -454,8 +464,13 @@ class _DiarioNetwork {
   }
 
   static Future<Map<String, String>> privateHeaders() async {
-    final prefs = await SharedPreferences.getInstance();
-    final token = prefs.getString('token') ?? '';
+    final token = await SessionService.getValidToken() ?? '';
+    if (token.isEmpty) {
+      await SessionService.expireAndRedirect(
+        message: 'Tu sesión expiró. Inicia sesión nuevamente.',
+      );
+      throw const SessionExpiredException();
+    }
 
     return {
       'Accept': '*/*',
@@ -481,9 +496,15 @@ class PdfViewerScreen extends StatelessWidget {
             return const Center(child: CircularProgressIndicator());
           }
 
+          if (snapshot.hasError) {
+            return const Center(
+              child: Text('No se pudo validar la sesión para abrir el PDF.'),
+            );
+          }
+
           return SfPdfViewer.network(
             _DiarioNetwork.resolveUrl(diario.pdfViewerUrl),
-            headers: snapshot.data,
+            headers: snapshot.data ?? const {},
           );
         },
       ),
