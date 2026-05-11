@@ -134,7 +134,8 @@ class AuthController {
     AuthProvider authprovider,
   ) async {
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setString('token', response.token);
+    final token = SessionService.normalizeToken(response.token) ?? '';
+    await prefs.setString('token', token);
     await prefs.setString('user', response.data.user);
     await prefs.setString('idUser', response.data.idUser);
     await prefs.setString('nombre', response.data.nombre);
@@ -142,7 +143,7 @@ class AuthController {
     authprovider.nombreUsuario = response.data.nombre;
     authprovider.user = response.data.user;
     authprovider.idUser = response.data.idUser;
-    authprovider.token = response.token;
+    authprovider.token = token;
   }
 
   void _irAlHome(BuildContext context) {

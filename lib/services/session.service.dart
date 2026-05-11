@@ -20,9 +20,13 @@ class SessionService {
 
   static Future<String?> getValidToken() async {
     final prefs = await SharedPreferences.getInstance();
-    final token = prefs.getString('token');
+    final token = normalizeToken(prefs.getString('token'));
 
     if (token == null || token.isEmpty) return null;
+
+    if (prefs.getString('token') != token) {
+      await prefs.setString('token', token);
+    }
 
     if (isJwtExpired(token)) {
       await clearSession();
@@ -70,6 +74,18 @@ class SessionService {
 
       _redirecting = false;
     });
+  }
+
+  static String? normalizeToken(String? token) {
+    final trimmed = token?.trim() ?? '';
+    if (trimmed.isEmpty) return null;
+
+    const bearerPrefix = 'Bearer ';
+    if (trimmed.toLowerCase().startsWith(bearerPrefix.toLowerCase())) {
+      return trimmed.substring(bearerPrefix.length).trim();
+    }
+
+    return trimmed;
   }
 
   static bool isJwtExpired(String token) {
