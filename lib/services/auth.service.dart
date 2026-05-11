@@ -10,16 +10,42 @@ class AuthService {
 
   Future<LoginResponseModel?> login(String email, String password) async {
     try {
-      print('Login url: ${apiUrl}auth/login');
       final response = await _httpService.post(
         '${apiUrl}auth/login',
         body: {'identifier': email, 'contrasena': password},
+        includeAuth: false,
       );
-      print('Login response status: ${response.statusCode}');
-      print('Location: ${response.headers['location']}');
-      print('Body: ${response.body}');
 
       if (response.statusCode == 200) {
+        return LoginResponseModel.fromJson(jsonDecode(response.body));
+      }
+      return null;
+    } on SocketException {
+      rethrow;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  Future<LoginResponseModel?> loginWithGoogle({
+    required String idToken,
+    required String accessToken,
+    required String email,
+    required String nombre,
+  }) async {
+    try {
+      final response = await _httpService.post(
+        '${apiUrl}auth/google',
+        body: {
+          'idToken': idToken,
+          'accessToken': accessToken,
+          'email': email,
+          'nombre': nombre,
+        },
+        includeAuth: false,
+      );
+
+      if (response.statusCode == 200 || response.statusCode == 201) {
         return LoginResponseModel.fromJson(jsonDecode(response.body));
       }
       return null;
