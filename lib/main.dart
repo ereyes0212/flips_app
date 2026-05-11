@@ -1,20 +1,20 @@
-import 'package:flutter/material.dart';
-import 'package:shared_preferences/shared_preferences.dart';
-
 // ignore_for_file: depend_on_referenced_packages, avoid_print, empty_catches, deprecated_member_use
 
+import 'package:flips_app/constants.dart';
 import 'package:flips_app/providers/auth.provider.dart';
-import 'package:flips_app/screens/home/home.screen.dart';
-import 'package:flips_app/screens/login/login.screen.dart';
 import 'package:flips_app/providers/diarios_digitales.provider.dart';
 import 'package:flips_app/providers/mi_perfil.provider.dart';
 import 'package:flips_app/providers/mis_facturas.provider.dart';
 import 'package:flips_app/providers/mis_pagos.provider.dart';
 import 'package:flips_app/providers/mis_suscripcion.provider.dart';
 import 'package:flips_app/providers/paquetes.provider.dart';
-import 'package:provider/provider.dart';
-import 'package:flips_app/constants.dart';
+import 'package:flips_app/screens/home/home.screen.dart';
+import 'package:flips_app/screens/login/login.screen.dart';
+import 'package:flips_app/services/session.service.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
+import 'package:provider/provider.dart';
+
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
   runApp(const MyApp());
@@ -61,6 +61,7 @@ class MyApp extends StatelessWidget {
         locale: const Locale('es', 'ES'),
         debugShowCheckedModeBanner: false,
         scaffoldMessengerKey: snackbarKey,
+        navigatorKey: navigatorKey,
         theme: ThemeData(
           useMaterial3: true,
           colorScheme: colorScheme,
@@ -129,8 +130,9 @@ class MyApp extends StatelessWidget {
           ),
         ),
         title: 'Zona Fitness',
-        home: FutureBuilder<String?>(
-          future: SharedPreferences.getInstance().then((prefs) => prefs.getString('token')),
+        routes: {'/login': (_) => const LoginScreen()},
+        home: FutureBuilder<bool>(
+          future: SessionService.hasValidSession(),
           builder: (context, snapshot) {
             if (snapshot.connectionState == ConnectionState.waiting) {
               return const Scaffold(body: Center(child: CircularProgressIndicator()));
@@ -140,8 +142,8 @@ class MyApp extends StatelessWidget {
               return const LoginScreen();
             }
 
-            final token = snapshot.data ?? '';
-            return token.isEmpty ? const LoginScreen() : const HomeScreen();
+            final hasValidSession = snapshot.data ?? false;
+            return hasValidSession ? const HomeScreen() : const LoginScreen();
           },
         ),
       ),
