@@ -1,12 +1,17 @@
 import 'dart:io';
 
+import 'package:flips_app/config/google_sign_in.config.dart';
 import 'package:flips_app/globals/functions/functions.dart';
 import 'package:flips_app/globals/widgets/widgets.dart';
+import 'package:flips_app/models/login_response.model.dart';
 import 'package:flips_app/providers/auth.provider.dart';
 import 'package:flips_app/screens/home/home.screen.dart';
 import 'package:flips_app/screens/login/login.screen.dart';
 import 'package:flips_app/services/auth.service.dart';
+import 'package:flips_app/services/session.service.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:google_sign_in/google_sign_in.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -14,6 +19,11 @@ class AuthController {
   final cuerpoController = CuerpoDeController();
   final AuthProvider? authProvider;
   final service = AuthService();
+  final GoogleSignIn _googleSignIn = GoogleSignIn(
+    clientId: GoogleSignInConfig.clientId,
+    serverClientId: GoogleSignInConfig.serverClientId,
+    scopes: GoogleSignInConfig.scopes,
+  );
 
   AuthController({this.authProvider});
 
@@ -31,22 +41,8 @@ class AuthController {
       final response = await service.login(usuario.trim(), password.trim());
 
       if (response != null && response.ok) {
-        final prefs = await SharedPreferences.getInstance();
-        await prefs.setString('token', response.token);
-        await prefs.setString('user', response.data.user);
-        await prefs.setString('idUser', response.data.idUser);
-        await prefs.setString('nombre', response.data.nombre);
-
-        authprovider.nombreUsuario = response.data.nombre;
-        authprovider.user = response.data.user;
-        authprovider.idUser = response.data.idUser;
-        authprovider.token = response.token;
-
-        Navigator.pushAndRemoveUntil(
-          context,
-          MaterialPageRoute(builder: (_) => const HomeScreen()),
-          (Route<dynamic> route) => false,
-        );
+        await _guardarSesion(response, authprovider);
+        _irAlHome(context);
 
         authprovider.loading = false;
         return true;
@@ -67,13 +63,123 @@ class AuthController {
     return false;
   }
 
+  Future<bool> loginWithGoogleController(BuildContext context) async {
+    final authprovider = Provider.of<AuthProvider>(context, listen: false);
+    authprovider.loading = true;
+
+    try {
+      final configurationError = GoogleSignInConfig.missingConfigurationMessage;
+      if (configurationError != null) {
+        alertError(context, mensaje: configurationError);
+        authprovider.loading = false;
+        return false;
+      }
+
+      await _clearGoogleCachedSession();
+      final account = await _googleSignIn.signIn();
+      if (account == null) {
+        globalSnackBar(
+          'No se seleccionó ninguna cuenta de Google. Intenta nuevamente y elige una cuenta.',
+        );
+        authprovider.loading = false;
+        return false;
+      }
+
+      final auth = await account.authentication;
+      final idToken = auth.idToken ?? '';
+
+      if (idToken.isEmpty) {
+        globalSnackBar(
+          'Google no devolvió un ID token. Verifica el Web Client ID, paquete y SHA-1/SHA-256.',
+        );
+        authprovider.loading = false;
+        return false;
+      }
+
+      final result = await service.loginWithGoogle(
+        idToken: idToken,
+        email: account.email,
+        nombre: account.displayName ?? account.email,
+      );
+
+      if (result.ok && result.response != null) {
+        await _guardarSesion(result.response!, authprovider);
+        _irAlHome(context);
+
+        authprovider.loading = false;
+        return true;
+      }
+
+      globalSnackBar(
+        result.message.isNotEmpty
+            ? result.message
+            : 'No se pudo iniciar sesión con Google.',
+      );
+    } on SocketException {
+      alertError(
+        context,
+        mensaje:
+            'Ocurrió un error de conexión. Verifique su internet e intente nuevamente.',
+      );
+    } on PlatformException catch (error) {
+      alertError(context, mensaje: _mensajeErrorGoogle(error));
+    } catch (_) {
+      alertError(context, mensaje: 'Ocurrió un error al iniciar sesión con Google.');
+    }
+
+    authprovider.loading = false;
+    return false;
+  }
+
+  Future<void> _clearGoogleCachedSession() async {
+    try {
+      await _googleSignIn.disconnect();
+    } on PlatformException {
+      await _googleSignIn.signOut();
+    } catch (_) {
+      await _googleSignIn.signOut();
+    }
+  }
+
+  String _mensajeErrorGoogle(PlatformException error) {
+    final details = error.details?.toString();
+    final detalle = [
+      error.code,
+      if (error.message != null && error.message!.isNotEmpty) error.message,
+      if (details != null && details.isNotEmpty) details,
+    ].join(' - ');
+
+    return 'No se pudo iniciar sesión con Google. Verifica la configuración OAuth en Google Cloud Console: Web Client ID, package name y huellas SHA-1/SHA-256. Detalle: $detalle';
+  }
+
+  Future<void> _guardarSesion(
+    LoginResponseModel response,
+    AuthProvider authprovider,
+  ) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('token', response.token);
+    await prefs.setString('user', response.data.user);
+    await prefs.setString('idUser', response.data.idUser);
+    await prefs.setString('nombre', response.data.nombre);
+
+    authprovider.nombreUsuario = response.data.nombre;
+    authprovider.user = response.data.user;
+    authprovider.idUser = response.data.idUser;
+    authprovider.token = response.token;
+  }
+
+  void _irAlHome(BuildContext context) {
+    Navigator.pushAndRemoveUntil(
+      context,
+      MaterialPageRoute(builder: (_) => const HomeScreen()),
+      (Route<dynamic> route) => false,
+    );
+  }
+
   Future logoutController(context) async {
     try {
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.remove('token');
-      await prefs.remove('user');
-      await prefs.remove('idUser');
-      await prefs.remove('nombre');
+      await SessionService.clearSession();
+      await _googleSignIn.signOut();
     } finally {
       Navigator.pushAndRemoveUntil(
         context,
