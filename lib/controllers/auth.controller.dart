@@ -75,6 +75,7 @@ class AuthController {
         return false;
       }
 
+      await _googleSignIn.signOut();
       final account = await _googleSignIn.signIn();
       if (account == null) {
         authprovider.loading = false;
@@ -92,21 +93,25 @@ class AuthController {
         return false;
       }
 
-      final response = await service.loginWithGoogle(
+      final result = await service.loginWithGoogle(
         idToken: idToken,
         email: account.email,
         nombre: account.displayName ?? account.email,
       );
 
-      if (response != null && response.ok) {
-        await _guardarSesion(response, authprovider);
+      if (result.ok && result.response != null) {
+        await _guardarSesion(result.response!, authprovider);
         _irAlHome(context);
 
         authprovider.loading = false;
         return true;
       }
 
-      globalSnackBar('No se pudo iniciar sesión con Google.');
+      globalSnackBar(
+        result.message.isNotEmpty
+            ? result.message
+            : 'No se pudo iniciar sesión con Google.',
+      );
     } on SocketException {
       alertError(
         context,
