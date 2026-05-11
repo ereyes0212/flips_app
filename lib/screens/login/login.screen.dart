@@ -143,12 +143,12 @@ class _LoginScreenState extends State<LoginScreen> {
                             onPressed: authprovider.loading
                                 ? null
                                 : () {
-                              AuthController().loginController(
-                                txtUser.text.trim(),
-                                txtPass.text.trim(),
-                                context,
-                              );
-                            },
+                                    AuthController().loginController(
+                                      txtUser.text.trim(),
+                                      txtPass.text.trim(),
+                                      context,
+                                    );
+                                  },
                             icon: const Icon(Icons.login),
                             label: const Text('Iniciar sesión'),
                           ),
@@ -160,7 +160,9 @@ class _LoginScreenState extends State<LoginScreen> {
                             onPressed: authprovider.loading
                                 ? null
                                 : () {
-                                    AuthController().loginWithGoogleController(context);
+                                    AuthController().loginWithGoogleController(
+                                      context,
+                                    );
                                   },
                             icon: const Icon(Icons.g_mobiledata, size: 28),
                             label: const Text('Iniciar sesión con Google'),

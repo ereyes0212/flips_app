@@ -29,7 +29,6 @@ class AuthService {
 
   Future<LoginResponseModel?> loginWithGoogle({
     required String idToken,
-    required String accessToken,
     required String email,
     required String nombre,
   }) async {
@@ -37,8 +36,8 @@ class AuthService {
       final response = await _httpService.post(
         '${apiUrl}auth/google',
         body: {
+          'provider': 'google',
           'idToken': idToken,
-          'accessToken': accessToken,
           'email': email,
           'nombre': nombre,
         },

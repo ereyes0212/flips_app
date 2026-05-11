@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:flips_app/config/google_sign_in.config.dart';
 import 'package:flips_app/globals/functions/functions.dart';
 import 'package:flips_app/globals/widgets/widgets.dart';
 import 'package:flips_app/models/login_response.model.dart';
@@ -9,6 +10,7 @@ import 'package:flips_app/screens/login/login.screen.dart';
 import 'package:flips_app/services/auth.service.dart';
 import 'package:flips_app/services/session.service.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -17,7 +19,11 @@ class AuthController {
   final cuerpoController = CuerpoDeController();
   final AuthProvider? authProvider;
   final service = AuthService();
-  final GoogleSignIn _googleSignIn = GoogleSignIn(scopes: ['email', 'profile']);
+  final GoogleSignIn _googleSignIn = GoogleSignIn(
+    clientId: GoogleSignInConfig.clientId,
+    serverClientId: GoogleSignInConfig.serverClientId,
+    scopes: GoogleSignInConfig.scopes,
+  );
 
   AuthController({this.authProvider});
 
@@ -62,7 +68,13 @@ class AuthController {
     authprovider.loading = true;
 
     try {
-      await _googleSignIn.signOut();
+      final configurationError = GoogleSignInConfig.missingConfigurationMessage;
+      if (configurationError != null) {
+        alertError(context, mensaje: configurationError);
+        authprovider.loading = false;
+        return false;
+      }
+
       final account = await _googleSignIn.signIn();
       if (account == null) {
         authprovider.loading = false;
@@ -71,17 +83,17 @@ class AuthController {
 
       final auth = await account.authentication;
       final idToken = auth.idToken ?? '';
-      final accessToken = auth.accessToken ?? '';
 
-      if (idToken.isEmpty && accessToken.isEmpty) {
-        globalSnackBar('No se pudo validar la cuenta de Google.');
+      if (idToken.isEmpty) {
+        globalSnackBar(
+          'Google no devolvió un ID token. Verifica el Web Client ID, paquete y SHA-1/SHA-256.',
+        );
         authprovider.loading = false;
         return false;
       }
 
       final response = await service.loginWithGoogle(
         idToken: idToken,
-        accessToken: accessToken,
         email: account.email,
         nombre: account.displayName ?? account.email,
       );
@@ -101,12 +113,19 @@ class AuthController {
         mensaje:
             'Ocurrió un error de conexión. Verifique su internet e intente nuevamente.',
       );
+    } on PlatformException catch (error) {
+      alertError(context, mensaje: _mensajeErrorGoogle(error));
     } catch (_) {
       alertError(context, mensaje: 'Ocurrió un error al iniciar sesión con Google.');
     }
 
     authprovider.loading = false;
     return false;
+  }
+
+  String _mensajeErrorGoogle(PlatformException error) {
+    final detalle = error.message ?? error.code;
+    return 'No se pudo iniciar sesión con Google. Verifica la configuración OAuth en Google Cloud Console: Web Client ID, package name y huellas SHA-1/SHA-256. Detalle: $detalle';
   }
 
   Future<void> _guardarSesion(
