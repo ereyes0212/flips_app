@@ -15,7 +15,13 @@ class SessionExpiredException implements Exception {
 }
 
 class SessionService {
-  static const _sessionKeys = ['token', 'user', 'idUser', 'nombre'];
+  static const _sessionKeys = [
+    'token',
+    'sessionCookie',
+    'user',
+    'idUser',
+    'nombre',
+  ];
   static bool _redirecting = false;
 
   static Future<String?> getValidToken() async {
@@ -37,6 +43,20 @@ class SessionService {
   }
 
   static Future<bool> hasValidSession() async => (await getValidToken()) != null;
+
+  static Future<String?> getSessionCookie() async {
+    final prefs = await SharedPreferences.getInstance();
+    final cookie = normalizeSessionCookie(prefs.getString('sessionCookie'));
+    if (cookie != null && cookie.isNotEmpty) {
+      if (prefs.getString('sessionCookie') != cookie) {
+        await prefs.setString('sessionCookie', cookie);
+      }
+      return cookie;
+    }
+
+    final token = await getValidToken();
+    return sessionCookieFromToken(token);
+  }
 
   static Future<void> clearSession() async {
     final prefs = await SharedPreferences.getInstance();
@@ -86,6 +106,29 @@ class SessionService {
     }
 
     return trimmed;
+  }
+
+  static String? normalizeSessionCookie(String? cookie) {
+    final trimmed = cookie?.trim() ?? '';
+    if (trimmed.isEmpty) return null;
+
+    final firstPart = trimmed.split(';').first.trim();
+    final separatorIndex = firstPart.indexOf('=');
+    if (separatorIndex <= 0 || separatorIndex == firstPart.length - 1) {
+      return null;
+    }
+
+    return firstPart;
+  }
+
+  static String? sessionCookieFromSetCookie(String? setCookie) {
+    return normalizeSessionCookie(setCookie);
+  }
+
+  static String? sessionCookieFromToken(String? token) {
+    final normalizedToken = normalizeToken(token);
+    if (normalizedToken == null || normalizedToken.isEmpty) return null;
+    return 'session=$normalizedToken';
   }
 
   static bool isJwtExpired(String token) {

@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:flutter/foundation.dart';
 import 'package:flips_app/constants.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flips_app/models/login_response.model.dart';
@@ -29,7 +30,10 @@ class AuthService {
       );
   
       if (response.statusCode == 200) {
-        return LoginResponseModel.fromJson(jsonDecode(response.body));
+        final loginResponse = LoginResponseModel.fromJson(
+          jsonDecode(response.body),
+        );
+        return _withSessionCookie(loginResponse, response);
       }
       return null;
     } on SocketException {
@@ -53,7 +57,10 @@ class AuthService {
       final message = _extractMessage(body);
 
       if (response.statusCode == 200 || response.statusCode == 201) {
-        final loginResponse = LoginResponseModel.fromJson(body);
+        final loginResponse = _withSessionCookie(
+          LoginResponseModel.fromJson(body),
+          response,
+        );
         final token = SessionService.normalizeToken(loginResponse.token) ?? '';
         _logGoogleParsedSession(loginResponse, token);
         if (loginResponse.ok && token.isNotEmpty) {
@@ -97,6 +104,19 @@ class AuthService {
     }
   }
 
+  LoginResponseModel _withSessionCookie(
+    LoginResponseModel loginResponse,
+    Response response,
+  ) {
+    final sessionCookie = SessionService.sessionCookieFromSetCookie(
+          response.headers['set-cookie'],
+        )
+        ?? SessionService.sessionCookieFromToken(loginResponse.token)
+        ?? '';
+
+    return loginResponse.copyWith(sessionCookie: sessionCookie);
+  }
+
   void _logGoogleBackendResponse(Response response) {
     if (!kDebugMode) return;
 
@@ -116,6 +136,7 @@ class AuthService {
     debugPrint('ok: ${loginResponse.ok}');
     debugPrint('message: ${loginResponse.message}');
     debugPrint('token empty: ${token.isEmpty}');
+    debugPrint('session cookie empty: ${loginResponse.sessionCookie.isEmpty}');
     debugPrint(
       'token expires at UTC: ${expiresAt?.toIso8601String() ?? 'sin exp / no JWT'}',
     );

@@ -135,7 +135,12 @@ class AuthController {
   ) async {
     final prefs = await SharedPreferences.getInstance();
     final token = SessionService.normalizeToken(response.token) ?? '';
+    final sessionCookie =
+        SessionService.normalizeSessionCookie(response.sessionCookie)
+            ?? SessionService.sessionCookieFromToken(token)
+            ?? '';
     await prefs.setString('token', token);
+    await prefs.setString('sessionCookie', sessionCookie);
     await prefs.setString('user', response.data.user);
     await prefs.setString('idUser', response.data.idUser);
     await prefs.setString('nombre', response.data.nombre);

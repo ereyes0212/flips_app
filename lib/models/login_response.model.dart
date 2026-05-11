@@ -5,6 +5,7 @@ class LoginResponseModel {
     required this.redirect,
     required this.token,
     required this.data,
+    this.sessionCookie = '',
   });
 
   final bool ok;
@@ -12,6 +13,7 @@ class LoginResponseModel {
   final String redirect;
   final String token;
   final LoginUserData data;
+  final String sessionCookie;
 
   factory LoginResponseModel.fromJson(Map<String, dynamic> json) {
     final data = _mapValue(json['data']);
@@ -31,6 +33,18 @@ class LoginResponseModel {
       redirect: json['redirect'] ?? '',
       token: token,
       data: LoginUserData.fromJson(data),
+      sessionCookie: _stringValue(json['sessionCookie']) ?? '',
+    );
+  }
+
+  LoginResponseModel copyWith({String? token, String? sessionCookie}) {
+    return LoginResponseModel(
+      ok: ok,
+      message: message,
+      redirect: redirect,
+      token: token ?? this.token,
+      data: data,
+      sessionCookie: sessionCookie ?? this.sessionCookie,
     );
   }
 

@@ -116,6 +116,8 @@ class HttpService {
     required bool includeAuth,
   }) async {
     final token = includeAuth ? await SessionService.getValidToken() ?? '' : '';
+    final sessionCookie =
+        includeAuth ? await SessionService.getSessionCookie() ?? '' : '';
     if (includeAuth && token.isEmpty) {
       await SessionService.expireAndRedirect(
         message: 'Tu sesión expiró. Inicia sesión nuevamente.',
@@ -126,6 +128,7 @@ class HttpService {
       'Accept': 'application/json',
       if (useJson) 'Content-Type': 'application/json',
       if (token.isNotEmpty) 'Authorization': 'Bearer $token',
+      if (sessionCookie.isNotEmpty) 'Cookie': sessionCookie,
       ...?headers,
     };
 

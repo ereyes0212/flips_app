@@ -472,9 +472,12 @@ class _DiarioNetwork {
       throw const SessionExpiredException();
     }
 
+    final sessionCookie = await SessionService.getSessionCookie() ?? '';
+
     return {
       'Accept': '*/*',
       if (token.isNotEmpty) 'Authorization': 'Bearer $token',
+      if (sessionCookie.isNotEmpty) 'Cookie': sessionCookie,
     };
   }
 }
