@@ -36,20 +36,11 @@ class AuthService {
     }
   }
 
-  Future<GoogleLoginResult> loginWithGoogle({
-    required String idToken,
-    required String email,
-    required String nombre,
-  }) async {
+  Future<GoogleLoginResult> loginWithGoogle({required String idToken}) async {
     try {
       final response = await _httpService.post(
         '${apiUrl}auth/google',
-        body: {
-          'provider': 'google',
-          'idToken': idToken,
-          'email': email,
-          'nombre': nombre,
-        },
+        body: {'idToken': idToken},
         includeAuth: false,
       );
 
