@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:flips_app/constants.dart';
 import 'package:flips_app/models/login_response.model.dart';
 import 'package:flips_app/services/http.service.dart';
+import 'package:flips_app/services/session.service.dart';
 
 class GoogleLoginResult {
   const GoogleLoginResult({this.response, this.message = ''});
@@ -49,8 +50,23 @@ class AuthService {
 
       if (response.statusCode == 200 || response.statusCode == 201) {
         final loginResponse = LoginResponseModel.fromJson(body);
-        if (loginResponse.ok) {
+        final token = SessionService.normalizeToken(loginResponse.token) ?? '';
+        if (loginResponse.ok && token.isNotEmpty) {
+          if (SessionService.isJwtExpired(token)) {
+            return const GoogleLoginResult(
+              message:
+                  'El backend devolvió una sesión vencida. Intenta iniciar sesión nuevamente.',
+            );
+          }
+
           return GoogleLoginResult(response: loginResponse);
+        }
+
+        if (loginResponse.ok && token.isEmpty) {
+          return const GoogleLoginResult(
+            message:
+                'El backend no devolvió un token de sesión para Google Sign-In.',
+          );
         }
 
         return GoogleLoginResult(

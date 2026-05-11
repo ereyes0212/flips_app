@@ -14,13 +14,35 @@ class LoginResponseModel {
   final LoginUserData data;
 
   factory LoginResponseModel.fromJson(Map<String, dynamic> json) {
+    final data = _mapValue(json['data']);
+    final token = _stringValue(json['token'])
+        ?? _stringValue(json['accessToken'])
+        ?? _stringValue(json['access_token'])
+        ?? _stringValue(json['jwt'])
+        ?? _stringValue(data['token'])
+        ?? _stringValue(data['accessToken'])
+        ?? _stringValue(data['access_token'])
+        ?? _stringValue(data['jwt'])
+        ?? '';
+
     return LoginResponseModel(
-      ok: json['ok'] ?? false,
+      ok: json['ok'] ?? token.isNotEmpty,
       message: json['message'] ?? '',
       redirect: json['redirect'] ?? '',
-      token: json['token'] ?? '',
-      data: LoginUserData.fromJson(json['data'] ?? {}),
+      token: token,
+      data: LoginUserData.fromJson(data),
     );
+  }
+
+  static Map<String, dynamic> _mapValue(dynamic value) {
+    if (value is Map<String, dynamic>) return value;
+    if (value is Map) return Map<String, dynamic>.from(value);
+    return {};
+  }
+
+  static String? _stringValue(dynamic value) {
+    final text = value?.toString().trim();
+    return text == null || text.isEmpty ? null : text;
   }
 }
 
