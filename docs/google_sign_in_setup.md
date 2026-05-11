@@ -26,7 +26,17 @@ Para Android, `GOOGLE_WEB_CLIENT_ID` es obligatorio en esta implementación porq
 
 ## 3. Backend
 
-El endpoint `POST /api/auth/google` debe recibir el `idToken` y validarlo del lado del servidor antes de crear la sesión propia de la app. Validaciones mínimas recomendadas:
+El endpoint público que llama Flutter es `POST /api/auth/google`, con `Content-Type: application/json`. La app debe mandar únicamente el ID token de Google en la propiedad `idToken`; el backend también acepta los alias `credential` o `token`, pero `idToken` es la opción recomendada:
+
+```json
+{
+  "idToken": "GOOGLE_ID_TOKEN"
+}
+```
+
+La implementación obtiene el token con `GoogleSignIn(serverClientId: GOOGLE_WEB_CLIENT_ID).signIn()`, lee `googleUser.authentication.idToken` y envía solo `{ "idToken": idToken }` al backend. No se envían email, nombre ni datos del perfil porque el servidor debe derivar la identidad desde el token validado.
+
+El backend debe validar el `idToken` del lado del servidor antes de crear la sesión propia de la app. Validaciones mínimas recomendadas:
 
 - Firma del token contra las llaves públicas de Google.
 - `iss` igual a `https://accounts.google.com` o `accounts.google.com`.
