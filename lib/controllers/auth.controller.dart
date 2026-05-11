@@ -94,7 +94,6 @@ class AuthController {
       }
 
       final result = await service.loginWithGoogle(idToken: idToken);
-      print(  'Google login result: ok=${result.ok}, message="${result.message}", response=${result.response}');
 
       if (result.ok && result.response != null) {
         await _guardarSesion(result.response!, authprovider);

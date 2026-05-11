@@ -2,9 +2,11 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:flips_app/constants.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flips_app/models/login_response.model.dart';
 import 'package:flips_app/services/http.service.dart';
 import 'package:flips_app/services/session.service.dart';
+import 'package:http/http.dart' show Response;
 
 class GoogleLoginResult {
   const GoogleLoginResult({this.response, this.message = ''});
@@ -45,12 +47,15 @@ class AuthService {
         includeAuth: false,
       );
 
+      _logGoogleBackendResponse(response);
+
       final body = _decodeBody(response.body);
       final message = _extractMessage(body);
 
       if (response.statusCode == 200 || response.statusCode == 201) {
         final loginResponse = LoginResponseModel.fromJson(body);
         final token = SessionService.normalizeToken(loginResponse.token) ?? '';
+        _logGoogleParsedSession(loginResponse, token);
         if (loginResponse.ok && token.isNotEmpty) {
           if (SessionService.isJwtExpired(token)) {
             return const GoogleLoginResult(
@@ -90,6 +95,34 @@ class AuthService {
         message: 'No se pudo leer la respuesta del backend de Google Sign-In.',
       );
     }
+  }
+
+  void _logGoogleBackendResponse(Response response) {
+    if (!kDebugMode) return;
+
+    debugPrint('========== Google Sign-In backend response ==========');
+    debugPrint('POST ${apiUrl}auth/google');
+    debugPrint('Status code: ${response.statusCode}');
+    debugPrint('Headers: ${response.headers}');
+    debugPrint('Body: ${response.body}');
+    debugPrint('=====================================================');
+  }
+
+  void _logGoogleParsedSession(LoginResponseModel loginResponse, String token) {
+    if (!kDebugMode) return;
+
+    final expiresAt = SessionService.jwtExpiresAt(token);
+    debugPrint('========== Google Sign-In parsed session ==========');
+    debugPrint('ok: ${loginResponse.ok}');
+    debugPrint('message: ${loginResponse.message}');
+    debugPrint('token empty: ${token.isEmpty}');
+    debugPrint(
+      'token expires at UTC: ${expiresAt?.toIso8601String() ?? 'sin exp / no JWT'}',
+    );
+    debugPrint(
+      'token expired: ${token.isNotEmpty && SessionService.isJwtExpired(token)}',
+    );
+    debugPrint('===================================================');
   }
 
   Map<String, dynamic> _decodeBody(String body) {
