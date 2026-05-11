@@ -20,6 +20,13 @@ class _LoginScreenState extends State<LoginScreen> {
   TextEditingController txtUser = TextEditingController(text: '');
   TextEditingController txtPass = TextEditingController(text: '');
   bool verContrasena = true;
+
+  @override
+  void dispose() {
+    txtUser.dispose();
+    txtPass.dispose();
+    super.dispose();
+  }
   // Future<void> _authenticateWithBiometrics() async {
   //   try {
   //     bool canCheckBiometrics = await auth.canCheckBiometrics;
@@ -133,7 +140,9 @@ class _LoginScreenState extends State<LoginScreen> {
                         SizedBox(
                           width: double.infinity,
                           child: ElevatedButton.icon(
-                            onPressed: () {
+                            onPressed: authprovider.loading
+                                ? null
+                                : () {
                               AuthController().loginController(
                                 txtUser.text.trim(),
                                 txtPass.text.trim(),
@@ -148,9 +157,11 @@ class _LoginScreenState extends State<LoginScreen> {
                         SizedBox(
                           width: double.infinity,
                           child: OutlinedButton.icon(
-                            onPressed: () {
-                              // AuthController().loginWithGoogleController(context);
-                            },
+                            onPressed: authprovider.loading
+                                ? null
+                                : () {
+                                    AuthController().loginWithGoogleController(context);
+                                  },
                             icon: const Icon(Icons.g_mobiledata, size: 28),
                             label: const Text('Iniciar sesión con Google'),
                           ),

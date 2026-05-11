@@ -22,6 +22,7 @@ const String pixelpaySecretKey = '2d98aaf75de7a9ba64574ad608412d9795605eb1aa7868
 
 GlobalKey<ScaffoldMessengerState> snackbarKey =
     GlobalKey<ScaffoldMessengerState>();
+GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 
 class AppAssets {
   String logoAppWhite = 'assets/images/logozf.png';
