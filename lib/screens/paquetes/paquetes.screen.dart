@@ -5,21 +5,12 @@ import 'dart:math';
 import 'package:flips_app/controllers/paquetes.controller.dart';
 import 'package:flips_app/models/paquetes.model.dart';
 import 'package:flips_app/models/suscripcion_checkout.model.dart';
-import 'package:flips_app/services/suscripcion_checkout.service.dart';
 import 'package:flips_app/providers/paquetes.provider.dart';
-import 'package:flips_app/constants.dart';
+import 'package:flips_app/services/suscripcion_checkout.service.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
-import 'package:pixelpay_sdk/entities/transaction_result.dart' as pixelpay;
-import 'package:pixelpay_sdk/models/billing.dart' as pixelpay;
-import 'package:pixelpay_sdk/models/card.dart' as pixelpay;
-import 'package:pixelpay_sdk/models/item.dart' as pixelpay;
-import 'package:pixelpay_sdk/models/order.dart' as pixelpay;
-import 'package:pixelpay_sdk/models/settings.dart' as pixelpay;
-import 'package:pixelpay_sdk/requests/sale_transaction.dart' as pixelpay;
-import 'package:pixelpay_sdk/services/transaction.dart' as pixelpay;
-import 'package:pixelpay_sdk/resources/locations.dart' as pixelpay;
 import 'package:provider/provider.dart';
+import 'package:webview_flutter/webview_flutter.dart';
 
 class PixelPayCheckoutException implements Exception {
   PixelPayCheckoutException(this.message);
@@ -29,6 +20,8 @@ class PixelPayCheckoutException implements Exception {
   @override
   String toString() => message;
 }
+
+enum _HostedCheckoutResult { completed, cancelled, closed }
 
 class PaquetesScreen extends StatefulWidget {
   const PaquetesScreen({super.key});
@@ -58,352 +51,81 @@ class _PaquetesScreenState extends State<PaquetesScreen> {
   }
 
   Future<void> _pagarSuscripcion(PaqueteModel plan) async {
-    print('Iniciando proceso de pago para el plan: ${plan.name} (ID: ${plan.id})');
-    final form = await showModalBottomSheet<_CardFormData>(
-      context: context,
-      isScrollControlled: true,
-      useSafeArea: true,
-      builder: (_) => _CardPaymentForm(plan: plan),
-    );
-
-    if (!mounted || form == null) return;
+    if (_paying) return;
 
     setState(() => _paying = true);
 
     try {
       final idempotencyKey = _generateUuidV4();
-      print('Iniciando checkout PixelPay para plan: ${plan.id}');
       final checkout = await _checkoutService.iniciarCheckout(
         planId: plan.id,
         idempotencyKey: idempotencyKey,
       );
-      if (!checkout.ok || checkout.paymentData == null) {
+
+      final pagoId = checkout.pagoId?.trim() ?? '';
+      final paymentUrl = checkout.paymentUrl?.trim() ?? '';
+      if (!checkout.ok || pagoId.isEmpty || paymentUrl.isEmpty) {
         throw PixelPayCheckoutException(
-          checkout.message ?? 'No se pudo inicializar el checkout.',
+          checkout.message ?? 'No se pudo crear el checkout seguro de PixelPay.',
         );
       }
 
-      final sdkConfig = checkout.sdkConfig ?? SdkConfig.empty();
-      _validatePaymentData(checkout.paymentData!);
+      final paymentUri = Uri.tryParse(paymentUrl);
+      if (paymentUri == null || !paymentUri.hasScheme) {
+        throw PixelPayCheckoutException('La URL segura de PixelPay no es válida.');
+      }
 
-      final pixelpaySecretHash = _resolvePixelPaySecretHash(sdkConfig);
-      final settings = _buildPixelPaySettings(sdkConfig);
-      final paymentData = checkout.paymentData!;
+      if (!mounted) return;
+      setState(() => _paying = false);
 
-      final order = pixelpay.Order();
-      order.id = paymentData.reference;
-      order.currency = paymentData.currency;
-      order.customer_name = form.cardholder;
-      order.customer_email = form.email;
-
-      final item = pixelpay.Item();
-      item.code = plan.key.isNotEmpty ? plan.key : plan.id;
-      item.title = paymentData.description.isNotEmpty ? paymentData.description : plan.name;
-      item.qty = 1;
-      item.price = paymentData.amount;
-      order.addItem(item);
-      order.totalize();
-
-      final card = pixelpay.Card();
-      card.number = form.cardNumber;
-      card.cvv2 = form.cvv;
-      card.expire_month = form.expMonth;
-      card.expire_year = form.expYear;
-      card.cardholder = form.cardholder;
-
-      final billing = pixelpay.Billing();
-      billing.address = form.address;
-      billing.country = form.country;
-      billing.state = form.state;
-      billing.city = form.city;
-      billing.phone = form.phone;
-
-      final sale = pixelpay.SaleTransaction();
-      sale.lang = 'es';
-      sale.setOrder(order);
-      sale.setCard(card);
-      sale.setBilling(billing);
-
-      print('Enviando transacción a PixelPay...');
-      final transaction = pixelpay.Transaction(settings);
-      final rawResponse = await transaction.doSale(sale);
-      print('Respuesta cruda de PixelPay: $rawResponse');
-
-      final resultMap = _buildPixelPayResultMap(
-        rawResponse: rawResponse,
-        transaction: transaction,
-        reference: paymentData.reference,
-        amount: paymentData.amount,
-        secretHash: pixelpaySecretHash,
-      );
-      final isValidPayment = resultMap['success'] == true;
-
-      final confirm = await _checkoutService.confirmarCheckout(
-        pagoId: checkout.pagoId,
-        planId: plan.id,
-        result: resultMap,
-        isValidPayment: isValidPayment,
-        reference: paymentData.reference,
-      );
-      print(
-        'Confirmación del backend: ok=${confirm.ok}, estado=${confirm.estado}, '
-        'activated=${confirm.activated}, message=${confirm.message}',
+      final checkoutResult = await Navigator.of(context).push<_HostedCheckoutResult>(
+        MaterialPageRoute(
+          builder: (_) => _PixelPayHostedCheckoutScreen(
+            paymentUrl: paymentUrl,
+            completeUrl: checkout.completeUrl,
+            cancelUrl: checkout.cancelUrl,
+          ),
+        ),
       );
 
       if (!mounted) return;
-      if (confirm.ok && confirm.activated == true) {
+      setState(() => _paying = true);
+
+      final estado = await _checkoutService.consultarEstado(pagoId: pagoId);
+      if (!mounted) return;
+
+      if (estado.pagoExitoso) {
         _showSnack('Pago confirmado. Membresía activada.');
-      } else if (confirm.ok && confirm.estado == 'FALLIDO') {
-        _showSnack('El pago fue rechazado o no pudo validarse.', error: true);
-      } else if (confirm.ok) {
-        _showSnack(confirm.message ?? 'Pago procesado, pendiente de validación.', error: true);
+        await _controller.cargarPaquetes(context);
+      } else if (checkoutResult == _HostedCheckoutResult.cancelled) {
+        _showSnack(
+          estado.message ?? 'El pago fue cancelado. Puedes intentarlo nuevamente.',
+          error: true,
+        );
       } else {
-        _showSnack(confirm.message ?? 'No se pudo confirmar el pago.', error: true);
+        _showSnack(
+          estado.message ?? 'El pago todavía no figura como exitoso.',
+          error: true,
+        );
       }
     } on SocketException catch (e) {
-      print('Error de conexión: $e');
+      debugPrint('Error de conexión: $e');
       _showSnack('Sin conexión. Reintenta con internet estable.', error: true);
     } on TimeoutException catch (e) {
-      print('Error de tiempo de espera: $e');
+      debugPrint('Error de tiempo de espera: $e');
       _showSnack('Tiempo de espera agotado. Intenta nuevamente.', error: true);
     } on ApiHttpException catch (e) {
-      print('Error HTTP de API: ${e.message} (código: ${e.statusCode})');
+      debugPrint('Error HTTP de API: ${e.message} (código: ${e.statusCode})');
       _showSnack(e.message, error: true);
     } on PixelPayCheckoutException catch (e) {
-      print('Error de PixelPay: ${e.message}');
+      debugPrint('Error de PixelPay: ${e.message}');
       _showSnack(e.message, error: true);
     } catch (e) {
-      print('Error general al procesar pago: $e');
+      debugPrint('Error general al procesar pago: $e');
       _showSnack('Error al procesar pago: $e', error: true);
     } finally {
       if (mounted) setState(() => _paying = false);
     }
-  }
-
-  void _validatePaymentData(PaymentData paymentData) {
-    if (paymentData.reference.trim().isEmpty) {
-      throw PixelPayCheckoutException('Falta la referencia de la orden PixelPay.');
-    }
-    if (paymentData.currency.trim().isEmpty) {
-      throw PixelPayCheckoutException('Falta la moneda de la orden PixelPay.');
-    }
-    if (paymentData.amount <= 0) {
-      throw PixelPayCheckoutException('El monto de la orden PixelPay no es válido.');
-    }
-  }
-
-  pixelpay.Settings _buildPixelPaySettings(SdkConfig config) {
-    final publicKey = _resolvePixelPayPublicKey(config);
-    final secretHash = _resolvePixelPaySecretHash(config);
-    final endpoint = config.endpoint?.trim() ?? '';
-    final environment = config.environment.trim().toLowerCase();
-
-    if (publicKey.isEmpty) {
-      throw PixelPayCheckoutException('Falta la llave pública de PixelPay.');
-    }
-    if (secretHash.isEmpty) {
-      throw PixelPayCheckoutException('Falta el hash secreto de PixelPay.');
-    }
-
-    final settings = pixelpay.Settings();
-    final effectiveEndpoint = endpoint.isNotEmpty ? endpoint : pixelpayEndpoint;
-    if (effectiveEndpoint.isNotEmpty) {
-      settings.setupEndpoint(effectiveEndpoint);
-      print('Usando endpoint PixelPay: $effectiveEndpoint');
-    } else if (environment == 'sandbox' || environment == 'test') {
-      settings.setupSandbox();
-      print('Usando entorno sandbox de PixelPay');
-    } else {
-      throw PixelPayCheckoutException('Falta el endpoint de PixelPay para producción.');
-    }
-
-    settings.setupCredentials(publicKey, secretHash);
-    print(
-      'Credenciales PixelPay detectadas: keyId=${_maskCredential(publicKey)}, '
-      'hash=${_maskCredential(secretHash)}',
-    );
-    if (config.headers.isNotEmpty) {
-      settings.setupHeaders(config.headers);
-    }
-    print('Credenciales PixelPay configuradas para ambiente: ${config.environment}');
-
-    return settings;
-  }
-
-  String _maskCredential(String value) {
-    final trimmed = value.trim();
-    if (trimmed.length <= 8) return '***';
-    return '${trimmed.substring(0, 4)}...${trimmed.substring(trimmed.length - 4)}';
-  }
-
-  String _resolvePixelPayPublicKey(SdkConfig config) {
-    final configPublicKey = config.publicKey.trim();
-    if (configPublicKey.isNotEmpty) return configPublicKey;
-    return pixelpayPublicKey.trim();
-  }
-
-  String _resolvePixelPaySecretHash(SdkConfig config) {
-    final configSecretHash = config.secretKey?.trim() ?? '';
-    if (configSecretHash.isNotEmpty) return configSecretHash;
-    return pixelpaySecretKey.trim();
-  }
-
-  Map<String, dynamic> _buildPixelPayResultMap({
-    required dynamic rawResponse,
-    required pixelpay.Transaction transaction,
-    required String reference,
-    required double amount,
-    required String secretHash,
-  }) {
-    if (rawResponse == null || !pixelpay.TransactionResult.validateResponse(rawResponse)) {
-      final rawData = _asStringDynamicMap(rawResponse?.data);
-      return {
-        'success': false,
-        'responseType': 'InvalidResponse',
-        'message': _pixelPayResponseMessage(rawResponse),
-        'payment_hash': _readString(rawData, ['payment_hash']),
-        'id': _readString(rawData, ['transaction_id', 'id']),
-        'data': _mergePixelPayData(
-          rawData: rawData,
-          reference: reference,
-          amount: amount,
-          isApproved: false,
-          responseReason: _pixelPayResponseMessage(rawResponse),
-        ),
-      };
-    }
-
-    final result = pixelpay.TransactionResult.fromResponse(rawResponse);
-    final rawData = _asStringDynamicMap(rawResponse.data);
-    final paymentHash = _nullableString(result.payment_hash);
-    final responseReason = _nullableString(result.response_reason);
-    final isApproved = result.response_approved == true;
-    final localHashValid = _verifyLocalPaymentHash(
-      transaction: transaction,
-      paymentHash: paymentHash,
-      reference: reference,
-      secretHash: secretHash,
-    );
-
-    print(
-      'Resultado de la transacción: aprobado=$isApproved, '
-      'razón=$responseReason, hash=$paymentHash, hashLocalValido=$localHashValid',
-    );
-
-    return {
-      'success': isApproved,
-      'responseType': isApproved ? 'SuccessResponse' : 'PaymentDeclinedResponse',
-      'message': responseReason,
-      'payment_hash': paymentHash,
-      'id': _readString(rawData, ['transaction_id', 'id']),
-      'local_hash_valid': localHashValid,
-      'data': _mergePixelPayData(
-        rawData: rawData,
-        reference: reference,
-        amount: amount,
-        isApproved: isApproved,
-        responseReason: responseReason,
-      ),
-    };
-  }
-
-
-  bool _verifyLocalPaymentHash({
-    required pixelpay.Transaction transaction,
-    required String paymentHash,
-    required String reference,
-    required String secretHash,
-  }) {
-    if (paymentHash.isEmpty || secretHash.trim().isEmpty) return false;
-    try {
-      return transaction.verifyPaymentHash(
-        paymentHash,
-        reference,
-        secretHash.trim(),
-      );
-    } catch (e) {
-      print('No se pudo validar localmente el hash de PixelPay: $e');
-      return false;
-    }
-  }
-
-  Map<String, dynamic> _mergePixelPayData({
-    required Map<String, dynamic> rawData,
-    required String reference,
-    required double amount,
-    required bool isApproved,
-    required String responseReason,
-  }) {
-    final data = Map<String, dynamic>.from(rawData);
-    data['transaction_reference'] = _readString(
-      data,
-      ['transaction_reference', 'reference', 'order_id'],
-      fallback: reference,
-    );
-    data['transaction_amount'] = _readNum(
-      data,
-      ['transaction_amount', 'amount'],
-      fallback: amount,
-    );
-    data['response_approved'] = _readBool(
-      data,
-      ['response_approved', 'approved'],
-      fallback: isApproved,
-    );
-    data['response_reason'] = _readString(
-      data,
-      ['response_reason', 'reason', 'message'],
-      fallback: responseReason,
-    );
-    return data;
-  }
-
-  Map<String, dynamic> _asStringDynamicMap(dynamic value) {
-    if (value is Map<String, dynamic>) return Map<String, dynamic>.from(value);
-    if (value is Map) {
-      return value.map((key, value) => MapEntry(key.toString(), value));
-    }
-    return {};
-  }
-
-  String _readString(
-    Map<String, dynamic> data,
-    List<String> keys, {
-    String fallback = '',
-  }) {
-    for (final key in keys) {
-      final value = data[key];
-      if (value != null && value.toString().isNotEmpty) return value.toString();
-    }
-    return fallback;
-  }
-
-  num _readNum(
-    Map<String, dynamic> data,
-    List<String> keys, {
-    required num fallback,
-  }) {
-    for (final key in keys) {
-      final value = data[key];
-      if (value is num) return value;
-      final parsed = num.tryParse(value?.toString() ?? '');
-      if (parsed != null) return parsed;
-    }
-    return fallback;
-  }
-
-  bool _readBool(
-    Map<String, dynamic> data,
-    List<String> keys, {
-    required bool fallback,
-  }) {
-    for (final key in keys) {
-      final value = data[key];
-      if (value is bool) return value;
-      if (value?.toString().toLowerCase() == 'true') return true;
-      if (value?.toString().toLowerCase() == 'false') return false;
-    }
-    return fallback;
   }
 
   String _generateUuidV4() {
@@ -415,14 +137,6 @@ class _PaquetesScreenState extends State<PaquetesScreen> {
     return '${hex.substring(0, 8)}-${hex.substring(8, 12)}-'
         '${hex.substring(12, 16)}-${hex.substring(16, 20)}-${hex.substring(20)}';
   }
-
-  String _pixelPayResponseMessage(dynamic response) {
-    final message = _nullableString(response?.message);
-    if (message.isNotEmpty) return message;
-    return 'Transacción inválida en PixelPay.';
-  }
-
-  String _nullableString(dynamic value) => value?.toString() ?? '';
 
   void _showSnack(String message, {bool error = false}) {
     ScaffoldMessenger.of(context).showSnackBar(
@@ -571,255 +285,114 @@ class _PaquetesScreenState extends State<PaquetesScreen> {
   }
 }
 
-class _CardFormData {
-  _CardFormData({
-    required this.cardNumber,
-    required this.cvv,
-    required this.expMonth,
-    required this.expYear,
-    required this.cardholder,
-    required this.email,
-    required this.address,
-    required this.country,
-    required this.state,
-    required this.city,
-    required this.phone,
+class _PixelPayHostedCheckoutScreen extends StatefulWidget {
+  const _PixelPayHostedCheckoutScreen({
+    required this.paymentUrl,
+    this.completeUrl,
+    this.cancelUrl,
   });
 
-  final String cardNumber;
-  final String cvv;
-  final int expMonth;
-  final int expYear;
-  final String cardholder;
-  final String email;
-  final String address;
-  final String country;
-  final String state;
-  final String city;
-  final String phone;
-}
-
-class _CardPaymentForm extends StatefulWidget {
-  const _CardPaymentForm({required this.plan});
-  final PaqueteModel plan;
+  final String paymentUrl;
+  final String? completeUrl;
+  final String? cancelUrl;
 
   @override
-  State<_CardPaymentForm> createState() => _CardPaymentFormState();
+  State<_PixelPayHostedCheckoutScreen> createState() =>
+      _PixelPayHostedCheckoutScreenState();
 }
 
-class _CardPaymentFormState extends State<_CardPaymentForm> {
-  final _formKey = GlobalKey<FormState>();
-  final _card = TextEditingController();
-  final _cvv = TextEditingController();
-  final _expMonth = TextEditingController();
-  final _expYear = TextEditingController();
-  final _cardholder = TextEditingController();
-  final _email = TextEditingController();
-  final _address = TextEditingController();
-  final _country = TextEditingController(text: 'HN');
-  final _state = TextEditingController(text: 'HN-CR');
-  final _city = TextEditingController();
-  final _phone = TextEditingController();
-
-  Map<String, dynamic> _countries = {};
-  Map<String, dynamic> _states = {};
-  bool _loadingLocations = true;
-
-  String _locationLabel(dynamic locationValue, String fallback) {
-    if (locationValue is Map<String, dynamic>) {
-      return locationValue['title']?.toString() ?? fallback;
-    }
-    if (locationValue is Map) {
-      return locationValue['title']?.toString() ?? fallback;
-    }
-    return locationValue?.toString() ?? fallback;
-  }
+class _PixelPayHostedCheckoutScreenState extends State<_PixelPayHostedCheckoutScreen> {
+  late final WebViewController _webViewController;
+  bool _loading = true;
+  bool _closing = false;
 
   @override
   void initState() {
     super.initState();
-    _loadLocations();
+    _webViewController = WebViewController()
+      ..setJavaScriptMode(JavaScriptMode.unrestricted)
+      ..setNavigationDelegate(
+        NavigationDelegate(
+          onPageStarted: (_) => setState(() => _loading = true),
+          onPageFinished: (_) => setState(() => _loading = false),
+          onUrlChange: (change) => _handleUrl(change.url),
+          onNavigationRequest: (request) {
+            final result = _resultForUrl(request.url);
+            if (result != null) {
+              _close(result);
+              return NavigationDecision.prevent;
+            }
+            return NavigationDecision.navigate;
+          },
+        ),
+      )
+      ..loadRequest(Uri.parse(widget.paymentUrl));
   }
 
-  Future<void> _loadLocations() async {
-    try {
-      _setupPixelPayLocations();
-
-      final countries = await pixelpay.Locations.countriesList();
-      final states = await pixelpay.Locations.statesList(_country.text);
-      if (!mounted) return;
-      setState(() {
-        _countries = countries;
-        _states = states;
-        _loadingLocations = false;
-      });
-    } catch (_) {
-      if (!mounted) return;
-      setState(() => _loadingLocations = false);
-    }
+  void _handleUrl(String? url) {
+    final result = _resultForUrl(url);
+    if (result != null) _close(result);
   }
 
-  Future<void> _onCountryChanged(String? country) async {
-    if (country == null || country.isEmpty) return;
-    setState(() {
-      _country.text = country;
-      _state.text = '';
-      _states = {};
-      _loadingLocations = true;
-    });
+  _HostedCheckoutResult? _resultForUrl(String? rawUrl) {
+    if (rawUrl == null || rawUrl.isEmpty) return null;
+    final uri = Uri.tryParse(rawUrl);
+    final completeUri = Uri.tryParse(widget.completeUrl ?? '');
+    final cancelUri = Uri.tryParse(widget.cancelUrl ?? '');
 
-    try {
-      _setupPixelPayLocations();
-
-      final states = await pixelpay.Locations.statesList(country);
-      if (!mounted) return;
-      setState(() {
-        _states = states;
-        _loadingLocations = false;
-      });
-    } catch (_) {
-      if (!mounted) return;
-      setState(() => _loadingLocations = false);
+    if (_matchesRedirect(uri, completeUri, '/mobile/pixelpay/hosted/complete')) {
+      return _HostedCheckoutResult.completed;
     }
+    if (_matchesRedirect(uri, cancelUri, '/mobile/pixelpay/hosted/cancel')) {
+      return _HostedCheckoutResult.cancelled;
+    }
+    return null;
   }
 
-  void _setupPixelPayLocations() {
-    final settings = pixelpay.Settings();
-    if (pixelpayEndpoint.trim().isNotEmpty) {
-      settings.setupEndpoint(pixelpayEndpoint.trim());
+  bool _matchesRedirect(Uri? current, Uri? expected, String pathSuffix) {
+    if (current == null) return false;
+    if (expected != null && expected.hasScheme) {
+      final sameBase = current.scheme == expected.scheme &&
+          current.host == expected.host &&
+          current.path == expected.path;
+      if (sameBase) return true;
     }
-    if (pixelpayPublicKey.trim().isNotEmpty && pixelpaySecretKey.trim().isNotEmpty) {
-      settings.setupCredentials(pixelpayPublicKey.trim(), pixelpaySecretKey.trim());
-    }
+    return current.path.endsWith(pathSuffix);
+  }
+
+  void _close(_HostedCheckoutResult result) {
+    if (_closing || !mounted) return;
+    _closing = true;
+    Navigator.of(context).pop(result);
+  }
+
+  Future<bool> _onWillPop() async {
+    Navigator.of(context).pop(_HostedCheckoutResult.closed);
+    return false;
   }
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: EdgeInsets.only(
-        left: 16,
-        right: 16,
-        top: 16,
-        bottom: MediaQuery.of(context).viewInsets.bottom + 16,
-      ),
-      child: SingleChildScrollView(
-        child: Form(
-          key: _formKey,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                'Pagar ${widget.plan.name}',
-                style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-              ),
-              const SizedBox(height: 12),
-              ...[
-                _field(_card, 'Número de tarjeta', keyboardType: TextInputType.number),
-                _field(_cvv, 'CVV', keyboardType: TextInputType.number),
-                _field(_expMonth, 'Mes exp (MM)', keyboardType: TextInputType.number),
-                _field(_expYear, 'Año exp (YYYY)', keyboardType: TextInputType.number),
-                _field(_cardholder, 'Nombre en tarjeta', keyboardType: TextInputType.name),
-                _field(_email, 'Email', keyboardType: TextInputType.emailAddress),
-                _field(_address, 'Dirección', keyboardType: TextInputType.streetAddress),
-                _countryDropdown(),
-                _stateDropdown(),
-                _field(_city, 'Ciudad', keyboardType: TextInputType.text),
-                _field(_phone, 'Teléfono', keyboardType: TextInputType.phone),
-              ],
-              const SizedBox(height: 12),
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton(
-                  onPressed: () {
-                    if (!(_formKey.currentState?.validate() ?? false)) return;
-                    Navigator.pop(
-                      context,
-                      _CardFormData(
-                        cardNumber: _card.text.trim(),
-                        cvv: _cvv.text.trim(),
-                        expMonth: int.parse(_expMonth.text.trim()),
-                        expYear: int.parse(_expYear.text.trim()),
-                        cardholder: _cardholder.text.trim(),
-                        email: _email.text.trim(),
-                        address: _address.text.trim(),
-                        country: _country.text.trim(),
-                        state: _state.text.trim(),
-                        city: _city.text.trim(),
-                        phone: _phone.text.trim(),
-                      ),
-                    );
-                  },
-                  child: const Text('Procesar pago'),
-                ),
-              ),
-            ],
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop) _onWillPop();
+      },
+      child: Scaffold(
+        appBar: AppBar(
+          title: const Text('Pago seguro'),
+          leading: IconButton(
+            icon: const Icon(Icons.close),
+            onPressed: () => Navigator.of(context).pop(_HostedCheckoutResult.closed),
           ),
+        ),
+        body: Stack(
+          children: [
+            WebViewWidget(controller: _webViewController),
+            if (_loading) const Center(child: CircularProgressIndicator()),
+          ],
         ),
       ),
     );
   }
-
-  Widget _field(
-    TextEditingController c,
-    String label, {
-    TextInputType? keyboardType,
-  }) =>
-      Padding(
-        padding: const EdgeInsets.only(bottom: 8),
-        child: TextFormField(
-          controller: c,
-          keyboardType: keyboardType,
-          decoration: InputDecoration(labelText: label),
-          validator: (v) => (v == null || v.trim().isEmpty) ? 'Requerido' : null,
-        ),
-      );
-
-  Widget _countryDropdown() => Padding(
-        padding: const EdgeInsets.only(bottom: 8),
-        child: DropdownButtonFormField<String>(
-          value: _countries.containsKey(_country.text) ? _country.text : null,
-          decoration: const InputDecoration(labelText: 'País'),
-          items: _countries.keys
-              .map(
-                (code) => DropdownMenuItem<String>(
-                  value: code,
-                  child: Text(_locationLabel(_countries[code], code)),
-                ),
-              )
-              .toList(),
-          onChanged: _onCountryChanged,
-          validator: (v) => (v == null || v.isEmpty) ? 'Requerido' : null,
-        ),
-      );
-
-  Widget _stateDropdown() => Padding(
-        padding: const EdgeInsets.only(bottom: 8),
-        child: DropdownButtonFormField<String>(
-          value: _states.containsKey(_state.text) ? _state.text : null,
-          decoration: InputDecoration(
-            labelText: 'Departamento/Estado',
-            suffixIcon: _loadingLocations
-                ? const SizedBox(
-                    width: 16,
-                    height: 16,
-                    child: Padding(
-                      padding: EdgeInsets.all(12),
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    ),
-                  )
-                : null,
-          ),
-          items: _states.keys
-              .map(
-                (code) => DropdownMenuItem<String>(
-                  value: code,
-                  child: Text(_locationLabel(_states[code], code)),
-                ),
-              )
-              .toList(),
-          onChanged: (value) => setState(() => _state.text = value ?? ''),
-          validator: (v) => (v == null || v.isEmpty) ? 'Requerido' : null,
-        ),
-      );
 }

@@ -27,38 +27,33 @@ class SuscripcionCheckoutService {
     };
 
     final response = await _httpService.post(
-      '${apiUrl}mobile/pixelpay/checkout',
+      '${apiUrl}mobile/pixelpay/hosted/checkout',
       body: payload,
     );
 
     final body = _safeJson(response.body);
     if (response.statusCode < 200 || response.statusCode >= 300) {
-      throw ApiHttpException(response.statusCode, _httpMessage(response.statusCode, body['message']?.toString()));
+      throw ApiHttpException(
+        response.statusCode,
+        _httpMessage(response.statusCode, body['message']?.toString()),
+      );
     }
 
     return ContratarSuscripcionResponse.fromJson(body);
   }
 
-  Future<ConfirmarPagoResponse> confirmarCheckout({
-    String? pagoId,
-    String? planId,
-    required Map<String, dynamic> result,
-    required bool isValidPayment,
-    required String reference,
-  }) async {
-    final payload = <String, dynamic>{
-      'result': result,
-      'isValidPayment': isValidPayment,
-      'reference': reference,
-      if (pagoId != null && pagoId.isNotEmpty) 'pagoId': pagoId,
-      if ((pagoId == null || pagoId.isEmpty) && planId != null && planId.isNotEmpty) 'planId': planId,
-    };
-
-    final response = await _httpService.put('${apiUrl}mobile/pixelpay/checkout', body: payload);
+  Future<ConfirmarPagoResponse> consultarEstado({required String pagoId}) async {
+    final uri = Uri.parse('${apiUrl}mobile/pixelpay/hosted/status').replace(
+      queryParameters: {'pagoId': pagoId},
+    );
+    final response = await _httpService.get(uri.toString());
     final body = _safeJson(response.body);
 
     if (response.statusCode < 200 || response.statusCode >= 300) {
-      throw ApiHttpException(response.statusCode, _httpMessage(response.statusCode, body['message']?.toString()));
+      throw ApiHttpException(
+        response.statusCode,
+        _httpMessage(response.statusCode, body['message']?.toString()),
+      );
     }
 
     return ConfirmarPagoResponse.fromJson(body);

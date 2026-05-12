@@ -1,41 +1,15 @@
 # flips_app
-Aplicacion movil de los flips digitales de diario tiempo
+Aplicación móvil de los flips digitales de Diario Tiempo.
 
-## Configuración de PixelPay
+## Flujo de pago PixelPay hosted checkout
 
-La app lee las credenciales públicas de PixelPay desde variables inyectadas por Flutter con `--dart-define` al ejecutar o compilar. Aunque los nombres empiezan con `NEXT_PUBLIC_`, en Flutter no se cargan automáticamente desde `.env`; hay que pasarlas en el comando o configurarlas en el pipeline de build.
+La app ya no usa el SDK de PixelPay ni captura datos de tarjeta en Flutter. El pago se delega al backend y a la URL segura de PixelPay:
 
-Variables soportadas:
+1. Flutter solicita al backend un checkout con `POST /api/mobile/pixelpay/hosted/checkout`.
+2. El backend responde con `pagoId` y `paymentUrl`.
+3. Flutter abre `paymentUrl` en una WebView.
+4. La WebView se cierra cuando PixelPay redirige a `completeUrl` o `cancelUrl`.
+5. Flutter consulta el resultado final con `GET /api/mobile/pixelpay/hosted/status?pagoId=...`.
+6. Si el backend responde un pago exitoso, la app continúa el flujo de membresía.
 
-- `NEXT_PUBLIC_PIXELPAY_ENDPOINT`: endpoint de PixelPay. También se acepta el alias `PIXELPAY_ENDPOINT`. Si no se envía, la app usa `https://hn.ficoposonline.com`.
-- `NEXT_PUBLIC_PIXELPAY_KEY_ID`: llave pública/key id de PixelPay. También se acepta el alias `PIXELPAY_KEY_ID`.
-- `NEXT_PUBLIC_PIXELPAY_KEY_HASH`: hash/secret requerido por el SDK de PixelPay. También se acepta el alias `PIXELPAY_KEY_HASH`.
-
-Ejemplo para desarrollo:
-
-```bash
-flutter run \
-  --dart-define=NEXT_PUBLIC_PIXELPAY_ENDPOINT=https://hn.ficoposonline.com \
-  --dart-define=NEXT_PUBLIC_PIXELPAY_KEY_ID=TU_KEY_ID \
-  --dart-define=NEXT_PUBLIC_PIXELPAY_KEY_HASH=TU_KEY_HASH
-```
-
-Si usas nombres sin prefijo `NEXT_PUBLIC_`, también funciona:
-
-```bash
-flutter run \
-  --dart-define=PIXELPAY_ENDPOINT=https://hn.ficoposonline.com \
-  --dart-define=PIXELPAY_KEY_ID=TU_KEY_ID \
-  --dart-define=PIXELPAY_KEY_HASH=TU_KEY_HASH
-```
-
-Ejemplo para compilar:
-
-```bash
-flutter build apk --release \
-  --dart-define=NEXT_PUBLIC_PIXELPAY_ENDPOINT=https://hn.ficoposonline.com \
-  --dart-define=NEXT_PUBLIC_PIXELPAY_KEY_ID=TU_KEY_ID \
-  --dart-define=NEXT_PUBLIC_PIXELPAY_KEY_HASH=TU_KEY_HASH
-```
-
-> Nota: cualquier valor usado por el SDK en una app cliente puede inspeccionarse en el binario o en la app web. No subas credenciales reales al repositorio; para producción, lo ideal es que el backend entregue la configuración necesaria del checkout o que las credenciales se inyecten desde variables seguras del CI/CD.
+Todas las llamadas al backend se hacen con `Authorization: Bearer <jwt>` y `Content-Type: application/json` cuando aplica.
