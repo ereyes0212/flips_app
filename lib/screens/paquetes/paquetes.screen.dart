@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:io';
+import 'dart:math';
 
 import 'package:flips_app/controllers/paquetes.controller.dart';
 import 'package:flips_app/models/paquetes.model.dart';
@@ -70,8 +71,12 @@ class _PaquetesScreenState extends State<PaquetesScreen> {
     setState(() => _paying = true);
 
     try {
-      print('Iniciando checkout para plan: ${plan.id}');
-      final checkout = await _checkoutService.iniciarCheckout(planId: plan.id);
+      final idempotencyKey = _generateUuidV4();
+      print('Iniciando checkout PixelPay para plan: ${plan.id}');
+      final checkout = await _checkoutService.iniciarCheckout(
+        planId: plan.id,
+        idempotencyKey: idempotencyKey,
+      );
       if (!checkout.ok || checkout.sdkConfig == null || checkout.paymentData == null) {
         throw PixelPayCheckoutException(
           checkout.message ?? 'No se pudo inicializar el checkout.',
@@ -80,19 +85,19 @@ class _PaquetesScreenState extends State<PaquetesScreen> {
       _validatePaymentData(checkout.paymentData!);
 
       final settings = _buildPixelPaySettings(checkout.sdkConfig!);
-      final secretHash = checkout.sdkConfig!.secretKey!.trim();
+      final paymentData = checkout.paymentData!;
 
       final order = pixelpay.Order();
-      order.id = checkout.paymentData!.reference;
-      order.currency = checkout.paymentData!.currency;
+      order.id = paymentData.reference;
+      order.currency = paymentData.currency;
       order.customer_name = form.cardholder;
       order.customer_email = form.email;
 
       final item = pixelpay.Item();
-      item.code = plan.key;
-      item.title = plan.name;
+      item.code = plan.key.isNotEmpty ? plan.key : plan.id;
+      item.title = paymentData.description.isNotEmpty ? paymentData.description : plan.name;
       item.qty = 1;
-      item.price = checkout.paymentData!.amount;
+      item.price = paymentData.amount;
       order.addItem(item);
       order.totalize();
 
@@ -120,61 +125,34 @@ class _PaquetesScreenState extends State<PaquetesScreen> {
       final transaction = pixelpay.Transaction(settings);
       final rawResponse = await transaction.doSale(sale);
       print('Respuesta cruda de PixelPay: $rawResponse');
-      if (rawResponse == null || !pixelpay.TransactionResult.validateResponse(rawResponse)) {
-        print('Respuesta inválida: rawResponse es null o no válida');
-        throw PixelPayCheckoutException(_pixelPayResponseMessage(rawResponse));
-      }
 
-      final result = pixelpay.TransactionResult.fromResponse(rawResponse);
-      final paymentHash = _nullableString(result.payment_hash);
-      final responseReason = _nullableString(result.response_reason);
-      final isApproved = result.response_approved == true;
-      final isValidPayment = isApproved && paymentHash.isNotEmpty &&
-          transaction.verifyPaymentHash(
-            paymentHash,
-            checkout.paymentData!.reference,
-            secretHash,
-          );
-
-      print(
-        'Resultado de la transacción: aprobado=$isApproved, '
-        'válido=$isValidPayment, razón=$responseReason, hash=$paymentHash',
+      final resultMap = _buildPixelPayResultMap(
+        rawResponse: rawResponse,
+        transaction: transaction,
+        reference: paymentData.reference,
+        amount: paymentData.amount,
       );
-      if (!isValidPayment) {
-        throw PixelPayCheckoutException(
-          isApproved
-              ? 'PixelPay aprobó la respuesta, pero la firma del pago no es válida.'
-              : (responseReason.isNotEmpty
-                  ? responseReason
-                  : 'La transacción fue rechazada por PixelPay.'),
-        );
-      }
-
-      final resultMap = {
-        'success': isApproved,
-        'message': responseReason,
-        'payment_hash': paymentHash,
-        'is_valid_payment': isValidPayment,
-        'data': rawResponse.data,
-      };
+      final isValidPayment = resultMap['success'] == true;
 
       final confirm = await _checkoutService.confirmarCheckout(
         pagoId: checkout.pagoId,
         planId: plan.id,
         result: resultMap,
         isValidPayment: isValidPayment,
-        reference: checkout.paymentData!.reference,
+        reference: paymentData.reference,
       );
       print(
-        'Confirmación del backend: ok=${confirm.ok}, '
-        'message=${confirm.message}, suscripcionId=${confirm.suscripcionId}',
+        'Confirmación del backend: ok=${confirm.ok}, estado=${confirm.estado}, '
+        'activated=${confirm.activated}, message=${confirm.message}',
       );
 
       if (!mounted) return;
-      if (confirm.ok && confirm.suscripcionId != null && confirm.suscripcionId!.isNotEmpty) {
-        _showSnack('Pago confirmado. Suscripción activa: ${confirm.suscripcionId}');
+      if (confirm.ok && confirm.activated == true) {
+        _showSnack('Pago confirmado. Membresía activada.');
+      } else if (confirm.ok && confirm.estado == 'FALLIDO') {
+        _showSnack('El pago fue rechazado o no pudo validarse.', error: true);
       } else if (confirm.ok) {
-        _showSnack('Pago procesado pero no completado por el backend.', error: true);
+        _showSnack(confirm.message ?? 'Pago procesado, pendiente de validación.', error: true);
       } else {
         _showSnack(confirm.message ?? 'No se pudo confirmar el pago.', error: true);
       }
@@ -212,7 +190,9 @@ class _PaquetesScreenState extends State<PaquetesScreen> {
 
   pixelpay.Settings _buildPixelPaySettings(SdkConfig config) {
     final publicKey = config.publicKey.trim();
-    final secretHash = config.secretKey?.trim() ?? '';
+    final secretHash = (config.secretKey?.trim().isNotEmpty ?? false)
+        ? config.secretKey!.trim()
+        : pixelpaySecretKey.trim();
     final endpoint = config.endpoint?.trim() ?? '';
     final environment = config.environment.trim().toLowerCase();
 
@@ -242,6 +222,172 @@ class _PaquetesScreenState extends State<PaquetesScreen> {
     print('Credenciales PixelPay configuradas para ambiente: ${config.environment}');
 
     return settings;
+  }
+
+
+  Map<String, dynamic> _buildPixelPayResultMap({
+    required dynamic rawResponse,
+    required pixelpay.Transaction transaction,
+    required String reference,
+    required double amount,
+  }) {
+    if (rawResponse == null || !pixelpay.TransactionResult.validateResponse(rawResponse)) {
+      final rawData = _asStringDynamicMap(rawResponse?.data);
+      return {
+        'success': false,
+        'responseType': 'InvalidResponse',
+        'message': _pixelPayResponseMessage(rawResponse),
+        'payment_hash': _readString(rawData, ['payment_hash']),
+        'id': _readString(rawData, ['transaction_id', 'id']),
+        'data': _mergePixelPayData(
+          rawData: rawData,
+          reference: reference,
+          amount: amount,
+          isApproved: false,
+          responseReason: _pixelPayResponseMessage(rawResponse),
+        ),
+      };
+    }
+
+    final result = pixelpay.TransactionResult.fromResponse(rawResponse);
+    final rawData = _asStringDynamicMap(rawResponse.data);
+    final paymentHash = _nullableString(result.payment_hash);
+    final responseReason = _nullableString(result.response_reason);
+    final isApproved = result.response_approved == true;
+    final localHashValid = _verifyLocalPaymentHash(
+      transaction: transaction,
+      paymentHash: paymentHash,
+      reference: reference,
+    );
+
+    print(
+      'Resultado de la transacción: aprobado=$isApproved, '
+      'razón=$responseReason, hash=$paymentHash, hashLocalValido=$localHashValid',
+    );
+
+    return {
+      'success': isApproved,
+      'responseType': isApproved ? 'SuccessResponse' : 'PaymentDeclinedResponse',
+      'message': responseReason,
+      'payment_hash': paymentHash,
+      'id': _readString(rawData, ['transaction_id', 'id']),
+      'local_hash_valid': localHashValid,
+      'data': _mergePixelPayData(
+        rawData: rawData,
+        reference: reference,
+        amount: amount,
+        isApproved: isApproved,
+        responseReason: responseReason,
+      ),
+    };
+  }
+
+
+  bool _verifyLocalPaymentHash({
+    required pixelpay.Transaction transaction,
+    required String paymentHash,
+    required String reference,
+  }) {
+    if (paymentHash.isEmpty || pixelpaySecretKey.trim().isEmpty) return false;
+    try {
+      return transaction.verifyPaymentHash(
+        paymentHash,
+        reference,
+        pixelpaySecretKey.trim(),
+      );
+    } catch (e) {
+      print('No se pudo validar localmente el hash de PixelPay: $e');
+      return false;
+    }
+  }
+
+  Map<String, dynamic> _mergePixelPayData({
+    required Map<String, dynamic> rawData,
+    required String reference,
+    required double amount,
+    required bool isApproved,
+    required String responseReason,
+  }) {
+    final data = Map<String, dynamic>.from(rawData);
+    data['transaction_reference'] = _readString(
+      data,
+      ['transaction_reference', 'reference', 'order_id'],
+      fallback: reference,
+    );
+    data['transaction_amount'] = _readNum(
+      data,
+      ['transaction_amount', 'amount'],
+      fallback: amount,
+    );
+    data['response_approved'] = _readBool(
+      data,
+      ['response_approved', 'approved'],
+      fallback: isApproved,
+    );
+    data['response_reason'] = _readString(
+      data,
+      ['response_reason', 'reason', 'message'],
+      fallback: responseReason,
+    );
+    return data;
+  }
+
+  Map<String, dynamic> _asStringDynamicMap(dynamic value) {
+    if (value is Map<String, dynamic>) return Map<String, dynamic>.from(value);
+    if (value is Map) {
+      return value.map((key, value) => MapEntry(key.toString(), value));
+    }
+    return {};
+  }
+
+  String _readString(
+    Map<String, dynamic> data,
+    List<String> keys, {
+    String fallback = '',
+  }) {
+    for (final key in keys) {
+      final value = data[key];
+      if (value != null && value.toString().isNotEmpty) return value.toString();
+    }
+    return fallback;
+  }
+
+  num _readNum(
+    Map<String, dynamic> data,
+    List<String> keys, {
+    required num fallback,
+  }) {
+    for (final key in keys) {
+      final value = data[key];
+      if (value is num) return value;
+      final parsed = num.tryParse(value?.toString() ?? '');
+      if (parsed != null) return parsed;
+    }
+    return fallback;
+  }
+
+  bool _readBool(
+    Map<String, dynamic> data,
+    List<String> keys, {
+    required bool fallback,
+  }) {
+    for (final key in keys) {
+      final value = data[key];
+      if (value is bool) return value;
+      if (value?.toString().toLowerCase() == 'true') return true;
+      if (value?.toString().toLowerCase() == 'false') return false;
+    }
+    return fallback;
+  }
+
+  String _generateUuidV4() {
+    final random = Random.secure();
+    final bytes = List<int>.generate(16, (_) => random.nextInt(256));
+    bytes[6] = (bytes[6] & 0x0f) | 0x40;
+    bytes[8] = (bytes[8] & 0x3f) | 0x80;
+    final hex = bytes.map((byte) => byte.toRadixString(16).padLeft(2, '0')).join();
+    return '${hex.substring(0, 8)}-${hex.substring(8, 12)}-'
+        '${hex.substring(12, 16)}-${hex.substring(16, 20)}-${hex.substring(20)}';
   }
 
   String _pixelPayResponseMessage(dynamic response) {

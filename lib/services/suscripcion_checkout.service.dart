@@ -14,14 +14,25 @@ class ApiHttpException implements Exception {
 class SuscripcionCheckoutService {
   final HttpService _httpService = HttpService(timeout: const Duration(seconds: 30));
 
-  Future<ContratarSuscripcionResponse> iniciarCheckout({required String planId}) async {
+  Future<ContratarSuscripcionResponse> iniciarCheckout({
+    String? planId,
+    String? planKey,
+    String? idempotencyKey,
+  }) async {
+    final payload = <String, dynamic>{
+      if (planId != null && planId.isNotEmpty) 'planId': planId,
+      if (planKey != null && planKey.isNotEmpty) 'planKey': planKey,
+      if (idempotencyKey != null && idempotencyKey.isNotEmpty)
+        'idempotencyKey': idempotencyKey,
+    };
+
     final response = await _httpService.post(
-      '${apiUrl}suscripciones/contratar',
-      body: {'planId': planId},
+      '${apiUrl}mobile/pixelpay/checkout',
+      body: payload,
     );
 
     final body = _safeJson(response.body);
-    if (response.statusCode != 200) {
+    if (response.statusCode < 200 || response.statusCode >= 300) {
       throw ApiHttpException(response.statusCode, _httpMessage(response.statusCode, body['message']?.toString()));
     }
 
@@ -43,10 +54,10 @@ class SuscripcionCheckoutService {
       if ((pagoId == null || pagoId.isEmpty) && planId != null && planId.isNotEmpty) 'planId': planId,
     };
 
-    final response = await _httpService.put('${apiUrl}suscripciones/contratar', body: payload);
+    final response = await _httpService.put('${apiUrl}mobile/pixelpay/checkout', body: payload);
     final body = _safeJson(response.body);
 
-    if (response.statusCode != 200) {
+    if (response.statusCode < 200 || response.statusCode >= 300) {
       throw ApiHttpException(response.statusCode, _httpMessage(response.statusCode, body['message']?.toString()));
     }
 
