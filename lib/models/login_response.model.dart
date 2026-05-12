@@ -38,7 +38,7 @@ class LoginResponseModel {
       message: json['message'] ?? '',
       redirect: json['redirect'] ?? '',
       token: token,
-      data: LoginUserData.fromJson(data),
+      data: LoginUserData.fromJson(data.isEmpty ? json : data),
       tokenType: _stringValue(json['tokenType']) ?? '',
       expiresIn: _intValue(json['expiresIn']),
       expiresAt: _dateTimeValue(json['expiresAt']),
@@ -97,9 +97,27 @@ class LoginUserData {
 
   factory LoginUserData.fromJson(Map<String, dynamic> json) {
     return LoginUserData(
-      idUser: json['idUser'] ?? '',
-      user: json['user'] ?? '',
-      nombre: json['nombre'] ?? '',
+      idUser: _stringValue(
+        json['idUser'] ??
+            json['idUsuario'] ??
+            json['IdUser'] ??
+            json['IdUsuario'] ??
+            json['id'],
+      ),
+      user: _stringValue(
+        json['user'] ??
+            json['usuario'] ??
+            json['User'] ??
+            json['Usuario'] ??
+            json['email'] ??
+            json['Email'],
+      ),
+      nombre: _stringValue(json['nombre'] ?? json['Nombre'] ?? json['name']),
     );
+  }
+
+  static String _stringValue(dynamic value) {
+    final text = value?.toString().trim() ?? '';
+    return text;
   }
 }
