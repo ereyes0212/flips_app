@@ -7,9 +7,9 @@ La app lee las credenciales públicas de PixelPay desde variables inyectadas por
 
 Variables soportadas:
 
-- `NEXT_PUBLIC_PIXELPAY_ENDPOINT`: endpoint de PixelPay. Si no se envía, la app usa `https://hn.ficoposonline.com`.
-- `NEXT_PUBLIC_PIXELPAY_KEY_ID`: llave pública/key id de PixelPay.
-- `NEXT_PUBLIC_PIXELPAY_KEY_HASH`: hash/secret requerido por el SDK de PixelPay.
+- `NEXT_PUBLIC_PIXELPAY_ENDPOINT`: endpoint de PixelPay. También se acepta el alias `PIXELPAY_ENDPOINT`. Si no se envía, la app usa `https://hn.ficoposonline.com`.
+- `NEXT_PUBLIC_PIXELPAY_KEY_ID`: llave pública/key id de PixelPay. También se acepta el alias `PIXELPAY_KEY_ID`.
+- `NEXT_PUBLIC_PIXELPAY_KEY_HASH`: hash/secret requerido por el SDK de PixelPay. También se acepta el alias `PIXELPAY_KEY_HASH`.
 
 Ejemplo para desarrollo:
 
@@ -18,6 +18,15 @@ flutter run \
   --dart-define=NEXT_PUBLIC_PIXELPAY_ENDPOINT=https://hn.ficoposonline.com \
   --dart-define=NEXT_PUBLIC_PIXELPAY_KEY_ID=TU_KEY_ID \
   --dart-define=NEXT_PUBLIC_PIXELPAY_KEY_HASH=TU_KEY_HASH
+```
+
+Si usas nombres sin prefijo `NEXT_PUBLIC_`, también funciona:
+
+```bash
+flutter run \
+  --dart-define=PIXELPAY_ENDPOINT=https://hn.ficoposonline.com \
+  --dart-define=PIXELPAY_KEY_ID=TU_KEY_ID \
+  --dart-define=PIXELPAY_KEY_HASH=TU_KEY_HASH
 ```
 
 Ejemplo para compilar:
