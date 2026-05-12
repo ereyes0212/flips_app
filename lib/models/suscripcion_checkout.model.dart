@@ -37,6 +37,10 @@ class SdkConfig {
     this.headers = const {},
   });
 
+  factory SdkConfig.empty() {
+    return SdkConfig(environment: 'sandbox', publicKey: '');
+  }
+
   final String environment;
   final String publicKey;
   final String? secretKey;
@@ -55,13 +59,52 @@ class SdkConfig {
     }
 
     return SdkConfig(
-      environment: json['environment']?.toString() ?? 'sandbox',
-      publicKey: json['publicKey']?.toString() ?? '',
-      secretKey: (json['secretKey'] ?? json['secretHash'] ?? json['hash'])?.toString(),
-      endpoint: json['endpoint']?.toString(),
+      environment: _readString(json, ['environment', 'env'], fallback: 'sandbox'),
+      publicKey: _readString(json, [
+        'publicKey',
+        'public_key',
+        'keyId',
+        'key_id',
+        'KEY_ID',
+        'NEXT_PUBLIC_PIXELPAY_KEY_ID',
+      ]),
+      secretKey: _readString(json, [
+        'secretKey',
+        'secret_key',
+        'secretHash',
+        'secret_hash',
+        'keyHash',
+        'key_hash',
+        'hash',
+        'KEY_HASH',
+        'NEXT_PUBLIC_PIXELPAY_KEY_HASH',
+      ]),
+      endpoint: _readNullableString(json, [
+        'endpoint',
+        'baseUrl',
+        'base_url',
+        'NEXT_PUBLIC_PIXELPAY_ENDPOINT',
+      ]),
       headers: headers,
     );
   }
+}
+
+String _readString(
+  Map<String, dynamic> json,
+  List<String> keys, {
+  String fallback = '',
+}) {
+  for (final key in keys) {
+    final value = json[key]?.toString().trim() ?? '';
+    if (value.isNotEmpty) return value;
+  }
+  return fallback;
+}
+
+String? _readNullableString(Map<String, dynamic> json, List<String> keys) {
+  final value = _readString(json, keys);
+  return value.isEmpty ? null : value;
 }
 
 class PaymentData {

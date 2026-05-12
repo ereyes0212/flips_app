@@ -77,15 +77,17 @@ class _PaquetesScreenState extends State<PaquetesScreen> {
         planId: plan.id,
         idempotencyKey: idempotencyKey,
       );
-      if (!checkout.ok || checkout.sdkConfig == null || checkout.paymentData == null) {
+      if (!checkout.ok || checkout.paymentData == null) {
         throw PixelPayCheckoutException(
           checkout.message ?? 'No se pudo inicializar el checkout.',
         );
       }
+
+      final sdkConfig = checkout.sdkConfig ?? SdkConfig.empty();
       _validatePaymentData(checkout.paymentData!);
 
-      final pixelpaySecretHash = _resolvePixelPaySecretHash(checkout.sdkConfig!);
-      final settings = _buildPixelPaySettings(checkout.sdkConfig!);
+      final pixelpaySecretHash = _resolvePixelPaySecretHash(sdkConfig);
+      final settings = _buildPixelPaySettings(sdkConfig);
       final paymentData = checkout.paymentData!;
 
       final order = pixelpay.Order();
@@ -216,12 +218,22 @@ class _PaquetesScreenState extends State<PaquetesScreen> {
     }
 
     settings.setupCredentials(publicKey, secretHash);
+    print(
+      'Credenciales PixelPay detectadas: keyId=${_maskCredential(publicKey)}, '
+      'hash=${_maskCredential(secretHash)}',
+    );
     if (config.headers.isNotEmpty) {
       settings.setupHeaders(config.headers);
     }
     print('Credenciales PixelPay configuradas para ambiente: ${config.environment}');
 
     return settings;
+  }
+
+  String _maskCredential(String value) {
+    final trimmed = value.trim();
+    if (trimmed.length <= 8) return '***';
+    return '${trimmed.substring(0, 4)}...${trimmed.substring(trimmed.length - 4)}';
   }
 
   String _resolvePixelPayPublicKey(SdkConfig config) {
@@ -631,10 +643,7 @@ class _CardPaymentFormState extends State<_CardPaymentForm> {
 
   Future<void> _loadLocations() async {
     try {
-      final settings = pixelpay.Settings();
-      settings.setupEndpoint('https://hn.ficoposonline.com/');
-      // If locations require credentials, add them here, but probably not needed
-      
+      _setupPixelPayLocations();
 
       final countries = await pixelpay.Locations.countriesList();
       final states = await pixelpay.Locations.statesList(_country.text);
@@ -660,9 +669,7 @@ class _CardPaymentFormState extends State<_CardPaymentForm> {
     });
 
     try {
-      final settings = pixelpay.Settings();
-      settings.setupEndpoint('https://hn.ficoposonline.com/');
-      settings.setupCredentials('FH1828955021', '2d98aaf75de7a9ba64574ad608412d9795605eb1aa7868d776dc38ff2c5aeee8c9c63c645b1edfaaacafba2c0841c6bc8e5f4f113f81bc636c1233f75ad0e4f0'); // Uncomment if needed
+      _setupPixelPayLocations();
 
       final states = await pixelpay.Locations.statesList(country);
       if (!mounted) return;
@@ -673,6 +680,16 @@ class _CardPaymentFormState extends State<_CardPaymentForm> {
     } catch (_) {
       if (!mounted) return;
       setState(() => _loadingLocations = false);
+    }
+  }
+
+  void _setupPixelPayLocations() {
+    final settings = pixelpay.Settings();
+    if (pixelpayEndpoint.trim().isNotEmpty) {
+      settings.setupEndpoint(pixelpayEndpoint.trim());
+    }
+    if (pixelpayPublicKey.trim().isNotEmpty && pixelpaySecretKey.trim().isNotEmpty) {
+      settings.setupCredentials(pixelpayPublicKey.trim(), pixelpaySecretKey.trim());
     }
   }
 

@@ -17,16 +17,45 @@ String version = '1.0.0';
 
 // PixelPay configuration
 // Values are injected at build/run time with Flutter --dart-define.
-const String pixelpayEndpoint = String.fromEnvironment(
+const String _pixelpayEndpointFromNext = String.fromEnvironment(
   'NEXT_PUBLIC_PIXELPAY_ENDPOINT',
-  defaultValue: 'https://hn.ficoposonline.com',
 );
-const String pixelpayPublicKey = String.fromEnvironment(
+const String _pixelpayEndpointFromPlain = String.fromEnvironment(
+  'PIXELPAY_ENDPOINT',
+);
+const String _pixelpayPublicKeyFromNext = String.fromEnvironment(
   'NEXT_PUBLIC_PIXELPAY_KEY_ID',
 );
-const String pixelpaySecretKey = String.fromEnvironment(
+const String _pixelpayPublicKeyFromPlain = String.fromEnvironment(
+  'PIXELPAY_KEY_ID',
+);
+const String _pixelpaySecretKeyFromNext = String.fromEnvironment(
   'NEXT_PUBLIC_PIXELPAY_KEY_HASH',
 );
+const String _pixelpaySecretKeyFromPlain = String.fromEnvironment(
+  'PIXELPAY_KEY_HASH',
+);
+
+String _firstNonEmpty(List<String> values, {String defaultValue = ''}) {
+  for (final value in values) {
+    final normalized = value.trim();
+    if (normalized.isNotEmpty) return normalized;
+  }
+  return defaultValue;
+}
+
+final String pixelpayEndpoint = _firstNonEmpty(
+  [_pixelpayEndpointFromNext, _pixelpayEndpointFromPlain],
+  defaultValue: 'https://hn.ficoposonline.com',
+);
+final String pixelpayPublicKey = _firstNonEmpty([
+  _pixelpayPublicKeyFromNext,
+  _pixelpayPublicKeyFromPlain,
+]);
+final String pixelpaySecretKey = _firstNonEmpty([
+  _pixelpaySecretKeyFromNext,
+  _pixelpaySecretKeyFromPlain,
+]);
 
 GlobalKey<ScaffoldMessengerState> snackbarKey =
     GlobalKey<ScaffoldMessengerState>();
