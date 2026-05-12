@@ -52,7 +52,6 @@ dependencies:
   animated_bottom_navigation_bar: ^1.4.0
   syncfusion_flutter_pdfviewer: ^30.1.42
   webview_flutter: ^4.13.0
-  pixelpay_sdk: ^2.0.10
 
 dev_dependencies:
   flutter_launcher_icons: ^0.14.3
