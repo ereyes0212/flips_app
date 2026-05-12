@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'package:flips_app/constants.dart';
+import 'package:flips_app/models/login_response.model.dart';
 import 'package:flutter/material.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -21,6 +22,7 @@ class SessionService {
     'user',
     'idUser',
     'nombre',
+    'sessionExpiresAt',
   ];
   static bool _redirecting = false;
 
@@ -34,9 +36,30 @@ class SessionService {
       await prefs.setString('token', token);
     }
 
+    final storedExpiresAt = parseStoredExpiresAt(
+      prefs.getString('sessionExpiresAt'),
+    );
+
+    if (storedExpiresAt != null) {
+      if (isExpired(storedExpiresAt)) {
+        await clearSession();
+        return null;
+      }
+
+      return token;
+    }
+
     if (isJwtExpired(token)) {
       await clearSession();
       return null;
+    }
+
+    final tokenExpiresAt = jwtExpiresAt(token);
+    if (tokenExpiresAt != null) {
+      await prefs.setString(
+        'sessionExpiresAt',
+        tokenExpiresAt.toIso8601String(),
+      );
     }
 
     return token;
@@ -135,7 +158,41 @@ class SessionService {
     final expiresAt = jwtExpiresAt(token);
     if (expiresAt == null) return false;
 
-    return !expiresAt.isAfter(DateTime.now().toUtc());
+    return isExpired(expiresAt);
+  }
+
+  static bool isExpired(DateTime expiresAt) {
+    return !expiresAt.toUtc().isAfter(DateTime.now().toUtc());
+  }
+
+  static DateTime? parseStoredExpiresAt(String? value) {
+    final trimmed = value?.trim() ?? '';
+    if (trimmed.isEmpty) return null;
+    return DateTime.tryParse(trimmed)?.toUtc();
+  }
+
+  static DateTime? sessionExpiresAt(
+    LoginResponseModel response, {
+    DateTime? receivedAt,
+  }) {
+    final now = receivedAt?.toUtc() ?? DateTime.now().toUtc();
+    final expiresIn = response.expiresIn;
+
+    if (expiresIn != null && expiresIn > 0) {
+      return now.add(Duration(seconds: expiresIn));
+    }
+
+    if (response.expiresAt != null) {
+      return response.expiresAt!.toUtc();
+    }
+
+    return jwtExpiresAt(response.token);
+  }
+
+  static bool isSessionResponseExpired(LoginResponseModel response) {
+    final expiresAt = sessionExpiresAt(response);
+    if (expiresAt == null) return false;
+    return isExpired(expiresAt);
   }
 
   static DateTime? jwtExpiresAt(String token) {

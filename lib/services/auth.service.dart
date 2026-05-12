@@ -3,7 +3,6 @@ import 'dart:io';
 
 import 'package:flutter/foundation.dart';
 import 'package:flips_app/constants.dart';
-import 'package:flutter/foundation.dart';
 import 'package:flips_app/models/login_response.model.dart';
 import 'package:flips_app/services/http.service.dart';
 import 'package:flips_app/services/session.service.dart';
@@ -28,7 +27,7 @@ class AuthService {
         body: {'identifier': email, 'contrasena': password},
         includeAuth: false,
       );
-  
+
       if (response.statusCode == 200) {
         final loginResponse = LoginResponseModel.fromJson(
           jsonDecode(response.body),
@@ -64,7 +63,7 @@ class AuthService {
         final token = SessionService.normalizeToken(loginResponse.token) ?? '';
         _logGoogleParsedSession(loginResponse, token);
         if (loginResponse.ok && token.isNotEmpty) {
-          if (SessionService.isJwtExpired(token)) {
+          if (SessionService.isSessionResponseExpired(loginResponse)) {
             return const GoogleLoginResult(
               message:
                   'El backend devolvió una sesión vencida. Intenta iniciar sesión nuevamente.',
@@ -131,7 +130,7 @@ class AuthService {
   void _logGoogleParsedSession(LoginResponseModel loginResponse, String token) {
     if (!kDebugMode) return;
 
-    final expiresAt = SessionService.jwtExpiresAt(token);
+    final expiresAt = SessionService.sessionExpiresAt(loginResponse);
     debugPrint('========== Google Sign-In parsed session ==========');
     debugPrint('ok: ${loginResponse.ok}');
     debugPrint('message: ${loginResponse.message}');
@@ -141,7 +140,8 @@ class AuthService {
       'token expires at UTC: ${expiresAt?.toIso8601String() ?? 'sin exp / no JWT'}',
     );
     debugPrint(
-      'token expired: ${token.isNotEmpty && SessionService.isJwtExpired(token)}',
+      'session expired: '
+      '${SessionService.isSessionResponseExpired(loginResponse)}',
     );
     debugPrint('===================================================');
   }

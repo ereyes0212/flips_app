@@ -5,6 +5,9 @@ class LoginResponseModel {
     required this.redirect,
     required this.token,
     required this.data,
+    this.tokenType = '',
+    this.expiresIn,
+    this.expiresAt,
     this.sessionCookie = '',
   });
 
@@ -13,6 +16,9 @@ class LoginResponseModel {
   final String redirect;
   final String token;
   final LoginUserData data;
+  final String tokenType;
+  final int? expiresIn;
+  final DateTime? expiresAt;
   final String sessionCookie;
 
   factory LoginResponseModel.fromJson(Map<String, dynamic> json) {
@@ -33,6 +39,9 @@ class LoginResponseModel {
       redirect: json['redirect'] ?? '',
       token: token,
       data: LoginUserData.fromJson(data),
+      tokenType: _stringValue(json['tokenType']) ?? '',
+      expiresIn: _intValue(json['expiresIn']),
+      expiresAt: _dateTimeValue(json['expiresAt']),
       sessionCookie: _stringValue(json['sessionCookie']) ?? '',
     );
   }
@@ -44,6 +53,9 @@ class LoginResponseModel {
       redirect: redirect,
       token: token ?? this.token,
       data: data,
+      tokenType: tokenType,
+      expiresIn: expiresIn,
+      expiresAt: expiresAt,
       sessionCookie: sessionCookie ?? this.sessionCookie,
     );
   }
@@ -57,6 +69,18 @@ class LoginResponseModel {
   static String? _stringValue(dynamic value) {
     final text = value?.toString().trim();
     return text == null || text.isEmpty ? null : text;
+  }
+
+  static int? _intValue(dynamic value) {
+    if (value is int) return value;
+    if (value is num) return value.toInt();
+    return int.tryParse(value?.toString() ?? '');
+  }
+
+  static DateTime? _dateTimeValue(dynamic value) {
+    final text = _stringValue(value);
+    if (text == null) return null;
+    return DateTime.tryParse(text)?.toUtc();
   }
 }
 

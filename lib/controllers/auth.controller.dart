@@ -139,8 +139,18 @@ class AuthController {
         SessionService.normalizeSessionCookie(response.sessionCookie)
             ?? SessionService.sessionCookieFromToken(token)
             ?? '';
+    final sessionExpiresAt = SessionService.sessionExpiresAt(response);
+
     await prefs.setString('token', token);
     await prefs.setString('sessionCookie', sessionCookie);
+    if (sessionExpiresAt != null) {
+      await prefs.setString(
+        'sessionExpiresAt',
+        sessionExpiresAt.toIso8601String(),
+      );
+    } else {
+      await prefs.remove('sessionExpiresAt');
+    }
     await prefs.setString('user', response.data.user);
     await prefs.setString('idUser', response.data.idUser);
     await prefs.setString('nombre', response.data.nombre);
