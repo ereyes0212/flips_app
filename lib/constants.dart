@@ -16,9 +16,17 @@ String apiUrl = urlBase;
 String version = '1.0.0';
 
 // PixelPay configuration
-const String pixelpayEndpoint = 'https://hn.ficoposonline.com';
-const String pixelpayPublicKey = 'FH1828955021';
-const String pixelpaySecretKey = '2d98aaf75de7a9ba64574ad608412d9795605eb1aa7868d776dc38ff2c5aeee8c9c63c645b1edfaaacafba2c0841c6bc8e5f4f113f81bc636c1233f75ad0e4f0';
+// Values are injected at build/run time with Flutter --dart-define.
+const String pixelpayEndpoint = String.fromEnvironment(
+  'PUBLIC_PIXELPAY_ENDPOINT',
+  defaultValue: 'https://hn.ficoposonline.com',
+);
+const String pixelpayPublicKey = String.fromEnvironment(
+  'PUBLIC_PIXELPAY_KEY_ID',
+);
+const String pixelpaySecretKey = String.fromEnvironment(
+  'PUBLIC_PIXELPAY_KEY_HASH',
+);
 
 GlobalKey<ScaffoldMessengerState> snackbarKey =
     GlobalKey<ScaffoldMessengerState>();

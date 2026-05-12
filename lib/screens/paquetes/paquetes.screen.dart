@@ -84,6 +84,7 @@ class _PaquetesScreenState extends State<PaquetesScreen> {
       }
       _validatePaymentData(checkout.paymentData!);
 
+      final pixelpaySecretHash = _resolvePixelPaySecretHash(checkout.sdkConfig!);
       final settings = _buildPixelPaySettings(checkout.sdkConfig!);
       final paymentData = checkout.paymentData!;
 
@@ -131,6 +132,7 @@ class _PaquetesScreenState extends State<PaquetesScreen> {
         transaction: transaction,
         reference: paymentData.reference,
         amount: paymentData.amount,
+        secretHash: pixelpaySecretHash,
       );
       final isValidPayment = resultMap['success'] == true;
 
@@ -189,10 +191,8 @@ class _PaquetesScreenState extends State<PaquetesScreen> {
   }
 
   pixelpay.Settings _buildPixelPaySettings(SdkConfig config) {
-    final publicKey = config.publicKey.trim();
-    final secretHash = (config.secretKey?.trim().isNotEmpty ?? false)
-        ? config.secretKey!.trim()
-        : pixelpaySecretKey.trim();
+    final publicKey = _resolvePixelPayPublicKey(config);
+    final secretHash = _resolvePixelPaySecretHash(config);
     final endpoint = config.endpoint?.trim() ?? '';
     final environment = config.environment.trim().toLowerCase();
 
@@ -224,12 +224,24 @@ class _PaquetesScreenState extends State<PaquetesScreen> {
     return settings;
   }
 
+  String _resolvePixelPayPublicKey(SdkConfig config) {
+    final configPublicKey = config.publicKey.trim();
+    if (configPublicKey.isNotEmpty) return configPublicKey;
+    return pixelpayPublicKey.trim();
+  }
+
+  String _resolvePixelPaySecretHash(SdkConfig config) {
+    final configSecretHash = config.secretKey?.trim() ?? '';
+    if (configSecretHash.isNotEmpty) return configSecretHash;
+    return pixelpaySecretKey.trim();
+  }
 
   Map<String, dynamic> _buildPixelPayResultMap({
     required dynamic rawResponse,
     required pixelpay.Transaction transaction,
     required String reference,
     required double amount,
+    required String secretHash,
   }) {
     if (rawResponse == null || !pixelpay.TransactionResult.validateResponse(rawResponse)) {
       final rawData = _asStringDynamicMap(rawResponse?.data);
@@ -258,6 +270,7 @@ class _PaquetesScreenState extends State<PaquetesScreen> {
       transaction: transaction,
       paymentHash: paymentHash,
       reference: reference,
+      secretHash: secretHash,
     );
 
     print(
@@ -287,13 +300,14 @@ class _PaquetesScreenState extends State<PaquetesScreen> {
     required pixelpay.Transaction transaction,
     required String paymentHash,
     required String reference,
+    required String secretHash,
   }) {
-    if (paymentHash.isEmpty || pixelpaySecretKey.trim().isEmpty) return false;
+    if (paymentHash.isEmpty || secretHash.trim().isEmpty) return false;
     try {
       return transaction.verifyPaymentHash(
         paymentHash,
         reference,
-        pixelpaySecretKey.trim(),
+        secretHash.trim(),
       );
     } catch (e) {
       print('No se pudo validar localmente el hash de PixelPay: $e');
