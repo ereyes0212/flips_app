@@ -95,8 +95,7 @@ class HttpService {
   }) async {
     try {
       final response = await request().timeout(timeout);
-      if (enforceAuthErrors &&
-          (response.statusCode == 401 || response.statusCode == 403)) {
+      if (enforceAuthErrors && response.statusCode == 401) {
         await SessionService.expireAndRedirect(
           message: 'Tu sesión expiró. Inicia sesión nuevamente.',
         );
