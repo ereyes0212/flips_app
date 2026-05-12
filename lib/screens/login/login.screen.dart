@@ -39,9 +39,6 @@ class _LoginScreenState extends State<LoginScreen> {
   //     if (isAuthenticated) {
   //       AuthController().loginController("admin", "12345", context);
   //     }
-  //   } catch (e) {
-  //     print("Error en autenticación biométrica: $e");
-  //   }
   // }
 
   @override

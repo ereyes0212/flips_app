@@ -91,11 +91,11 @@ class _PaquetesScreenState extends State<PaquetesScreen> {
       if (!mounted) return;
       setState(() => _paying = true);
 
-      final estado = await _checkoutService.consultarEstado(pagoId: pagoId);
+      final estado = await _consultarEstadoConfirmado(pagoId);
       if (!mounted) return;
 
-      if (estado.pagoExitoso) {
-        _showSnack('Pago confirmado. Membresía activada.');
+      if (estado.pagoExitoso || checkoutResult == _HostedCheckoutResult.completed) {
+        _showSnack('Pago realizado correctamente.');
         await _controller.cargarPaquetes(context);
       } else if (checkoutResult == _HostedCheckoutResult.cancelled) {
         _showSnack(
@@ -104,28 +104,36 @@ class _PaquetesScreenState extends State<PaquetesScreen> {
         );
       } else {
         _showSnack(
-          estado.message ?? 'El pago todavía no figura como exitoso.',
+          'No pudimos confirmar el pago. Si ya fue debitado, revisa tus pagos en unos minutos.',
           error: true,
         );
       }
-    } on SocketException catch (e) {
-      debugPrint('Error de conexión: $e');
+    } on SocketException {
       _showSnack('Sin conexión. Reintenta con internet estable.', error: true);
-    } on TimeoutException catch (e) {
-      debugPrint('Error de tiempo de espera: $e');
+    } on TimeoutException {
       _showSnack('Tiempo de espera agotado. Intenta nuevamente.', error: true);
     } on ApiHttpException catch (e) {
-      debugPrint('Error HTTP de API: ${e.message} (código: ${e.statusCode})');
       _showSnack(e.message, error: true);
     } on PixelPayCheckoutException catch (e) {
-      debugPrint('Error de PixelPay: ${e.message}');
       _showSnack(e.message, error: true);
-    } catch (e) {
-      debugPrint('Error general al procesar pago: $e');
-      _showSnack('Error al procesar pago: $e', error: true);
+    } catch (_) {
+      _showSnack('No se pudo procesar el pago. Intenta nuevamente.', error: true);
     } finally {
       if (mounted) setState(() => _paying = false);
     }
+  }
+
+  Future<ConfirmarPagoResponse> _consultarEstadoConfirmado(String pagoId) async {
+    ConfirmarPagoResponse estado = await _checkoutService.consultarEstado(
+      pagoId: pagoId,
+    );
+
+    for (var intento = 0; intento < 3 && !estado.pagoExitoso; intento++) {
+      await Future<void>.delayed(const Duration(seconds: 2));
+      estado = await _checkoutService.consultarEstado(pagoId: pagoId);
+    }
+
+    return estado;
   }
 
   String _generateUuidV4() {

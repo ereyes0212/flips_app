@@ -73,17 +73,17 @@ class SuscripcionCheckoutService {
     if (apiMessage != null && apiMessage.isNotEmpty) return apiMessage;
     switch (code) {
       case 400:
-        return 'Solicitud inválida (400).';
+        return 'No pudimos procesar la solicitud. Verifica los datos e intenta nuevamente.';
       case 401:
-        return 'No autenticado (401).';
+        return 'Tu sesión expiró. Inicia sesión nuevamente.';
       case 403:
-        return 'No autorizado (403).';
+        return 'No tienes permiso para realizar esta acción.';
       case 404:
-        return 'Endpoint no encontrado (404).';
+        return 'No pudimos encontrar el servicio de pago. Intenta más tarde.';
       case 500:
-        return 'Error interno del servidor (500).';
+        return 'El servicio no está disponible en este momento. Intenta más tarde.';
       default:
-        return 'Error HTTP ($code).';
+        return 'No pudimos completar la solicitud. Intenta nuevamente.';
     }
   }
 }

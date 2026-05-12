@@ -10,15 +10,11 @@ class MiPerfilService {
   Future<MiPerfilModel?> obtenerMiPerfil() async {
     final response = await _httpService.get('${apiUrl}mi-perfil');
 
-    print(response.headers);
-    print(response.statusCode);
-    print(response.body);
     if (response.statusCode != 200) {
       return null;
     }
 
     final body = jsonDecode(response.body) as Map<String, dynamic>;
-    print(body);
     if (body['data'] == null) {
       return null;
     }
