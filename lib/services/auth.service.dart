@@ -1,12 +1,10 @@
 import 'dart:convert';
 import 'dart:io';
 
-import 'package:flutter/foundation.dart';
 import 'package:flips_app/constants.dart';
 import 'package:flips_app/models/login_response.model.dart';
 import 'package:flips_app/services/http.service.dart';
 import 'package:flips_app/services/session.service.dart';
-import 'package:http/http.dart' show Response;
 
 class GoogleLoginResult {
   const GoogleLoginResult({this.response, this.message = ''});
@@ -27,12 +25,9 @@ class AuthService {
         body: {'identifier': email, 'contrasena': password},
         includeAuth: false,
       );
-
+  
       if (response.statusCode == 200) {
-        final loginResponse = LoginResponseModel.fromJson(
-          jsonDecode(response.body),
-        );
-        return _withSessionCookie(loginResponse, response);
+        return LoginResponseModel.fromJson(jsonDecode(response.body));
       }
       return null;
     } on SocketException {
@@ -50,20 +45,15 @@ class AuthService {
         includeAuth: false,
       );
 
-      _logGoogleBackendResponse(response);
 
       final body = _decodeBody(response.body);
       final message = _extractMessage(body);
 
       if (response.statusCode == 200 || response.statusCode == 201) {
-        final loginResponse = _withSessionCookie(
-          LoginResponseModel.fromJson(body),
-          response,
-        );
+        final loginResponse = LoginResponseModel.fromJson(body);
         final token = SessionService.normalizeToken(loginResponse.token) ?? '';
-        _logGoogleParsedSession(loginResponse, token);
         if (loginResponse.ok && token.isNotEmpty) {
-          if (SessionService.isSessionResponseExpired(loginResponse)) {
+          if (SessionService.isJwtExpired(token)) {
             return const GoogleLoginResult(
               message:
                   'El backend devolvió una sesión vencida. Intenta iniciar sesión nuevamente.',
@@ -103,48 +93,8 @@ class AuthService {
     }
   }
 
-  LoginResponseModel _withSessionCookie(
-    LoginResponseModel loginResponse,
-    Response response,
-  ) {
-    final sessionCookie = SessionService.sessionCookieFromSetCookie(
-          response.headers['set-cookie'],
-        )
-        ?? SessionService.sessionCookieFromToken(loginResponse.token)
-        ?? '';
 
-    return loginResponse.copyWith(sessionCookie: sessionCookie);
-  }
 
-  void _logGoogleBackendResponse(Response response) {
-    if (!kDebugMode) return;
-
-    debugPrint('========== Google Sign-In backend response ==========');
-    debugPrint('POST ${apiUrl}auth/google');
-    debugPrint('Status code: ${response.statusCode}');
-    debugPrint('Headers: ${response.headers}');
-    debugPrint('Body: ${response.body}');
-    debugPrint('=====================================================');
-  }
-
-  void _logGoogleParsedSession(LoginResponseModel loginResponse, String token) {
-    if (!kDebugMode) return;
-
-    final expiresAt = SessionService.sessionExpiresAt(loginResponse);
-    debugPrint('========== Google Sign-In parsed session ==========');
-    debugPrint('ok: ${loginResponse.ok}');
-    debugPrint('message: ${loginResponse.message}');
-    debugPrint('token empty: ${token.isEmpty}');
-    debugPrint('session cookie empty: ${loginResponse.sessionCookie.isEmpty}');
-    debugPrint(
-      'token expires at UTC: ${expiresAt?.toIso8601String() ?? 'sin exp / no JWT'}',
-    );
-    debugPrint(
-      'session expired: '
-      '${SessionService.isSessionResponseExpired(loginResponse)}',
-    );
-    debugPrint('===================================================');
-  }
 
   Map<String, dynamic> _decodeBody(String body) {
     if (body.trim().isEmpty) return {};
