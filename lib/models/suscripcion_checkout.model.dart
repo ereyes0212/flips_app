@@ -94,12 +94,20 @@ class ConfirmarPagoResponse {
     required this.ok,
     this.pagoId,
     this.suscripcionId,
+    this.facturaId,
+    this.estado,
+    this.activated,
+    this.periodo,
     this.message,
   });
 
   final bool ok;
   final String? pagoId;
   final String? suscripcionId;
+  final String? facturaId;
+  final String? estado;
+  final bool? activated;
+  final PeriodoSuscripcion? periodo;
   final String? message;
 
   factory ConfirmarPagoResponse.fromJson(Map<String, dynamic> json) {
@@ -107,7 +115,27 @@ class ConfirmarPagoResponse {
       ok: json['ok'] == true,
       pagoId: json['pagoId']?.toString(),
       suscripcionId: json['suscripcionId']?.toString(),
+      facturaId: json['facturaId']?.toString(),
+      estado: json['estado']?.toString(),
+      activated: json['activated'] is bool ? json['activated'] as bool : null,
+      periodo: json['periodo'] is Map<String, dynamic>
+          ? PeriodoSuscripcion.fromJson(json['periodo'] as Map<String, dynamic>)
+          : null,
       message: json['message']?.toString(),
+    );
+  }
+}
+
+class PeriodoSuscripcion {
+  PeriodoSuscripcion({this.inicio, this.fin});
+
+  final DateTime? inicio;
+  final DateTime? fin;
+
+  factory PeriodoSuscripcion.fromJson(Map<String, dynamic> json) {
+    return PeriodoSuscripcion(
+      inicio: DateTime.tryParse(json['inicio']?.toString() ?? ''),
+      fin: DateTime.tryParse(json['fin']?.toString() ?? ''),
     );
   }
 }
