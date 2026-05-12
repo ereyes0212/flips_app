@@ -25,7 +25,7 @@ GlobalKey<ScaffoldMessengerState> snackbarKey =
 GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 
 class AppAssets {
-  String logoAppWhite = 'assets/images/logozf.png';
+  String logoAppWhite = 'assets/images/logo.png';
   String noImage = 'assets/images/no-image.png';
   // String muestra = 'assets/images/hoja.jpg';
   String ubicacionactiva = 'assets/images/place.png';
