@@ -60,23 +60,107 @@ class _MisPagosScreenState extends State<MisPagosScreen> {
                     ],
                   ),
                 ),
-                child: ListTile(
-                  contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-                  title: Text(
-                    AppFormatters.moneyFromCentavos(item.montoCentavos),
-                    style: const TextStyle(fontWeight: FontWeight.bold),
-                  ),
-                  subtitle: Text(
-                    'Estado: ${item.estado}\n'
-                    'Método: ${item.metodoPago?.nombre.isNotEmpty == true ? item.metodoPago!.nombre : '-'}\n'
-                    'Plan: ${item.suscripcion?.plan?.name.isNotEmpty == true ? item.suscripcion!.plan!.name : '-'}\n'
-                    'Fecha: ${fecha == null ? '-' : DateFormat('dd/MM/yyyy HH:mm').format(fecha.toLocal())}',
-                  ),
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(10),
+                          decoration: BoxDecoration(
+                            color: Theme.of(context).colorScheme.primary,
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: Icon(
+                            Icons.payments_rounded,
+                            color: Theme.of(context).colorScheme.onPrimary,
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Text(
+                            AppFormatters.moneyFromCentavos(item.montoCentavos),
+                            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 20),
+                          ),
+                        ),
+                        Chip(
+                          label: Text(item.estado),
+                          visualDensity: VisualDensity.compact,
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 14),
+                    _PaymentMetaRow(
+                      icon: Icons.credit_card_rounded,
+                      label: 'Método',
+                      value: item.metodoPago?.nombre.isNotEmpty == true
+                          ? item.metodoPago!.nombre
+                          : '-',
+                    ),
+                    _PaymentMetaRow(
+                      icon: Icons.workspace_premium_rounded,
+                      label: 'Plan',
+                      value: item.suscripcion?.plan?.name.isNotEmpty == true
+                          ? item.suscripcion!.plan!.name
+                          : '-',
+                    ),
+                    _PaymentMetaRow(
+                      icon: Icons.schedule_rounded,
+                      label: 'Fecha',
+                      value: fecha == null
+                          ? '-'
+                          : DateFormat('dd/MM/yyyy HH:mm').format(fecha.toLocal()),
+                      showDivider: false,
+                    ),
+                  ],
                 ),
               ),
             );
           },
         ),
+      ),
+    );
+  }
+}
+
+class _PaymentMetaRow extends StatelessWidget {
+  const _PaymentMetaRow({
+    required this.icon,
+    required this.label,
+    required this.value,
+    this.showDivider = true,
+  });
+
+  final IconData icon;
+  final String label;
+  final String value;
+  final bool showDivider;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 8),
+      decoration: BoxDecoration(
+        border: showDivider
+            ? Border(bottom: BorderSide(color: colors.outlineVariant.withValues(alpha: 0.7)))
+            : null,
+      ),
+      child: Row(
+        children: [
+          Icon(icon, size: 18, color: colors.primary),
+          const SizedBox(width: 8),
+          Text('$label: ', style: TextStyle(color: colors.onSurfaceVariant)),
+          Expanded(
+            child: Text(
+              value,
+              style: const TextStyle(fontWeight: FontWeight.w600),
+              textAlign: TextAlign.right,
+            ),
+          ),
+        ],
       ),
     );
   }
