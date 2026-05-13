@@ -1,8 +1,6 @@
 // ignore_for_file: avoid_print, use_build_context_synchronously
 
-import 'package:flips_app/constants.dart';
 import 'package:flips_app/controllers/auth.controller.dart';
-import 'package:flips_app/globals/functions/functions.dart';
 import 'package:flips_app/globals/widgets/globlalsnackbar.widget.dart';
 import 'package:flips_app/providers/auth.provider.dart';
 import 'package:flips_app/controllers/login/login_flows.controller.dart';
@@ -56,8 +54,6 @@ class _LoginScreenState extends State<LoginScreen> {
   @override
   Widget build(BuildContext context) {
     final size = MediaQuery.of(context).size;
-    final theme = Theme.of(context);
-    final colorScheme = theme.colorScheme;
     final authprovider = Provider.of<AuthProvider>(context);
     final isWideLayout = size.width >= 720;
     final formMaxWidth = isWideLayout ? 460.0 : double.infinity;

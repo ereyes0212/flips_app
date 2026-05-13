@@ -17,17 +17,20 @@ class FacturaModel {
     required this.totalCentavos,
     required this.emitidaEn,
     required this.estado,
+    this.pdfUrl = '',
   });
 
   final String id;
   final int totalCentavos;
   final String emitidaEn;
   final String estado;
+  final String pdfUrl;
 
   factory FacturaModel.fromJson(Map<String, dynamic> json) => FacturaModel(
     id: json['id'] ?? '',
     totalCentavos: json['totalCentavos'] ?? 0,
     emitidaEn: json['emitidaEn'] ?? '',
     estado: json['estado'] ?? '',
+    pdfUrl: json['pdfUrl'] ?? json['pdf_url'] ?? '',
   );
 }

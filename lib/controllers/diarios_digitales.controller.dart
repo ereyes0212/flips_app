@@ -32,6 +32,7 @@ class DiariosDigitalesController {
     } on SocketException {
       provider.setError('Sin conexión. Verifica tu internet e intenta nuevamente.');
     } on SessionExpiredException {
+      provider.setError('La sesión ha expirado. Por favor, inicia sesión de nuevo.');
     } catch (_) {
       provider.setError('Ocurrió un error al cargar los diarios.');
     }
