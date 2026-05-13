@@ -3,7 +3,6 @@ import 'package:flips_app/providers/mis_facturas.provider.dart';
 import 'package:flips_app/screens/shared/async_list_state.widget.dart';
 import 'package:flips_app/utils/formatters.dart';
 import 'package:flutter/material.dart';
-import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 
 class MisFacturasScreen extends StatefulWidget {
@@ -44,15 +43,14 @@ class _MisFacturasScreenState extends State<MisFacturasScreen> {
             }
 
             final item = provider.facturas[index - 1];
-            final fecha = DateTime.tryParse(item.fechaEmision);
             return Card(
               margin: const EdgeInsets.only(bottom: 12),
               child: ListTile(
-                title: Text('Factura #${item.correlativo}'),
+                title: Text('Factura ${item.id}'),
                 subtitle: Text(
-                  'Monto: ${AppFormatters.moneyFromCentavos(item.montoCentavos)}\n'
+                  'Monto: ${AppFormatters.moneyFromCentavos(item.totalCentavos)}\n'
                   'Estado: ${item.estado}\n'
-                  'Fecha emisión: ${fecha == null ? '-' : DateFormat('dd/MM/yyyy').format(fecha.toLocal())}',
+                  'Fecha emisión: ${AppFormatters.dateFromIso(item.emitidaEn)}',
                 ),
                 trailing: item.urlPdf.isNotEmpty
                     ? IconButton(
