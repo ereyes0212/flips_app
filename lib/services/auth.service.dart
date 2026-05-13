@@ -16,10 +16,11 @@ class GoogleLoginResult {
 }
 
 class AuthActionResult {
-  const AuthActionResult({required this.ok, required this.message});
+  const AuthActionResult({required this.ok, required this.message, this.statusCode});
 
   final bool ok;
   final String message;
+  final int? statusCode;
 }
 
 class AuthService {
@@ -103,12 +104,17 @@ class AuthService {
       final isSuccessStatus = response.statusCode >= 200 && response.statusCode < 300;
 
       if (isSuccessStatus || okField) {
-        return AuthActionResult(ok: true, message: message.isNotEmpty ? message : fallbackSuccess);
+        return AuthActionResult(
+          ok: true,
+          message: message.isNotEmpty ? message : fallbackSuccess,
+          statusCode: response.statusCode,
+        );
       }
 
       return AuthActionResult(
         ok: false,
         message: message.isNotEmpty ? message : 'No se pudo completar la solicitud.',
+        statusCode: response.statusCode,
       );
     } on SocketException {
       rethrow;
