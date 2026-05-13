@@ -59,6 +59,19 @@ class SuscripcionCheckoutService {
     return ConfirmarPagoResponse.fromJson(body);
   }
 
+
+  Future<bool> actualizarEstadoPago({
+    required String pagoId,
+    required String estado,
+  }) async {
+    final response = await _httpService.put(
+      '${apiUrl}mobile/pagos/$pagoId/estado',
+      body: {'estado': estado},
+    );
+
+    return response.statusCode >= 200 && response.statusCode < 300;
+  }
+
   Map<String, dynamic> _safeJson(String raw) {
     try {
       final parsed = jsonDecode(raw);
