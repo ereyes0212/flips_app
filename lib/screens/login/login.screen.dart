@@ -97,6 +97,29 @@ class _LoginScreenState extends State<LoginScreen> {
                       child: authprovider.loading ? const CircularProgressIndicator() : const Text('Iniciar sesión'),
                     ),
                   ),
+                  const SizedBox(height: 12),
+                  Row(
+                    children: const [
+                      Expanded(child: Divider()),
+                      Padding(
+                        padding: EdgeInsets.symmetric(horizontal: 10),
+                        child: Text('o'),
+                      ),
+                      Expanded(child: Divider()),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  SizedBox(
+                    width: double.infinity,
+                    height: 52,
+                    child: OutlinedButton.icon(
+                      onPressed: authprovider.loading
+                          ? null
+                          : () => AuthController().loginWithGoogleController(context),
+                      icon: const Icon(Icons.g_mobiledata_rounded, size: 28),
+                      label: const Text('Continuar con Google'),
+                    ),
+                  ),
                   const SizedBox(height: 8),
                   TextButton.icon(
                     onPressed: _openRegisterFlow,
