@@ -1,5 +1,7 @@
 import 'package:flips_app/controllers/mis_pagos.controller.dart';
 import 'package:flips_app/providers/mis_pagos.provider.dart';
+import 'package:flips_app/screens/shared/async_list_state.widget.dart';
+import 'package:flips_app/utils/formatters.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
@@ -20,8 +22,6 @@ class _MisPagosScreenState extends State<MisPagosScreen> {
     Future.microtask(() => _controller.cargarPagos(context));
   }
 
-  String _lempiras(int centavos) => 'L ${NumberFormat('#,##0.00', 'es_HN').format(centavos / 100)}';
-
   @override
   Widget build(BuildContext context) {
     final provider = context.watch<MisPagosProvider>();
@@ -35,19 +35,21 @@ class _MisPagosScreenState extends State<MisPagosScreen> {
           itemCount: provider.loading ? 1 : provider.pagos.length + 1,
           itemBuilder: (context, index) {
             if (index == 0) {
-              if (provider.loading) return const Center(child: Padding(padding: EdgeInsets.only(top: 40), child: CircularProgressIndicator()));
-              if (provider.errorMessage.isNotEmpty) return Text(provider.errorMessage);
-              if (provider.pagos.isEmpty) return const Text('No hay pagos para mostrar.');
-              return const SizedBox.shrink();
+              return AsyncListState(
+                loading: provider.loading,
+                errorMessage: provider.errorMessage,
+                isEmpty: provider.pagos.isEmpty,
+                emptyMessage: 'No hay pagos para mostrar.',
+              );
             }
+
             final item = provider.pagos[index - 1];
             final fecha = DateTime.tryParse(item.creadoEn);
+
             return Card(
               elevation: 0,
               margin: const EdgeInsets.only(bottom: 12),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(18),
-              ),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
               child: Container(
                 decoration: BoxDecoration(
                   borderRadius: BorderRadius.circular(18),
@@ -60,13 +62,16 @@ class _MisPagosScreenState extends State<MisPagosScreen> {
                 ),
                 child: ListTile(
                   contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-                title: Text(_lempiras(item.montoCentavos), style: const TextStyle(fontWeight: FontWeight.bold)),
-                subtitle: Text(
-                  'Estado: ${item.estado}\n'
-                  'Método: ${item.metodoPago?.nombre.isNotEmpty == true ? item.metodoPago!.nombre : '-'}\n'
-                  'Plan: ${item.suscripcion?.plan?.name.isNotEmpty == true ? item.suscripcion!.plan!.name : '-'}\n'
-                  'Fecha: ${fecha == null ? '-' : DateFormat('dd/MM/yyyy HH:mm').format(fecha.toLocal())}',
-                ),
+                  title: Text(
+                    AppFormatters.moneyFromCentavos(item.montoCentavos),
+                    style: const TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                  subtitle: Text(
+                    'Estado: ${item.estado}\n'
+                    'Método: ${item.metodoPago?.nombre.isNotEmpty == true ? item.metodoPago!.nombre : '-'}\n'
+                    'Plan: ${item.suscripcion?.plan?.name.isNotEmpty == true ? item.suscripcion!.plan!.name : '-'}\n'
+                    'Fecha: ${fecha == null ? '-' : DateFormat('dd/MM/yyyy HH:mm').format(fecha.toLocal())}',
+                  ),
                 ),
               ),
             );
