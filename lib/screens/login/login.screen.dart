@@ -1,9 +1,12 @@
 // ignore_for_file: avoid_print, use_build_context_synchronously
 
+import 'dart:io';
+
 import 'package:flips_app/constants.dart';
 import 'package:flips_app/controllers/auth.controller.dart';
-import 'package:flips_app/globals/widgets/dialogtext.widget.dart';
+import 'package:flips_app/globals/functions/functions.dart';
 import 'package:flips_app/providers/auth.provider.dart';
+import 'package:flips_app/services/auth.service.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
@@ -26,20 +29,24 @@ class _LoginScreenState extends State<LoginScreen> {
     txtPass.dispose();
     super.dispose();
   }
-  // Future<void> _authenticateWithBiometrics() async {
-  //   try {
-  //     bool canCheckBiometrics = await auth.canCheckBiometrics;
-  //     bool isAuthenticated = false;
-  //     if (canCheckBiometrics) {
-  //       isAuthenticated = await auth.authenticate(
-  //         localizedReason: 'Autentíquese con su huella digital',
-  //         options: const AuthenticationOptions(biometricOnly: true),
-  //       );
-  //     }
-  //     if (isAuthenticated) {
-  //       AuthController().loginController("admin", "12345", context);
-  //     }
-  // }
+
+  Future<void> _openRegisterFlow() async {
+    await showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      builder: (_) => const _EmailRegisterFlow(),
+    );
+  }
+
+  Future<void> _openResetFlow() async {
+    await showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      builder: (_) => const _ResetPasswordFlow(),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -52,336 +59,197 @@ class _LoginScreenState extends State<LoginScreen> {
 
     return Scaffold(
       backgroundColor: const Color(0xFFF7F9FD),
-      body: Stack(
-        children: [
-          Positioned.fill(
-            child: DecoratedBox(
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                  colors: [
-                    colorScheme.primary.withOpacity(0.08),
-                    Colors.white,
-                    colorScheme.secondary.withOpacity(0.10),
-                  ],
-                ),
-              ),
-            ),
-          ),
-          Positioned(
-            top: -140,
-            right: -90,
-            child: _DecorativeCircle(
-              size: isWideLayout ? 360 : 260,
-              color: colorScheme.primary.withOpacity(0.12),
-            ),
-          ),
-          Positioned(
-            bottom: -150,
-            left: -110,
-            child: _DecorativeCircle(
-              size: isWideLayout ? 330 : 250,
-              color: colorScheme.secondary.withOpacity(0.16),
-            ),
-          ),
-          SafeArea(
-            child: Center(
-              child: SingleChildScrollView(
-                keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
-                padding: EdgeInsets.symmetric(
-                  horizontal: isWideLayout ? 32 : 20,
-                  vertical: 28,
-                ),
-                child: ConstrainedBox(
-                  constraints: BoxConstraints(maxWidth: formMaxWidth),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Container(
-                        width: 112,
-                        height: 112,
-                        padding: const EdgeInsets.all(18),
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.circular(32),
-                          boxShadow: [
-                            BoxShadow(
-                              color: colorScheme.primary.withOpacity(0.14),
-                              blurRadius: 30,
-                              offset: const Offset(0, 18),
-                            ),
-                          ],
-                        ),
-                        child: Image.asset(
-                          AppAssets().logoAppWhite,
-                          fit: BoxFit.contain,
-                        ),
+      body: SafeArea(
+        child: Center(
+          child: SingleChildScrollView(
+            padding: EdgeInsets.symmetric(horizontal: isWideLayout ? 32 : 20, vertical: 28),
+            child: ConstrainedBox(
+              constraints: BoxConstraints(maxWidth: formMaxWidth),
+              child: Column(
+                children: [
+                  Text('Bienvenido de nuevo', style: GoogleFonts.poppins(fontSize: 28, fontWeight: FontWeight.w800)),
+                  const SizedBox(height: 24),
+                  TextField(controller: txtUser, decoration: const InputDecoration(labelText: 'Correo electrónico')),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: txtPass,
+                    obscureText: verContrasena,
+                    decoration: InputDecoration(
+                      labelText: 'Contraseña',
+                      suffixIcon: IconButton(
+                        onPressed: () => setState(() => verContrasena = !verContrasena),
+                        icon: Icon(verContrasena ? Icons.visibility_outlined : Icons.visibility_off_outlined),
                       ),
-                      const SizedBox(height: 28),
-                      Text(
-                        'Bienvenido de nuevo',
-                        style: GoogleFonts.poppins(
-                          color: colorScheme.onSurface,
-                          fontSize: isWideLayout ? 30 : 26,
-                          fontWeight: FontWeight.w800,
-                          letterSpacing: -0.5,
-                        ),
-                        textAlign: TextAlign.center,
+                    ),
+                  ),
+                  Align(
+                    alignment: Alignment.centerRight,
+                    child: TextButton(onPressed: _openResetFlow, child: const Text('¿Olvidaste tu contraseña?')),
+                  ),
+                  const SizedBox(height: 12),
+                  SizedBox(
+                    width: double.infinity,
+                    height: 52,
+                    child: ElevatedButton(
+                      onPressed: authprovider.loading
+                          ? null
+                          : () => AuthController().loginController(txtUser.text.trim(), txtPass.text.trim(), context),
+                      child: authprovider.loading ? const CircularProgressIndicator() : const Text('Iniciar sesión'),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  Row(
+                    children: const [
+                      Expanded(child: Divider()),
+                      Padding(
+                        padding: EdgeInsets.symmetric(horizontal: 10),
+                        child: Text('o'),
                       ),
-                      const SizedBox(height: 8),
-                      Text(
-                        'Inicia sesión para gestionar tu suscripción y acceder a tus beneficios.',
-                        style: GoogleFonts.poppins(
-                          color: colorScheme.onSurface.withOpacity(0.62),
-                          fontSize: 14.5,
-                          height: 1.45,
-                        ),
-                        textAlign: TextAlign.center,
-                      ),
-                      const SizedBox(height: 30),
-                      Container(
-                        padding: const EdgeInsets.all(24),
-                        decoration: BoxDecoration(
-                          color: Colors.white.withOpacity(0.96),
-                          borderRadius: BorderRadius.circular(30),
-                          border: Border.all(
-                            color: Colors.white.withOpacity(0.8),
-                          ),
-                          boxShadow: [
-                            BoxShadow(
-                              color: const Color(0xFF17365D).withOpacity(0.10),
-                              blurRadius: 40,
-                              offset: const Offset(0, 22),
-                            ),
-                          ],
-                        ),
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          crossAxisAlignment: CrossAxisAlignment.stretch,
-                          children: [
-                            Text(
-                              'Acceso a tu cuenta',
-                              style: GoogleFonts.poppins(
-                                color: colorScheme.onSurface,
-                                fontSize: 18,
-                                fontWeight: FontWeight.w700,
-                              ),
-                            ),
-                            const SizedBox(height: 18),
-                            TextField(
-                              controller: txtUser,
-                              keyboardType: TextInputType.emailAddress,
-                              textInputAction: TextInputAction.next,
-                              autofillHints: const [AutofillHints.email],
-                              onChanged: (value) {
-                                if (value.isNotEmpty && authprovider.error) {
-                                  authprovider.error = false;
-                                }
-                              },
-                              decoration: InputDecoration(
-                                errorText:
-                                    authprovider.error
-                                        ? 'Este campo es obligatorio'
-                                        : null,
-                                labelText: 'Correo electrónico',
-                                hintText: 'nombre@correo.com',
-                                prefixIcon: const Icon(
-                                  Icons.mail_outline_rounded,
-                                ),
-                              ),
-                            ),
-                            const SizedBox(height: 16),
-                            TextField(
-                              controller: txtPass,
-                              obscureText: verContrasena,
-                              textInputAction: TextInputAction.done,
-                              autofillHints: const [AutofillHints.password],
-                              onSubmitted: (_) {
-                                if (!authprovider.loading) {
-                                  AuthController().loginController(
-                                    txtUser.text.trim(),
-                                    txtPass.text.trim(),
-                                    context,
-                                  );
-                                }
-                              },
-                              decoration: InputDecoration(
-                                errorText:
-                                    authprovider.error
-                                        ? 'Este campo es obligatorio'
-                                        : null,
-                                labelText: 'Contraseña',
-                                hintText: 'Ingresa tu contraseña',
-                                prefixIcon: const Icon(
-                                  Icons.lock_outline_rounded,
-                                ),
-                                suffixIcon: IconButton(
-                                  tooltip:
-                                      verContrasena
-                                          ? 'Mostrar contraseña'
-                                          : 'Ocultar contraseña',
-                                  onPressed:
-                                      () => setState(
-                                        () =>
-                                            verContrasena = !verContrasena,
-                                      ),
-                                  icon: Icon(
-                                    verContrasena
-                                        ? Icons.visibility_outlined
-                                        : Icons.visibility_off_outlined,
-                                  ),
-                                ),
-                              ),
-                            ),
-                            const SizedBox(height: 10),
-                            Align(
-                              alignment: Alignment.centerRight,
-                              child: TextButton(
-                                onPressed: () => dialogText(context),
-                                style: TextButton.styleFrom(
-                                  foregroundColor: colorScheme.primary,
-                                  textStyle: GoogleFonts.poppins(
-                                    fontSize: 13.5,
-                                    fontWeight: FontWeight.w600,
-                                  ),
-                                ),
-                                child: const Text('¿Olvidaste tu contraseña?'),
-                              ),
-                            ),
-                            const SizedBox(height: 16),
-                            SizedBox(
-                              height: 52,
-                              child: ElevatedButton(
-                                onPressed: authprovider.loading
-                                    ? null
-                                    : () {
-                                        AuthController().loginController(
-                                          txtUser.text.trim(),
-                                          txtPass.text.trim(),
-                                          context,
-                                        );
-                                      },
-                                style: ElevatedButton.styleFrom(
-                                  elevation: 0,
-                                  shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(18),
-                                  ),
-                                ),
-                                child: Text(
-                                  'Iniciar sesión',
-                                  style: GoogleFonts.poppins(
-                                    fontSize: 15.5,
-                                    fontWeight: FontWeight.w700,
-                                  ),
-                                ),
-                              ),
-                            ),
-                            const SizedBox(height: 18),
-                            Row(
-                              children: [
-                                Expanded(
-                                  child: Divider(
-                                    color: colorScheme.outlineVariant,
-                                  ),
-                                ),
-                                Padding(
-                                  padding: const EdgeInsets.symmetric(horizontal: 12),
-                                  child: Text(
-                                    'o continúa con',
-                                    style: GoogleFonts.poppins(
-                                      color: colorScheme.onSurface
-                                          .withOpacity(0.48),
-                                      fontSize: 12.5,
-                                      fontWeight: FontWeight.w500,
-                                    ),
-                                  ),
-                                ),
-                                Expanded(
-                                  child: Divider(
-                                    color: colorScheme.outlineVariant,
-                                  ),
-                                ),
-                              ],
-                            ),
-                            const SizedBox(height: 18),
-                            SizedBox(
-                              height: 52,
-                              child: OutlinedButton(
-                                onPressed: authprovider.loading
-                                    ? null
-                                    : () {
-                                        AuthController().loginWithGoogleController(
-                                          context,
-                                        );
-                                      },
-                                style: OutlinedButton.styleFrom(
-                                  foregroundColor: colorScheme.onSurface,
-                                  side: BorderSide(
-                                    color: colorScheme.outlineVariant,
-                                  ),
-                                  shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(18),
-                                  ),
-                                ),
-                                child: Row(
-                                  mainAxisAlignment: MainAxisAlignment.center,
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    Icon(
-                                      Icons.g_mobiledata_rounded,
-                                      size: 30,
-                                      color: colorScheme.primary,
-                                    ),
-                                    const SizedBox(width: 8),
-                                    Text(
-                                      'Iniciar con Google',
-                                      style: GoogleFonts.poppins(
-                                        fontSize: 15,
-                                        fontWeight: FontWeight.w700,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
+                      Expanded(child: Divider()),
                     ],
                   ),
-                ),
+                  const SizedBox(height: 12),
+                  SizedBox(
+                    width: double.infinity,
+                    height: 52,
+                    child: OutlinedButton.icon(
+                      onPressed: authprovider.loading
+                          ? null
+                          : () => AuthController().loginWithGoogleController(context),
+                      icon: const Icon(Icons.g_mobiledata_rounded, size: 28),
+                      label: const Text('Continuar con Google'),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  TextButton.icon(
+                    onPressed: _openRegisterFlow,
+                    icon: const Icon(Icons.verified_user_outlined),
+                    label: const Text('Crear cuenta con correo + OTP'),
+                  ),
+                ],
               ),
             ),
           ),
-          if (authprovider.loading)
-            Container(
-              color: Colors.black.withOpacity(0.20),
-              width: size.width,
-              height: size.height,
-              child: const Center(child: CircularProgressIndicator()),
-            ),
-        ],
+        ),
       ),
     );
   }
 }
 
-class _DecorativeCircle extends StatelessWidget {
-  const _DecorativeCircle({required this.size, required this.color});
+class _EmailRegisterFlow extends StatefulWidget {
+  const _EmailRegisterFlow();
 
-  final double size;
-  final Color color;
+  @override
+  State<_EmailRegisterFlow> createState() => _EmailRegisterFlowState();
+}
+
+class _EmailRegisterFlowState extends State<_EmailRegisterFlow> {
+  final _service = AuthService();
+  final _email = TextEditingController();
+  final _otp = TextEditingController();
+  final _nombre = TextEditingController();
+  final _apellido = TextEditingController();
+  final _pass = TextEditingController();
+  int _step = 1;
+  bool _loading = false;
+
+  @override
+  void dispose() { _email.dispose(); _otp.dispose(); _nombre.dispose(); _apellido.dispose(); _pass.dispose(); super.dispose(); }
+
+  Future<void> _run(Future<AuthActionResult> Function() action, {VoidCallback? onOk}) async {
+    setState(() => _loading = true);
+    try {
+      final res = await action();
+      globalSnackBar(res.message);
+      if (res.ok && onOk != null) onOk();
+    } on SocketException {
+      globalSnackBar('Sin conexión a internet.');
+    } finally { if (mounted) setState(() => _loading = false); }
+  }
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      width: size,
-      height: size,
-      decoration: BoxDecoration(
-        shape: BoxShape.circle,
-        color: color,
-      ),
+    return Padding(
+      padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom + 16, left: 16, right: 16, top: 16),
+      child: Column(mainAxisSize: MainAxisSize.min, children: [
+        Text('Registro por correo', style: GoogleFonts.poppins(fontSize: 20, fontWeight: FontWeight.w700)),
+        const SizedBox(height: 12),
+        if (_step >= 1) TextField(controller: _email, decoration: const InputDecoration(labelText: 'Correo')),
+        if (_step >= 2) ...[const SizedBox(height: 8), TextField(controller: _otp, decoration: const InputDecoration(labelText: 'OTP (6 dígitos)'))],
+        if (_step >= 3) ...[
+          const SizedBox(height: 8), TextField(controller: _nombre, decoration: const InputDecoration(labelText: 'Nombre')),
+          const SizedBox(height: 8), TextField(controller: _apellido, decoration: const InputDecoration(labelText: 'Apellido')),
+          const SizedBox(height: 8), TextField(controller: _pass, obscureText: true, decoration: const InputDecoration(labelText: 'Contraseña (mín. 8)')),
+        ],
+        const SizedBox(height: 12),
+        SizedBox(width: double.infinity, child: ElevatedButton(
+          onPressed: _loading ? null : () {
+            if (_step == 1) {
+              _run(() => _service.requestEmailOtp(_email.text.trim()), onOk: () => setState(() => _step = 2));
+            } else if (_step == 2) {
+              _run(() => _service.verifyEmailOtp(_email.text.trim(), _otp.text.trim()), onOk: () => setState(() => _step = 3));
+            } else {
+              _run(() => _service.completeRegister(email: _email.text.trim(), contrasena: _pass.text.trim(), nombre: _nombre.text.trim(), apellido: _apellido.text.trim()), onOk: () => Navigator.pop(context));
+            }
+          },
+          child: Text(_step == 1 ? 'Enviar OTP' : _step == 2 ? 'Verificar OTP' : 'Completar registro'),
+        )),
+      ]),
+    );
+  }
+}
+
+class _ResetPasswordFlow extends StatefulWidget {
+  const _ResetPasswordFlow();
+
+  @override
+  State<_ResetPasswordFlow> createState() => _ResetPasswordFlowState();
+}
+
+class _ResetPasswordFlowState extends State<_ResetPasswordFlow> {
+  final _service = AuthService();
+  final _email = TextEditingController();
+  final _otp = TextEditingController();
+  final _pass = TextEditingController();
+  bool _showConfirm = false;
+  bool _loading = false;
+
+  @override
+  void dispose() { _email.dispose(); _otp.dispose(); _pass.dispose(); super.dispose(); }
+
+  Future<void> _requestOtp() async {
+    setState(() => _loading = true);
+    try {
+      final res = await _service.requestResetOtp(_email.text.trim());
+      globalSnackBar(res.message);
+      if (res.ok) setState(() => _showConfirm = true);
+    } on SocketException { globalSnackBar('Sin conexión a internet.'); } finally { if (mounted) setState(() => _loading = false); }
+  }
+
+  Future<void> _confirmReset() async {
+    setState(() => _loading = true);
+    try {
+      final res = await _service.confirmPasswordReset(email: _email.text.trim(), otp: _otp.text.trim(), contrasena: _pass.text.trim());
+      globalSnackBar(res.message);
+      if (res.ok) Navigator.pop(context);
+    } on SocketException { globalSnackBar('Sin conexión a internet.'); } finally { if (mounted) setState(() => _loading = false); }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom + 16, left: 16, right: 16, top: 16),
+      child: Column(mainAxisSize: MainAxisSize.min, children: [
+        Text('Recuperar contraseña', style: GoogleFonts.poppins(fontSize: 20, fontWeight: FontWeight.w700)),
+        const SizedBox(height: 12),
+        TextField(controller: _email, decoration: const InputDecoration(labelText: 'Correo')),
+        if (_showConfirm) ...[
+          const SizedBox(height: 8), TextField(controller: _otp, decoration: const InputDecoration(labelText: 'OTP')),
+          const SizedBox(height: 8), TextField(controller: _pass, obscureText: true, decoration: const InputDecoration(labelText: 'Nueva contraseña')),
+        ],
+        const SizedBox(height: 12),
+        SizedBox(width: double.infinity, child: ElevatedButton(onPressed: _loading ? null : (_showConfirm ? _confirmReset : _requestOtp), child: Text(_showConfirm ? 'Confirmar cambio' : 'Enviar OTP'))),
+      ]),
     );
   }
 }
