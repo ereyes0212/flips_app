@@ -129,7 +129,7 @@ class MyApp extends StatelessWidget {
             bodySmall: TextStyle(color: colorScheme.onSurface.withOpacity(0.7)),
           ),
         ),
-        title: 'Zona Fitness',
+        title: 'Diario Tiempo HN',
         routes: {'/login': (_) => const LoginScreen()},
         home: FutureBuilder<bool>(
           future: SessionService.hasValidSession(),
