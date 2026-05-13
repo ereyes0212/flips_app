@@ -91,12 +91,22 @@ class _PaquetesScreenState extends State<PaquetesScreen> {
       if (!mounted) return;
       setState(() => _paying = true);
 
+      final shouldMarkFailed = checkoutResult == _HostedCheckoutResult.closed ||
+          checkoutResult == _HostedCheckoutResult.cancelled;
       var manualCloseStatusUpdated = false;
-      if (checkoutResult == _HostedCheckoutResult.closed) {
+
+      if (shouldMarkFailed) {
         manualCloseStatusUpdated = await _checkoutService.actualizarEstadoPago(
           pagoId: pagoId,
           estado: 'CANCELADO',
         );
+      }
+
+      if (checkoutResult == _HostedCheckoutResult.completed) {
+        if (!mounted) return;
+        _showSnack('Pago realizado correctamente.');
+        await _controller.cargarPaquetes(context);
+        return;
       }
 
       final estado = await _consultarEstadoConfirmado(
@@ -105,12 +115,21 @@ class _PaquetesScreenState extends State<PaquetesScreen> {
       );
       if (!mounted) return;
 
-      if (estado.pagoExitoso || checkoutResult == _HostedCheckoutResult.completed) {
+      if (estado.pagoExitoso) {
         _showSnack('Pago realizado correctamente.');
         await _controller.cargarPaquetes(context);
       } else if (checkoutResult == _HostedCheckoutResult.cancelled) {
         _showSnack(
-          estado.message ?? 'El pago fue cancelado. Puedes intentarlo nuevamente.',
+          manualCloseStatusUpdated
+              ? 'Cancelaste la orden. Marcamos el pago como fallido.'
+              : (estado.message ?? 'Cancelaste la orden. Estamos validando el estado final del pago.'),
+          error: true,
+        );
+      } else if (checkoutResult == _HostedCheckoutResult.closed) {
+        _showSnack(
+          manualCloseStatusUpdated
+              ? 'Cerraste el checkout. Marcamos el pago como fallido.'
+              : 'Cerraste el checkout. Estamos validando el estado final del pago.',
           error: true,
         );
       } else if (checkoutResult == _HostedCheckoutResult.closed) {
@@ -149,8 +168,7 @@ class _PaquetesScreenState extends State<PaquetesScreen> {
       pagoId: pagoId,
     );
 
-    final shouldRetry = checkoutResult == _HostedCheckoutResult.completed ||
-        checkoutResult == null;
+    final shouldRetry = checkoutResult == null;
 
     if (!shouldRetry) return estado;
 
