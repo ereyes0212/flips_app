@@ -91,6 +91,13 @@ class _PaquetesScreenState extends State<PaquetesScreen> {
       if (!mounted) return;
       setState(() => _paying = true);
 
+      if (checkoutResult == _HostedCheckoutResult.closed) {
+        await _checkoutService.actualizarEstadoPago(
+          pagoId: pagoId,
+          estado: 'FALLIDO',
+        );
+      }
+
       final estado = await _consultarEstadoConfirmado(pagoId);
       if (!mounted) return;
 
