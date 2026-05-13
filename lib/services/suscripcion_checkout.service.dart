@@ -60,7 +60,7 @@ class SuscripcionCheckoutService {
   }
 
 
-  Future<void> actualizarEstadoPago({
+  Future<bool> actualizarEstadoPago({
     required String pagoId,
     required String estado,
   }) async {
@@ -69,14 +69,9 @@ class SuscripcionCheckoutService {
       body: {'estado': estado},
     );
 
-    if (response.statusCode < 200 || response.statusCode >= 300) {
-      final body = _safeJson(response.body);
-      throw ApiHttpException(
-        response.statusCode,
-        _httpMessage(response.statusCode, body['message']?.toString()),
-      );
-    }
+    return response.statusCode >= 200 && response.statusCode < 300;
   }
+
   Map<String, dynamic> _safeJson(String raw) {
     try {
       final parsed = jsonDecode(raw);

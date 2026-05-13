@@ -91,10 +91,11 @@ class _PaquetesScreenState extends State<PaquetesScreen> {
       if (!mounted) return;
       setState(() => _paying = true);
 
+      var manualCloseStatusUpdated = false;
       if (checkoutResult == _HostedCheckoutResult.closed) {
-        await _checkoutService.actualizarEstadoPago(
+        manualCloseStatusUpdated = await _checkoutService.actualizarEstadoPago(
           pagoId: pagoId,
-          estado: 'FALLIDO',
+          estado: 'CANCELADO',
         );
       }
 
@@ -107,6 +108,13 @@ class _PaquetesScreenState extends State<PaquetesScreen> {
       } else if (checkoutResult == _HostedCheckoutResult.cancelled) {
         _showSnack(
           estado.message ?? 'El pago fue cancelado. Puedes intentarlo nuevamente.',
+          error: true,
+        );
+      } else if (checkoutResult == _HostedCheckoutResult.closed) {
+        _showSnack(
+          manualCloseStatusUpdated
+              ? 'Cerraste el checkout. Marcamos el pago como fallido.'
+              : 'Cerraste el checkout. Estamos validando el estado final del pago.',
           error: true,
         );
       } else {
