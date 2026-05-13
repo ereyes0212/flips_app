@@ -89,6 +89,27 @@ class HttpService {
     );
   }
 
+  Future<http.Response> patch(
+    String url, {
+    Map<String, String>? headers,
+    Map<String, dynamic>? body,
+    bool includeAuth = true,
+  }) async {
+    final allHeaders = await _headersWithToken(
+      headers,
+      useJson: true,
+      includeAuth: includeAuth,
+    );
+    return _request(
+      () => http.patch(
+        Uri.parse(url),
+        headers: allHeaders,
+        body: body == null ? null : jsonEncode(body),
+      ),
+      enforceAuthErrors: includeAuth,
+    );
+  }
+
   Future<http.Response> _request(
     Future<http.Response> Function() request, {
     required bool enforceAuthErrors,

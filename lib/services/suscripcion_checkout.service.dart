@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:flips_app/constants.dart';
 import 'package:flips_app/models/suscripcion_checkout.model.dart';
 import 'package:flips_app/services/http.service.dart';
+import 'package:flutter/material.dart';
 
 class ApiHttpException implements Exception {
   ApiHttpException(this.statusCode, this.message);
@@ -64,10 +65,11 @@ class SuscripcionCheckoutService {
     required String pagoId,
     required String estado,
   }) async {
-    final response = await _httpService.put(
+    final response = await _httpService.patch(
       '${apiUrl}mobile/pagos/$pagoId/estado',
       body: {'estado': estado},
     );
+    debugPrint('Actualizar estado pago: ${response.statusCode} - ${response.body}');
 
     return response.statusCode >= 200 && response.statusCode < 300;
   }
