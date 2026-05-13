@@ -1,7 +1,8 @@
 import 'package:flips_app/controllers/mis_suscripcion.controller.dart';
 import 'package:flips_app/providers/mis_suscripcion.provider.dart';
+import 'package:flips_app/screens/shared/async_list_state.widget.dart';
+import 'package:flips_app/utils/formatters.dart';
 import 'package:flutter/material.dart';
-import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 
 class MisSuscripcionScreen extends StatefulWidget {
@@ -20,15 +21,6 @@ class _MisSuscripcionScreenState extends State<MisSuscripcionScreen> {
     Future.microtask(() => _controller.cargarSuscripciones(context));
   }
 
-  String _money(int centavos) => 'L ${NumberFormat('#,##0.00', 'es_HN').format(centavos / 100)}';
-
-  String _fmtFecha(String? iso) {
-    if (iso == null || iso.trim().isEmpty) return '-';
-    final dt = DateTime.tryParse(iso);
-    if (dt == null) return '-';
-    return DateFormat('dd/MM/yyyy').format(dt.toLocal());
-  }
-
   @override
   Widget build(BuildContext context) {
     final provider = context.watch<MisSuscripcionProvider>();
@@ -42,18 +34,14 @@ class _MisSuscripcionScreenState extends State<MisSuscripcionScreen> {
           itemCount: provider.loading ? 1 : provider.suscripciones.length + 1,
           itemBuilder: (context, index) {
             if (index == 0) {
-              if (provider.loading) {
-                return const Center(
-                  child: Padding(
-                    padding: EdgeInsets.only(top: 40),
-                    child: CircularProgressIndicator(),
-                  ),
-                );
-              }
-              if (provider.errorMessage.isNotEmpty) return Text(provider.errorMessage);
-              if (provider.suscripciones.isEmpty) return const Text('No hay suscripciones para mostrar.');
-              return const SizedBox.shrink();
+              return AsyncListState(
+                loading: provider.loading,
+                errorMessage: provider.errorMessage,
+                isEmpty: provider.suscripciones.isEmpty,
+                emptyMessage: 'No hay suscripciones para mostrar.',
+              );
             }
+
             final item = provider.suscripciones[index - 1];
             final nombrePlan = item.plan?.name.trim().isNotEmpty == true ? item.plan!.name : 'Suscripción';
 
@@ -73,16 +61,13 @@ class _MisSuscripcionScreenState extends State<MisSuscripcionScreen> {
                 ),
                 child: ListTile(
                   contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-                  title: Text(
-                    nombrePlan,
-                    style: const TextStyle(fontWeight: FontWeight.bold),
-                  ),
+                  title: Text(nombrePlan, style: const TextStyle(fontWeight: FontWeight.bold)),
                   subtitle: Text(
                     'Estado: ${item.estado}\n'
-                    'Precio: ${_money(item.precioCentavos)}\n'
+                    'Precio: ${AppFormatters.moneyFromCentavos(item.precioCentavos)}\n'
                     'Intervalo: ${item.intervalo} (${item.cantidadIntervalos})\n'
-                    'Inicio: ${_fmtFecha(item.inicioPeriodoActual)}\n'
-                    'Fin: ${_fmtFecha(item.finPeriodoActual)}',
+                    'Inicio: ${AppFormatters.dateFromIso(item.inicioPeriodoActual)}\n'
+                    'Fin: ${AppFormatters.dateFromIso(item.finPeriodoActual)}',
                   ),
                 ),
               ),
