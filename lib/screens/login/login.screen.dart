@@ -73,7 +73,7 @@ class _LoginScreenState extends State<LoginScreen> {
               child: Column(
                 children: [
                   Image.asset(
-                    logoAppWhite,
+                    'assets/images/logo.png',
                     height: 84,
                     fit: BoxFit.contain,
                   ),
