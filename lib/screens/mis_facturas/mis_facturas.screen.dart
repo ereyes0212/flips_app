@@ -43,25 +43,96 @@ class _MisFacturasScreenState extends State<MisFacturasScreen> {
             }
 
             final item = provider.facturas[index - 1];
+            final hasPdf = item.pdfUrl.isNotEmpty;
+            final colorScheme = Theme.of(context).colorScheme;
+
             return Card(
-              margin: const EdgeInsets.only(bottom: 12),
-              child: ListTile(
-                title: Text('Factura ${item.id}'),
-                subtitle: Text(
-                  'Monto: ${AppFormatters.moneyFromCentavos(item.totalCentavos)}\n'
-                  'Estado: ${item.estado}\n'
-                  'Fecha emisión: ${AppFormatters.dateFromIso(item.emitidaEn)}',
+              elevation: 0,
+              margin: const EdgeInsets.only(bottom: 14),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+              child: Container(
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(18),
+                  gradient: LinearGradient(
+                    colors: [
+                      colorScheme.tertiaryContainer.withValues(alpha: 0.22),
+                      colorScheme.surface,
+                    ],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
                 ),
-                trailing: item.pdfUrl.isNotEmpty
-                    ? IconButton(
-                        icon: const Icon(Icons.picture_as_pdf),
-                        onPressed: () {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(content: Text('PDF: ${item.pdfUrl}')),
-                          );
-                        },
-                      )
-                    : null,
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(10),
+                          decoration: BoxDecoration(
+                            color: colorScheme.errorContainer,
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: Icon(
+                            Icons.receipt_long_rounded,
+                            color: colorScheme.onErrorContainer,
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Text(
+                            'Factura ${item.id}',
+                            style: const TextStyle(
+                              fontSize: 17,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                          decoration: BoxDecoration(
+                            color: colorScheme.primaryContainer,
+                            borderRadius: BorderRadius.circular(30),
+                          ),
+                          child: Text(
+                            item.estado,
+                            style: TextStyle(
+                              color: colorScheme.onPrimaryContainer,
+                              fontWeight: FontWeight.w600,
+                              fontSize: 12,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 14),
+                    Text(
+                      AppFormatters.moneyFromCentavos(item.totalCentavos),
+                      style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      'Emitida: ${AppFormatters.dateFromIso(item.emitidaEn)}',
+                      style: TextStyle(color: colorScheme.onSurfaceVariant),
+                    ),
+                    if (hasPdf) ...[
+                      const SizedBox(height: 14),
+                      Align(
+                        alignment: Alignment.centerRight,
+                        child: FilledButton.icon(
+                          onPressed: () {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(content: Text('PDF: ${item.pdfUrl}')),
+                            );
+                          },
+                          icon: const Icon(Icons.picture_as_pdf_rounded),
+                          label: const Text('Ver PDF'),
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
               ),
             );
           },

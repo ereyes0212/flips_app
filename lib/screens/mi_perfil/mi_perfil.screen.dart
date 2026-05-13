@@ -68,9 +68,20 @@ class _PerfilData extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         Card(
-          elevation: 1,
+          elevation: 0,
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-          child: Padding(
+          child: Container(
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(20),
+              gradient: LinearGradient(
+                colors: [
+                  colorScheme.primaryContainer.withValues(alpha: 0.32),
+                  colorScheme.surface,
+                ],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+            ),
             padding: const EdgeInsets.all(20),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -145,11 +156,6 @@ class _PerfilData extends StatelessWidget {
                   style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
                 ),
                 const SizedBox(height: 12),
-                _DataTile(
-                  label: 'Rol',
-                  value: perfil.rol.nombre,
-                  icon: Icons.badge_outlined,
-                ),
                 _DataTile(
                   label: 'Plan activo',
                   value: perfil.suscripcionActiva?.plan ?? 'Sin plan activo',
