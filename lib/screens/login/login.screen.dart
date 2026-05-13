@@ -3,6 +3,7 @@
 import 'package:flips_app/constants.dart';
 import 'package:flips_app/controllers/auth.controller.dart';
 import 'package:flips_app/globals/functions/functions.dart';
+import 'package:flips_app/globals/widgets/globlalsnackbar.widget.dart';
 import 'package:flips_app/providers/auth.provider.dart';
 import 'package:flips_app/controllers/login/login_flows.controller.dart';
 import 'package:flips_app/screens/login/widgets/auth_flow_sheet.widget.dart';
@@ -71,7 +72,7 @@ class _LoginScreenState extends State<LoginScreen> {
               child: Column(
                 children: [
                   Image.asset(
-                    logoAppWhite,
+                    'assets/images/logo.png',
                     height: 84,
                     fit: BoxFit.contain,
                   ),
