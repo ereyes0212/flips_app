@@ -65,11 +65,10 @@ class SuscripcionCheckoutService {
     required String pagoId,
     required String estado,
   }) async {
-    final response = await _httpService.patch(
+    final response = await _httpService.put(
       '${apiUrl}mobile/pagos/$pagoId/estado',
       body: {'estado': estado},
     );
-    debugPrint('Actualizar estado pago: ${response.statusCode} - ${response.body}');
 
     return response.statusCode >= 200 && response.statusCode < 300;
   }

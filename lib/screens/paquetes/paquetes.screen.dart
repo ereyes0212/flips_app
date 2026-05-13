@@ -99,7 +99,10 @@ class _PaquetesScreenState extends State<PaquetesScreen> {
         );
       }
 
-      final estado = await _consultarEstadoConfirmado(pagoId);
+      final estado = await _consultarEstadoConfirmado(
+        pagoId,
+        checkoutResult: checkoutResult,
+      );
       if (!mounted) return;
 
       if (estado.pagoExitoso || checkoutResult == _HostedCheckoutResult.completed) {
@@ -138,17 +141,33 @@ class _PaquetesScreenState extends State<PaquetesScreen> {
     }
   }
 
-  Future<ConfirmarPagoResponse> _consultarEstadoConfirmado(String pagoId) async {
+  Future<ConfirmarPagoResponse> _consultarEstadoConfirmado(
+    String pagoId, {
+    required _HostedCheckoutResult? checkoutResult,
+  }) async {
     ConfirmarPagoResponse estado = await _checkoutService.consultarEstado(
       pagoId: pagoId,
     );
 
-    for (var intento = 0; intento < 3 && !estado.pagoExitoso; intento++) {
-      await Future<void>.delayed(const Duration(seconds: 2));
+    final shouldRetry = checkoutResult == _HostedCheckoutResult.completed ||
+        checkoutResult == null;
+
+    if (!shouldRetry) return estado;
+
+    for (var intento = 0; intento < 2 && _debeReintentarEstado(estado); intento++) {
+      await Future<void>.delayed(Duration(seconds: intento + 1));
       estado = await _checkoutService.consultarEstado(pagoId: pagoId);
     }
 
     return estado;
+  }
+
+  bool _debeReintentarEstado(ConfirmarPagoResponse estado) {
+    if (estado.pagoExitoso) return false;
+    final normalizado = estado.estado?.trim().toUpperCase() ?? '';
+    return normalizado.isEmpty ||
+        normalizado == 'PENDIENTE' ||
+        normalizado == 'PROCESANDO';
   }
 
   String _generateUuidV4() {
