@@ -34,6 +34,8 @@ class _LoginScreenState extends State<LoginScreen> {
     await showModalBottomSheet(
       context: context,
       isScrollControlled: true,
+      isDismissible: false,
+      enableDrag: false,
       useSafeArea: true,
       builder: (_) => const _EmailRegisterFlow(),
     );
@@ -43,6 +45,8 @@ class _LoginScreenState extends State<LoginScreen> {
     await showModalBottomSheet(
       context: context,
       isScrollControlled: true,
+      isDismissible: false,
+      enableDrag: false,
       useSafeArea: true,
       builder: (_) => const _ResetPasswordFlow(),
     );
@@ -67,6 +71,12 @@ class _LoginScreenState extends State<LoginScreen> {
               constraints: BoxConstraints(maxWidth: formMaxWidth),
               child: Column(
                 children: [
+                  Image.asset(
+                    logoAppWhite,
+                    height: 84,
+                    fit: BoxFit.contain,
+                  ),
+                  const SizedBox(height: 12),
                   Text('Bienvenido de nuevo', style: GoogleFonts.poppins(fontSize: 28, fontWeight: FontWeight.w800)),
                   const SizedBox(height: 24),
                   TextField(controller: txtUser, decoration: const InputDecoration(labelText: 'Correo electrónico')),
@@ -124,7 +134,7 @@ class _LoginScreenState extends State<LoginScreen> {
                   TextButton.icon(
                     onPressed: _openRegisterFlow,
                     icon: const Icon(Icons.verified_user_outlined),
-                    label: const Text('Crear cuenta con correo + OTP'),
+                    label: const Text('Crear cuenta con correo'),
                   ),
                 ],
               ),
@@ -160,6 +170,10 @@ class _EmailRegisterFlowState extends State<_EmailRegisterFlow> {
     setState(() => _loading = true);
     try {
       final res = await action();
+      if (_step == 2 && !res.ok && res.statusCode == 401) {
+        globalSnackBar('El código OTP es incorrecto. Verifícalo e inténtalo de nuevo.');
+        return;
+      }
       globalSnackBar(res.message);
       if (res.ok && onOk != null) onOk();
     } on SocketException {
@@ -172,7 +186,13 @@ class _EmailRegisterFlowState extends State<_EmailRegisterFlow> {
     return Padding(
       padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom + 16, left: 16, right: 16, top: 16),
       child: Column(mainAxisSize: MainAxisSize.min, children: [
-        Text('Registro por correo', style: GoogleFonts.poppins(fontSize: 20, fontWeight: FontWeight.w700)),
+        Row(
+          children: [
+            Text('Registro por correo', style: GoogleFonts.poppins(fontSize: 20, fontWeight: FontWeight.w700)),
+            const Spacer(),
+            IconButton(onPressed: () => Navigator.pop(context), icon: const Icon(Icons.close)),
+          ],
+        ),
         const SizedBox(height: 12),
         if (_step >= 1) TextField(controller: _email, decoration: const InputDecoration(labelText: 'Correo')),
         if (_step >= 2) ...[const SizedBox(height: 8), TextField(controller: _otp, decoration: const InputDecoration(labelText: 'OTP (6 dígitos)'))],
@@ -230,6 +250,10 @@ class _ResetPasswordFlowState extends State<_ResetPasswordFlow> {
     setState(() => _loading = true);
     try {
       final res = await _service.confirmPasswordReset(email: _email.text.trim(), otp: _otp.text.trim(), contrasena: _pass.text.trim());
+      if (!res.ok && res.statusCode == 401) {
+        globalSnackBar('El código OTP es incorrecto. Verifícalo e inténtalo de nuevo.');
+        return;
+      }
       globalSnackBar(res.message);
       if (res.ok) Navigator.pop(context);
     } on SocketException { globalSnackBar('Sin conexión a internet.'); } finally { if (mounted) setState(() => _loading = false); }
@@ -240,7 +264,13 @@ class _ResetPasswordFlowState extends State<_ResetPasswordFlow> {
     return Padding(
       padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom + 16, left: 16, right: 16, top: 16),
       child: Column(mainAxisSize: MainAxisSize.min, children: [
-        Text('Recuperar contraseña', style: GoogleFonts.poppins(fontSize: 20, fontWeight: FontWeight.w700)),
+        Row(
+          children: [
+            Text('Recuperar contraseña', style: GoogleFonts.poppins(fontSize: 20, fontWeight: FontWeight.w700)),
+            const Spacer(),
+            IconButton(onPressed: () => Navigator.pop(context), icon: const Icon(Icons.close)),
+          ],
+        ),
         const SizedBox(height: 12),
         TextField(controller: _email, decoration: const InputDecoration(labelText: 'Correo')),
         if (_showConfirm) ...[
