@@ -7,6 +7,7 @@ import 'package:flips_app/globals/widgets/globlalsnackbar.widget.dart';
 import 'package:flips_app/providers/auth.provider.dart';
 import 'package:flips_app/controllers/login/login_flows.controller.dart';
 import 'package:flips_app/screens/login/widgets/auth_flow_sheet.widget.dart';
+import 'package:flips_app/services/auth.service.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';

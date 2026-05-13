@@ -52,12 +52,12 @@ class _MisFacturasScreenState extends State<MisFacturasScreen> {
                   'Estado: ${item.estado}\n'
                   'Fecha emisión: ${AppFormatters.dateFromIso(item.emitidaEn)}',
                 ),
-                trailing: item.urlPdf.isNotEmpty
+                trailing: item.pdfUrl.isNotEmpty
                     ? IconButton(
                         icon: const Icon(Icons.picture_as_pdf),
                         onPressed: () {
                           ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(content: Text('PDF: ${item.urlPdf}')),
+                            SnackBar(content: Text('PDF: ${item.pdfUrl}')),
                           );
                         },
                       )
