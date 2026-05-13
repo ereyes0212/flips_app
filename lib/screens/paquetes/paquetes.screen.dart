@@ -91,15 +91,45 @@ class _PaquetesScreenState extends State<PaquetesScreen> {
       if (!mounted) return;
       setState(() => _paying = true);
 
-      final estado = await _consultarEstadoConfirmado(pagoId);
+      final shouldMarkFailed = checkoutResult == _HostedCheckoutResult.closed ||
+          checkoutResult == _HostedCheckoutResult.cancelled;
+      var manualCloseStatusUpdated = false;
+
+      if (shouldMarkFailed) {
+        manualCloseStatusUpdated = await _checkoutService.actualizarEstadoPago(
+          pagoId: pagoId,
+          estado: 'CANCELADO',
+        );
+      }
+
+      if (checkoutResult == _HostedCheckoutResult.completed) {
+        if (!mounted) return;
+        _showSnack('Pago realizado correctamente.');
+        await _controller.cargarPaquetes(context);
+        return;
+      }
+
+      final estado = await _consultarEstadoConfirmado(
+        pagoId,
+        checkoutResult: checkoutResult,
+      );
       if (!mounted) return;
 
-      if (estado.pagoExitoso || checkoutResult == _HostedCheckoutResult.completed) {
+      if (estado.pagoExitoso) {
         _showSnack('Pago realizado correctamente.');
         await _controller.cargarPaquetes(context);
       } else if (checkoutResult == _HostedCheckoutResult.cancelled) {
         _showSnack(
-          estado.message ?? 'El pago fue cancelado. Puedes intentarlo nuevamente.',
+          manualCloseStatusUpdated
+              ? 'Cancelaste la orden. Marcamos el pago como fallido.'
+              : (estado.message ?? 'Cancelaste la orden. Estamos validando el estado final del pago.'),
+          error: true,
+        );
+      } else if (checkoutResult == _HostedCheckoutResult.closed) {
+        _showSnack(
+          manualCloseStatusUpdated
+              ? 'Cerraste el checkout. Marcamos el pago como fallido.'
+              : 'Cerraste el checkout. Estamos validando el estado final del pago.',
           error: true,
         );
       } else {
@@ -123,17 +153,32 @@ class _PaquetesScreenState extends State<PaquetesScreen> {
     }
   }
 
-  Future<ConfirmarPagoResponse> _consultarEstadoConfirmado(String pagoId) async {
+  Future<ConfirmarPagoResponse> _consultarEstadoConfirmado(
+    String pagoId, {
+    required _HostedCheckoutResult? checkoutResult,
+  }) async {
     ConfirmarPagoResponse estado = await _checkoutService.consultarEstado(
       pagoId: pagoId,
     );
 
-    for (var intento = 0; intento < 3 && !estado.pagoExitoso; intento++) {
-      await Future<void>.delayed(const Duration(seconds: 2));
+    final shouldRetry = checkoutResult == null;
+
+    if (!shouldRetry) return estado;
+
+    for (var intento = 0; intento < 2 && _debeReintentarEstado(estado); intento++) {
+      await Future<void>.delayed(Duration(seconds: intento + 1));
       estado = await _checkoutService.consultarEstado(pagoId: pagoId);
     }
 
     return estado;
+  }
+
+  bool _debeReintentarEstado(ConfirmarPagoResponse estado) {
+    if (estado.pagoExitoso) return false;
+    final normalizado = estado.estado?.trim().toUpperCase() ?? '';
+    return normalizado.isEmpty ||
+        normalizado == 'PENDIENTE' ||
+        normalizado == 'PROCESANDO';
   }
 
   String _generateUuidV4() {
