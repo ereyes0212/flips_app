@@ -132,6 +132,13 @@ class _PaquetesScreenState extends State<PaquetesScreen> {
               : 'Cerraste el checkout. Estamos validando el estado final del pago.',
           error: true,
         );
+      } else if (checkoutResult == _HostedCheckoutResult.closed) {
+        _showSnack(
+          manualCloseStatusUpdated
+              ? 'Cerraste el checkout. Marcamos el pago como fallido.'
+              : 'Cerraste el checkout. Estamos validando el estado final del pago.',
+          error: true,
+        );
       } else {
         _showSnack(
           'No pudimos confirmar el pago. Si ya fue debitado, revisa tus pagos en unos minutos.',
