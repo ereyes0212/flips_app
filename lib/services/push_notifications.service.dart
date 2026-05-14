@@ -34,11 +34,14 @@ class PushNotificationsService {
 
   bool _initialized = false;
 
+  bool get _firebaseReady => Firebase.apps.isNotEmpty;
+
   Future<void> init() async {
-    if (_initialized) return;
+    if (_initialized || !_firebaseReady) return;
 
     await _initializeLocalNotifications();
     await _requestPermission();
+    if (!_firebaseReady) return;
     await _syncCurrentToken();
 
     FirebaseMessaging.onMessage.listen(_onForegroundMessage);
@@ -58,6 +61,7 @@ class PushNotificationsService {
   }
 
   Future<void> unregisterTokenOnLogout() async {
+    if (!_firebaseReady) return;
     final token = await _messaging.getToken();
     if (token == null || token.isEmpty) return;
     await _deleteTokenFromBackend(token);
@@ -113,6 +117,7 @@ class PushNotificationsService {
 
   Future<void> _syncCurrentToken() async {
     try {
+      if (!_firebaseReady) return;
       final token = await _messaging.getToken();
       if (token == null || token.isEmpty) {
         if (kDebugMode) debugPrint('[Push] FCM token null/empty.');

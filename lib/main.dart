@@ -13,6 +13,7 @@ import 'package:flips_app/screens/login/login.screen.dart';
 import 'package:flips_app/services/session.service.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flips_app/services/push_notifications.service.dart';
@@ -20,9 +21,23 @@ import 'package:provider/provider.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await Firebase.initializeApp();
-  FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
-  await PushNotificationsService.instance.init();
+
+  var firebaseReady = false;
+  try {
+    await Firebase.initializeApp();
+    firebaseReady = true;
+  } catch (error) {
+    if (kDebugMode) {
+      debugPrint('[Push] Firebase init skipped: $error');
+      debugPrint('[Push] Verify google-services.json/GoogleService-Info.plist and Gradle setup.');
+    }
+  }
+
+  if (firebaseReady) {
+    FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
+    await PushNotificationsService.instance.init();
+  }
+
   runApp(const MyApp());
 }
 
