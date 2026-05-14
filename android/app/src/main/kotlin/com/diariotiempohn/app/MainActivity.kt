@@ -1,4 +1,4 @@
-package com.example.flips_app
+package com.diariotiempohn.app
 
 import io.flutter.embedding.android.FlutterActivity
 
