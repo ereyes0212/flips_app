@@ -2,6 +2,7 @@ import 'package:flips_app/constants.dart';
 import 'package:flips_app/controllers/diarios_digitales.controller.dart';
 import 'package:flips_app/models/diarios_digitales.model.dart';
 import 'package:flips_app/providers/diarios_digitales.provider.dart';
+import 'package:flips_app/screens/paquetes/paquetes.screen.dart';
 import 'package:flips_app/services/session.service.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -97,6 +98,20 @@ class _DiariosDigitalesScreenState extends State<DiariosDigitalesScreen> {
               SliverPadding(
                 padding: const EdgeInsets.all(16),
                 sliver: SliverToBoxAdapter(child: Text(provider.errorMessage)),
+              )
+            else if (provider.subscriptionRequired)
+              SliverPadding(
+                padding: const EdgeInsets.all(16),
+                sliver: SliverToBoxAdapter(
+                  child: _SubscriptionUpsellCard(
+                    onVerPaquetes: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (_) => const PaquetesScreen()),
+                      );
+                    },
+                  ),
+                ),
               )
             else if (provider.diarios.isEmpty)
               const SliverPadding(
@@ -510,6 +525,56 @@ class PdfViewerScreen extends StatelessWidget {
             headers: snapshot.data ?? const {},
           );
         },
+      ),
+    );
+  }
+}
+
+
+class _SubscriptionUpsellCard extends StatelessWidget {
+  const _SubscriptionUpsellCard({required this.onVerPaquetes});
+
+  final VoidCallback onVerPaquetes;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Card(
+      elevation: 6,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(Icons.workspace_premium_rounded, color: theme.colorScheme.primary),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    'Suscripción requerida',
+                    style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 10),
+            Text(
+              'Para abrir estos diarios necesitas una suscripción activa. Contrata un paquete para acceder a la hemeroteca completa y disfrutar la app sin anuncios.',
+              style: theme.textTheme.bodyMedium,
+            ),
+            const SizedBox(height: 16),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton.icon(
+                onPressed: onVerPaquetes,
+                icon: const Icon(Icons.arrow_forward_rounded),
+                label: const Text('Contratar suscripción'),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

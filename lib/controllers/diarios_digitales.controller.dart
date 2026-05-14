@@ -18,16 +18,20 @@ class DiariosDigitalesController {
     provider.loading = true;
     provider.setError('');
     provider.setDiarios([]);
+    provider.setSubscriptionRequired(false);
 
     try {
-      final diarios = await _service.obtenerDiariosDigitales(
+      final result = await _service.obtenerDiariosDigitales(
         anio: anio,
         mes: mes,
       );
-      if (diarios == null) {
+
+      if (result.status == DiariosDigitalesStatus.forbidden) {
+        provider.setSubscriptionRequired(true);
+      } else if (result.status == DiariosDigitalesStatus.error) {
         provider.setError('No se pudo obtener los diarios digitales.');
       } else {
-        provider.setDiarios(diarios);
+        provider.setDiarios(result.diarios);
       }
     } on SocketException {
       provider.setError('Sin conexión. Verifica tu internet e intenta nuevamente.');

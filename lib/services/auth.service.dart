@@ -23,6 +23,14 @@ class AuthActionResult {
   final int? statusCode;
 }
 
+
+class SuscripcionActivaResult {
+  const SuscripcionActivaResult({required this.autenticado, required this.suscripcionActiva});
+
+  final bool autenticado;
+  final bool suscripcionActiva;
+}
+
 class AuthService {
   final HttpService _httpService = HttpService();
 
@@ -120,6 +128,26 @@ class AuthService {
       rethrow;
     } catch (_) {
       return const AuthActionResult(ok: false, message: 'Error inesperado al procesar la solicitud.');
+    }
+  }
+
+
+  Future<SuscripcionActivaResult> obtenerSuscripcionActiva() async {
+    try {
+      final response = await _httpService.get('${apiUrl}mobile/suscripcion-activa');
+      if (response.statusCode == 200) {
+        final body = _decodeBody(response.body);
+        final data = body['data'];
+        if (data is Map<String, dynamic>) {
+          return SuscripcionActivaResult(
+            autenticado: true,
+            suscripcionActiva: data['suscripcionActiva'] == true,
+          );
+        }
+      }
+      return const SuscripcionActivaResult(autenticado: true, suscripcionActiva: false);
+    } on SessionExpiredException {
+      return const SuscripcionActivaResult(autenticado: false, suscripcionActiva: false);
     }
   }
 
