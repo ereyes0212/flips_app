@@ -8,6 +8,7 @@ import 'package:flips_app/providers/auth.provider.dart';
 import 'package:flips_app/screens/home/home.screen.dart';
 import 'package:flips_app/screens/login/login.screen.dart';
 import 'package:flips_app/services/auth.service.dart';
+import 'package:flips_app/services/push_notifications.service.dart';
 import 'package:flips_app/services/session.service.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -42,6 +43,7 @@ class AuthController {
 
       if (response != null && response.ok) {
         await _guardarSesion(response, authprovider);
+        await PushNotificationsService.instance.syncTokenForLoggedInUser();
         _irAlHome(context);
 
         authprovider.loading = false;
@@ -97,6 +99,7 @@ class AuthController {
 
       if (result.ok && result.response != null) {
         await _guardarSesion(result.response!, authprovider);
+        await PushNotificationsService.instance.syncTokenForLoggedInUser();
         _irAlHome(context);
 
         authprovider.loading = false;
@@ -171,6 +174,7 @@ class AuthController {
 
   Future logoutController(context) async {
     try {
+      await PushNotificationsService.instance.unregisterTokenOnLogout();
       await SessionService.clearSession();
       await _googleSignIn.signOut();
     } finally {
