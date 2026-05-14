@@ -11,6 +11,7 @@ import 'package:flips_app/screens/mis_pagos/mis_pagos.screen.dart';
 import 'package:flips_app/screens/mis_suscripcion/mis_suscripcion.screen.dart';
 import 'package:flips_app/screens/paquetes/paquetes.screen.dart';
 import 'package:flips_app/screens/sitio_web/sitio_web.screen.dart';
+import 'package:flips_app/services/auth.service.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
@@ -24,7 +25,50 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   int _currentIndex = 0;
+  bool _dialogoSuscripcionMostrado = false;
 
+  @override
+  void initState() {
+    super.initState();
+    Future.microtask(_validarSuscripcionActiva);
+  }
+
+  Future<void> _validarSuscripcionActiva() async {
+    final result = await AuthService().obtenerSuscripcionActiva();
+    if (!mounted || !result.autenticado || result.suscripcionActiva || _dialogoSuscripcionMostrado) return;
+
+    _dialogoSuscripcionMostrado = true;
+    await showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(22)),
+        title: const Text('Activa tu suscripción premium'),
+        content: const Text(
+          '''Accede a diarios digitales del 2008 al 2016, elimina anuncios y disfruta una experiencia completa.
+
+Contrata hoy para desbloquear todo el contenido exclusivo.''',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text('Ahora no'),
+          ),
+          ElevatedButton.icon(
+            onPressed: () {
+              Navigator.pop(dialogContext);
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const PaquetesScreen()),
+              );
+            },
+            icon: const Icon(Icons.workspace_premium_outlined),
+            label: const Text('Ver paquetes'),
+          ),
+        ],
+      ),
+    );
+  }
 
   void _confirmarCerrarSesion() {
     showDialog(
