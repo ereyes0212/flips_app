@@ -4,6 +4,7 @@ import 'package:animated_bottom_navigation_bar/animated_bottom_navigation_bar.da
 import 'package:flips_app/controllers/auth.controller.dart';
 import 'package:flips_app/globals/widgets/widgets.dart';
 import 'package:flips_app/providers/auth.provider.dart';
+import 'package:flips_app/screens/diarios_digitales/diarios_digitales.screen.dart';
 import 'package:flips_app/screens/noticias/noticias.screen.dart';
 import 'package:flips_app/screens/mi_perfil/mi_perfil.screen.dart';
 import 'package:flips_app/screens/mis_facturas/mis_facturas.screen.dart';
@@ -157,7 +158,7 @@ Contrata hoy para desbloquear todo el contenido exclusivo.''',
   List<Widget> _pantallas() {
     return [
       const NoticiasScreen(),
-      const SitioWebScreen(),
+      const DiariosDigitalesScreen(),
       const MiPerfilScreen(),
       _MasOpcionesScreen(onCerrarSesion: _confirmarCerrarSesion),
     ];
@@ -173,7 +174,7 @@ Contrata hoy para desbloquear todo el contenido exclusivo.''',
       bottomNavigationBar: AnimatedBottomNavigationBar(
         icons: const [
           Icons.article_outlined,
-          Icons.public,
+          Icons.collections_bookmark_outlined,
           Icons.person_outline,
           Icons.more_horiz,
         ],
@@ -225,6 +226,19 @@ class _MasOpcionesScreen extends StatelessWidget {
             Expanded(
               child: ListView(
                 children: [
+                  GridItem(
+                    icono: Icons.public,
+                    funcion: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => const SitioWebScreen(),
+                        ),
+                      );
+                    },
+                    texto: 'Sitio web',
+                  ),
+                  const SizedBox(height: 7),
                   GridItem(
                     icono: Icons.notifications_outlined,
                     funcion: () {
