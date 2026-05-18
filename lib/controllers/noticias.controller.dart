@@ -6,13 +6,13 @@ import 'package:provider/provider.dart';
 class NoticiasController {
   final NoticiasService _service = NoticiasService();
 
-  Future<void> cargarNoticias(BuildContext context) async {
+  Future<void> cargarNoticias(BuildContext context, {String? busqueda}) async {
     final provider = Provider.of<NoticiasProvider>(context, listen: false);
     provider.loading = true;
     provider.setError('');
     provider.setUsingCache(false);
 
-    final result = await _service.obtenerNoticias();
+    final result = await _service.obtenerNoticias(busqueda: busqueda);
     if (!result.success) {
       provider.setError(result.errorMessage);
     }
