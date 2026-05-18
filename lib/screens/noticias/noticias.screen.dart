@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flips_app/controllers/noticias.controller.dart';
 import 'package:flips_app/models/noticias.model.dart';
 import 'package:flips_app/providers/noticias.provider.dart';
+import 'package:flips_app/services/noticias.service.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
@@ -22,7 +23,32 @@ class _NoticiasScreenState extends State<NoticiasScreen> {
   @override
   void initState() {
     super.initState();
-    Future.microtask(() => _controller.cargarNoticias(context));
+    Future.microtask(() {
+      _controller.cargarNoticias(context);
+      _controller.cargarCategorias(context);
+    });
+  }
+
+  @override
+  void dispose() {
+    _debounce?.cancel();
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  void _buscar(String value) {
+    _debounce?.cancel();
+    _debounce = Timer(const Duration(milliseconds: 450), () {
+      _controller.cargarNoticias(context, busqueda: value.trim());
+    });
+  }
+
+  Future<void> _refrescar() async {
+    await _controller.cargarNoticias(
+      context,
+      busqueda: _searchController.text.trim(),
+    );
+    await _controller.cargarCategorias(context);
   }
 
   @override
@@ -84,6 +110,13 @@ class _NoticiasScreenState extends State<NoticiasScreen> {
                     _controller.cargarNoticias(context);
                   },
                 ),
+              ),
+            ),
+            SliverToBoxAdapter(
+              child: _CategoryQuickAccess(
+                categorias: provider.categorias,
+                loading: provider.loadingCategorias,
+                onTap: (categoria) => _abrirCategoria(context, categoria),
               ),
             ),
             if (provider.loading && provider.noticias.isEmpty)
@@ -150,7 +183,7 @@ class _NoticiasScreenState extends State<NoticiasScreen> {
                 ),
               ),
               SliverPadding(
-                padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
+                padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
                 sliver: SliverList(
                   delegate: SliverChildBuilderDelegate(
                     (context, index) {
@@ -161,6 +194,16 @@ class _NoticiasScreenState extends State<NoticiasScreen> {
                       return _NoticiaCard(noticia: item);
                     },
                     childCount: provider.noticias.length * 2 - 1,
+                  ),
+                ),
+              ),
+              SliverToBoxAdapter(
+                child: _LoadMoreButton(
+                  hasMore: provider.hasMore,
+                  loading: provider.loadingMore,
+                  onPressed: () => _controller.cargarMasNoticias(
+                    context,
+                    busqueda: _searchController.text.trim(),
                   ),
                 ),
               ),
@@ -261,6 +304,49 @@ class _HeaderChip extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+
+class _CategoryQuickAccess extends StatelessWidget {
+  const _CategoryQuickAccess({
+    required this.categorias,
+    required this.loading,
+    required this.onTap,
+  });
+
+  final List<CategoriaNoticiaModel> categorias;
+  final bool loading;
+  final ValueChanged<CategoriaNoticiaModel> onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    if (loading && categorias.isEmpty) {
+      return const Padding(
+        padding: EdgeInsets.fromLTRB(16, 4, 16, 12),
+        child: LinearProgressIndicator(minHeight: 2),
+      );
+    }
+
+    if (categorias.isEmpty) return const SizedBox.shrink();
+
+    return SizedBox(
+      height: 54,
+      child: ListView.separated(
+        padding: const EdgeInsets.fromLTRB(16, 4, 16, 12),
+        scrollDirection: Axis.horizontal,
+        itemCount: categorias.length,
+        separatorBuilder: (_, __) => const SizedBox(width: 10),
+        itemBuilder: (context, index) {
+          final categoria = categorias[index];
+          return ActionChip(
+            avatar: const Icon(Icons.local_offer_outlined, size: 16),
+            label: Text(categoria.name),
+            onPressed: () => onTap(categoria),
+          );
+        },
       ),
     );
   }
@@ -475,6 +561,7 @@ class _NoticiaDetalleScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final categoriasPorId = context.watch<NoticiasProvider>().categoriasPorId;
 
     return Scaffold(
       body: CustomScrollView(
@@ -529,6 +616,12 @@ class _NoticiaDetalleScreen extends StatelessWidget {
                   ),
                   const SizedBox(height: 14),
                   _DateLabel(date: noticia.date),
+                  const SizedBox(height: 16),
+                  _CategoryPills(
+                    categoryIds: noticia.categories,
+                    categoriasPorId: categoriasPorId,
+                    onTap: (categoria) => _abrirCategoria(context, categoria),
+                  ),
                   const SizedBox(height: 20),
                   if (noticia.excerpt.isNotEmpty) ...[
                     Text(
@@ -553,6 +646,41 @@ class _NoticiaDetalleScreen extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+
+class _CategoryPills extends StatelessWidget {
+  const _CategoryPills({
+    required this.categoryIds,
+    required this.categoriasPorId,
+    required this.onTap,
+  });
+
+  final List<int> categoryIds;
+  final Map<int, CategoriaNoticiaModel> categoriasPorId;
+  final ValueChanged<CategoriaNoticiaModel> onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final categorias = categoryIds
+        .map((id) => categoriasPorId[id])
+        .whereType<CategoriaNoticiaModel>()
+        .toList();
+
+    if (categorias.isEmpty) return const SizedBox.shrink();
+
+    return Wrap(
+      spacing: 8,
+      runSpacing: 8,
+      children: categorias.map((categoria) {
+        return ActionChip(
+          avatar: const Icon(Icons.sell_outlined, size: 16),
+          label: Text(categoria.name),
+          onPressed: () => onTap(categoria),
+        );
+      }).toList(),
     );
   }
 }
@@ -703,6 +831,45 @@ class _StatusBanner extends StatelessWidget {
   }
 }
 
+
+class _LoadMoreButton extends StatelessWidget {
+  const _LoadMoreButton({
+    required this.hasMore,
+    required this.loading,
+    required this.onPressed,
+  });
+
+  final bool hasMore;
+  final bool loading;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 4, 16, 28),
+      child: hasMore
+          ? OutlinedButton.icon(
+              onPressed: loading ? null : onPressed,
+              icon: loading
+                  ? const SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Icon(Icons.expand_more_rounded),
+              label: Text(
+                loading ? 'Cargando 10 noticias más...' : 'Cargar 10 más',
+              ),
+            )
+          : Text(
+              'Ya estás al día con las noticias disponibles.',
+              textAlign: TextAlign.center,
+              style: Theme.of(context).textTheme.bodySmall,
+            ),
+    );
+  }
+}
+
 class _EmptyState extends StatelessWidget {
   const _EmptyState({
     required this.icon,
@@ -744,9 +911,179 @@ class _EmptyState extends StatelessWidget {
   }
 }
 
+
+class _CategoriaNoticiasScreen extends StatefulWidget {
+  const _CategoriaNoticiasScreen({required this.categoria});
+
+  final CategoriaNoticiaModel categoria;
+
+  @override
+  State<_CategoriaNoticiasScreen> createState() =>
+      _CategoriaNoticiasScreenState();
+}
+
+class _CategoriaNoticiasScreenState extends State<_CategoriaNoticiasScreen> {
+  final _service = NoticiasService();
+  final List<NoticiaModel> _noticias = [];
+  var _loading = true;
+  var _loadingMore = false;
+  var _error = '';
+  var _page = 1;
+  var _hasMore = true;
+
+  @override
+  void initState() {
+    super.initState();
+    Future.microtask(_cargarNoticias);
+  }
+
+  Future<void> _cargarNoticias({bool reset = true}) async {
+    if (!reset && (_loadingMore || !_hasMore)) return;
+
+    setState(() {
+      if (reset) {
+        _loading = true;
+        _error = '';
+        _page = 1;
+        _hasMore = true;
+      } else {
+        _loadingMore = true;
+      }
+    });
+
+    final nextPage = reset ? 1 : _page + 1;
+    final result = await _service.obtenerNoticias(
+      page: nextPage,
+      categoria: widget.categoria.id,
+    );
+
+    if (!mounted) return;
+    setState(() {
+      if (result.success) {
+        if (reset) {
+          _noticias
+            ..clear()
+            ..addAll(result.items);
+        } else {
+          _noticias.addAll(result.items);
+        }
+        _page = nextPage;
+        _hasMore = result.hasMore;
+      } else {
+        _error = result.errorMessage;
+      }
+      _loading = false;
+      _loadingMore = false;
+    });
+  }
+}
+
+class _Badge extends StatelessWidget {
+  const _Badge({required this.text});
+
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    return Scaffold(
+      body: RefreshIndicator(
+        onRefresh: () => _cargarNoticias(),
+        child: CustomScrollView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          slivers: [
+            SliverAppBar(
+              pinned: true,
+              expandedHeight: 150,
+              title: Text(widget.categoria.name),
+              flexibleSpace: FlexibleSpaceBar(
+                background: Container(
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                      colors: [
+                        theme.colorScheme.primary,
+                        theme.colorScheme.secondary,
+                      ],
+                    ),
+                  ),
+                  child: SafeArea(
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 62, 16, 18),
+                      child: Align(
+                        alignment: Alignment.bottomLeft,
+                        child: Text(
+                          '${widget.categoria.count} publicaciones en ${widget.categoria.name}',
+                          style: theme.textTheme.headlineSmall?.copyWith(
+                            color: Colors.white,
+                            fontWeight: FontWeight.w900,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+            if (_loading && _noticias.isEmpty)
+              const SliverFillRemaining(
+                hasScrollBody: false,
+                child: Center(child: CircularProgressIndicator()),
+              )
+            else if (_error.isNotEmpty && _noticias.isEmpty)
+              SliverFillRemaining(
+                hasScrollBody: false,
+                child: _EmptyState(
+                  icon: Icons.cloud_off_outlined,
+                  title: 'No pudimos cargar esta categoría',
+                  message: _error,
+                ),
+              )
+            else ...[
+              SliverPadding(
+                padding: const EdgeInsets.fromLTRB(16, 16, 16, 12),
+                sliver: SliverList(
+                  delegate: SliverChildBuilderDelegate(
+                    (context, index) {
+                      if (index.isOdd) return const SizedBox(height: 14);
+                      return _NoticiaCard(noticia: _noticias[index ~/ 2]);
+                    },
+                    childCount: _noticias.isEmpty
+                        ? 0
+                        : _noticias.length * 2 - 1,
+                  ),
+                ),
+              ),
+              SliverToBoxAdapter(
+                child: _LoadMoreButton(
+                  hasMore: _hasMore,
+                  loading: _loadingMore,
+                  onPressed: () => _cargarNoticias(reset: false),
+                ),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 void _abrirDetalle(BuildContext context, NoticiaModel noticia) {
   Navigator.push(
     context,
     MaterialPageRoute(builder: (_) => _NoticiaDetalleScreen(noticia: noticia)),
+  );
+}
+
+
+void _abrirCategoria(BuildContext context, CategoriaNoticiaModel categoria) {
+  Navigator.push(
+    context,
+    MaterialPageRoute(
+      builder: (_) => _CategoriaNoticiasScreen(categoria: categoria),
+    ),
   );
 }

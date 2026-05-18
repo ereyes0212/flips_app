@@ -1,3 +1,26 @@
+class CategoriaNoticiaModel {
+  CategoriaNoticiaModel({
+    required this.id,
+    required this.name,
+    required this.slug,
+    required this.count,
+  });
+
+  final int id;
+  final String name;
+  final String slug;
+  final int count;
+
+  factory CategoriaNoticiaModel.fromJson(Map<String, dynamic> json) {
+    return CategoriaNoticiaModel(
+      id: json['id'] ?? 0,
+      name: _cleanHtml(json['name']?.toString() ?? ''),
+      slug: json['slug']?.toString() ?? '',
+      count: int.tryParse(json['count']?.toString() ?? '') ?? 0,
+    );
+  }
+}
+
 class NoticiaModel {
   NoticiaModel({
     required this.id,
@@ -31,6 +54,13 @@ class NoticiaModel {
     final media = featuredMedia != null && featuredMedia.isNotEmpty
         ? featuredMedia.first as Map<String, dynamic>
         : null;
+    final yoast = json['yoast_head_json'] as Map<String, dynamic>?;
+    final ogImages = yoast?['og_image'] as List<dynamic>?;
+    final ogImage = ogImages != null && ogImages.isNotEmpty
+        ? ogImages.first as Map<String, dynamic>
+        : null;
+    final embeddedImage = (media?['source_url'] ?? '').toString();
+    final metadataImage = (ogImage?['url'] ?? '').toString();
 
     return NoticiaModel(
       id: json['id'] ?? 0,
@@ -43,7 +73,7 @@ class NoticiaModel {
         (json['content']?['rendered'] ?? '').toString(),
         preserveParagraphs: true,
       ),
-      imageUrl: (media?['source_url'] ?? '').toString(),
+      imageUrl: embeddedImage.isNotEmpty ? embeddedImage : metadataImage,
       imageAlt: _cleanHtml((media?['alt_text'] ?? '').toString()),
       categories: (json['categories'] as List<dynamic>? ?? [])
           .map((e) => int.tryParse(e.toString()) ?? 0)
@@ -103,4 +133,56 @@ class NoticiaModel {
       return String.fromCharCode(codePoint);
     });
   }
+}
+
+String _cleanHtml(String value, {bool preserveParagraphs = false}) {
+  var text = value
+      .replaceAll(RegExp(r'<\s*br\s*/?\s*>', caseSensitive: false), '\n')
+      .replaceAll(
+        RegExp(r'</\s*(p|div|h[1-6]|li|blockquote)\s*>', caseSensitive: false),
+        preserveParagraphs ? '\n\n' : ' ',
+      )
+      .replaceAll(RegExp(r'<[^>]*>'), ' ');
+
+  text = _decodeHtmlEntities(text);
+
+  if (preserveParagraphs) {
+    return text
+        .split('\n')
+        .map((line) => line.replaceAll(RegExp(r'\s+'), ' ').trim())
+        .where((line) => line.isNotEmpty)
+        .join('\n\n');
+  }
+
+  return text.replaceAll(RegExp(r'\s+'), ' ').trim();
+}
+
+String _decodeHtmlEntities(String value) {
+  var text = value
+      .replaceAll('&nbsp;', ' ')
+      .replaceAll('&amp;', '&')
+      .replaceAll('&quot;', '"')
+      .replaceAll('&#039;', "'")
+      .replaceAll('&apos;', "'")
+      .replaceAll('&lt;', '<')
+      .replaceAll('&gt;', '>')
+      .replaceAll('&ldquo;', '“')
+      .replaceAll('&rdquo;', '”')
+      .replaceAll('&lsquo;', '‘')
+      .replaceAll('&rsquo;', '’')
+      .replaceAll('&ndash;', '–')
+      .replaceAll('&mdash;', '—')
+      .replaceAll('&hellip;', '…');
+
+  text = text.replaceAllMapped(RegExp(r'&#(\d+);'), (match) {
+    final codePoint = int.tryParse(match.group(1) ?? '');
+    if (codePoint == null) return match.group(0) ?? '';
+    return String.fromCharCode(codePoint);
+  });
+
+  return text.replaceAllMapped(RegExp(r'&#x([0-9a-fA-F]+);'), (match) {
+    final codePoint = int.tryParse(match.group(1) ?? '', radix: 16);
+    if (codePoint == null) return match.group(0) ?? '';
+    return String.fromCharCode(codePoint);
+  });
 }

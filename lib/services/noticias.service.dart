@@ -9,11 +9,25 @@ class NoticiasResult {
     required this.items,
     this.errorMessage = '',
     this.fromCache = false,
+    this.currentPage = 1,
+    this.totalPages = 1,
   });
 
   final List<NoticiaModel> items;
   final String errorMessage;
   final bool fromCache;
+  final int currentPage;
+  final int totalPages;
+
+  bool get success => errorMessage.isEmpty;
+  bool get hasMore => currentPage < totalPages;
+}
+
+class CategoriasNoticiasResult {
+  const CategoriasNoticiasResult({required this.items, this.errorMessage = ''});
+
+  final List<CategoriaNoticiaModel> items;
+  final String errorMessage;
 
   bool get success => errorMessage.isEmpty;
 }
@@ -39,7 +53,7 @@ class NoticiasService {
       'page': '$page',
       'per_page': '$perPage',
       '_embed': '1',
-      '_fields': 'id,date,slug,link,title,excerpt,content,categories,_embedded.wp:featuredmedia.source_url,_embedded.wp:featuredmedia.alt_text',
+      '_fields': 'id,date,slug,link,title,excerpt,content,categories,yoast_head_json,_embedded.wp:featuredmedia.source_url,_embedded.wp:featuredmedia.alt_text',
     };
     if (categoria != null) query['categories'] = '$categoria';
     if (busqueda != null && busqueda.trim().isNotEmpty) {
@@ -55,6 +69,10 @@ class NoticiasService {
         final parsed = body
             .map((e) => NoticiaModel.fromJson(e as Map<String, dynamic>))
             .toList();
+        final totalPages = int.tryParse(
+              response.headers['x-wp-totalpages'] ?? '',
+            ) ??
+            page;
 
         if (page == 1 &&
             categoria == null &&
@@ -62,7 +80,11 @@ class NoticiasService {
           await _guardarCache(response.body);
         }
 
-        return NoticiasResult(items: parsed);
+        return NoticiasResult(
+          items: parsed,
+          currentPage: page,
+          totalPages: totalPages,
+        );
       }
 
       return await _desdeCache(
@@ -70,6 +92,41 @@ class NoticiasService {
       );
     } catch (_) {
       return await _desdeCache('Sin conexión y sin datos en caché.');
+    }
+  }
+
+  Future<CategoriasNoticiasResult> obtenerCategorias({int perPage = 100}) async {
+    final query = <String, String>{
+      'per_page': '$perPage',
+      'orderby': 'count',
+      'order': 'desc',
+      'hide_empty': 'true',
+      '_fields': 'id,name,slug,count',
+    };
+    final uri = Uri.parse('$_baseUrl/categories').replace(
+      queryParameters: query,
+    );
+
+    try {
+      final response = await http.get(uri, headers: _headers);
+      if (response.statusCode == 200) {
+        final body = jsonDecode(response.body) as List<dynamic>;
+        final parsed = body
+            .map((e) => CategoriaNoticiaModel.fromJson(e as Map<String, dynamic>))
+            .where((e) => e.id > 0)
+            .toList();
+        return CategoriasNoticiasResult(items: parsed);
+      }
+
+      return CategoriasNoticiasResult(
+        items: const [],
+        errorMessage: 'Error ${response.statusCode} al cargar categorías.',
+      );
+    } catch (_) {
+      return const CategoriasNoticiasResult(
+        items: [],
+        errorMessage: 'Sin conexión para cargar categorías.',
+      );
     }
   }
 
@@ -95,7 +152,11 @@ class NoticiasService {
     final parsed = body
         .map((e) => NoticiaModel.fromJson(e as Map<String, dynamic>))
         .toList();
-    return NoticiasResult(items: parsed, fromCache: true);
+    return NoticiasResult(
+      items: parsed,
+      errorMessage: fallbackError,
+      fromCache: true,
+    );
   }
 
   Future<void> _guardarCache(String body) async {
