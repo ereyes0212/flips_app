@@ -4,7 +4,7 @@ import 'package:animated_bottom_navigation_bar/animated_bottom_navigation_bar.da
 import 'package:flips_app/controllers/auth.controller.dart';
 import 'package:flips_app/globals/widgets/widgets.dart';
 import 'package:flips_app/providers/auth.provider.dart';
-import 'package:flips_app/screens/diarios_digitales/diarios_digitales.screen.dart';
+import 'package:flips_app/screens/noticias/noticias.screen.dart';
 import 'package:flips_app/screens/mi_perfil/mi_perfil.screen.dart';
 import 'package:flips_app/screens/mis_facturas/mis_facturas.screen.dart';
 import 'package:flips_app/screens/mis_pagos/mis_pagos.screen.dart';
@@ -156,7 +156,7 @@ Contrata hoy para desbloquear todo el contenido exclusivo.''',
 
   List<Widget> _pantallas() {
     return [
-      const DiariosDigitalesScreen(),
+      const NoticiasScreen(),
       const SitioWebScreen(),
       const MiPerfilScreen(),
       _MasOpcionesScreen(onCerrarSesion: _confirmarCerrarSesion),
@@ -172,7 +172,7 @@ Contrata hoy para desbloquear todo el contenido exclusivo.''',
       body: _pantallas()[_currentIndex],
       bottomNavigationBar: AnimatedBottomNavigationBar(
         icons: const [
-          Icons.picture_as_pdf_outlined,
+          Icons.article_outlined,
           Icons.public,
           Icons.person_outline,
           Icons.more_horiz,
