@@ -52,6 +52,27 @@ class _NoticiasScreenState extends State<NoticiasScreen> {
   }
 
   @override
+  void dispose() {
+    _debounce?.cancel();
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  void _buscar(String value) {
+    _debounce?.cancel();
+    _debounce = Timer(const Duration(milliseconds: 450), () {
+      _controller.cargarNoticias(context, busqueda: value.trim());
+    });
+  }
+
+  Future<void> _refrescar() {
+    return _controller.cargarNoticias(
+      context,
+      busqueda: _searchController.text.trim(),
+    );
+  }
+
+  @override
   Widget build(BuildContext context) {
     final provider = context.watch<NoticiasProvider>();
     final theme = Theme.of(context);
@@ -955,6 +976,12 @@ class _CategoriaNoticiasScreenState extends State<_CategoriaNoticiasScreen> {
       _loadingMore = false;
     });
   }
+}
+
+class _Badge extends StatelessWidget {
+  const _Badge({required this.text});
+
+  final String text;
 
   @override
   Widget build(BuildContext context) {
