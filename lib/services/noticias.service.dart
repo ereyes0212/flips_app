@@ -22,6 +22,12 @@ class NoticiasService {
   static const _baseUrl = 'https://tiempo.hn/wp-json/wp/v2';
   static const _cacheKey = 'noticias_cache_v1';
   static const _cacheAtKey = 'noticias_cache_at_v1';
+  static const _wordpressUsername = String.fromEnvironment(
+    'WORDPRESS_API_USERNAME',
+  );
+  static const _wordpressApplicationPassword = String.fromEnvironment(
+    'WORDPRESS_API_APP_PASSWORD',
+  );
 
   Future<NoticiasResult> obtenerNoticias({
     int page = 1,
@@ -44,24 +50,39 @@ class NoticiasService {
     final uri = Uri.parse('$_baseUrl/posts').replace(queryParameters: query);
 
     try {
-      final response = await http.get(uri);
+      final response = await http.get(uri, headers: _headers);
       if (response.statusCode == 200) {
         final body = jsonDecode(response.body) as List<dynamic>;
         final parsed = body
             .map((e) => NoticiaModel.fromJson(e as Map<String, dynamic>))
             .toList();
 
-        if (page == 1 && categoria == null && (busqueda == null || busqueda.isEmpty)) {
+        if (page == 1 &&
+            categoria == null &&
+            (busqueda == null || busqueda.isEmpty)) {
           await _guardarCache(response.body);
         }
 
         return NoticiasResult(items: parsed);
       }
 
-      return await _desdeCache('Error ${response.statusCode} al cargar noticias.');
+      return await _desdeCache(
+        'Error ${response.statusCode} al cargar noticias.',
+      );
     } catch (_) {
       return await _desdeCache('Sin conexión y sin datos en caché.');
     }
+  }
+
+  Map<String, String> get _headers {
+    if (_wordpressUsername.isEmpty || _wordpressApplicationPassword.isEmpty) {
+      return const {};
+    }
+
+    final credentials = base64Encode(
+      utf8.encode('$_wordpressUsername:$_wordpressApplicationPassword'),
+    );
+    return {'Authorization': 'Basic $credentials'};
   }
 
   Future<NoticiasResult> _desdeCache(String fallbackError) async {

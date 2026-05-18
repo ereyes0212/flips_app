@@ -13,3 +13,15 @@ La app ya no usa el SDK de PixelPay ni captura datos de tarjeta en Flutter. El p
 6. Si el backend responde un pago exitoso, la app continúa el flujo de membresía.
 
 Todas las llamadas al backend se hacen con `Authorization: Bearer <jwt>` y `Content-Type: application/json` cuando aplica.
+
+## Noticias de WordPress
+
+La pantalla de noticias consume `https://tiempo.hn/wp-json/wp/v2/posts`. Si el sitio responde `401`, compila o ejecuta la app con credenciales de una contraseña de aplicación de WordPress mediante `--dart-define`; no guardes esa contraseña en el repositorio.
+
+Ejemplo:
+
+```bash
+flutter run \
+  --dart-define=WORDPRESS_API_USERNAME=<usuario-o-correo-wordpress> \
+  --dart-define=WORDPRESS_API_APP_PASSWORD=<contraseña-de-aplicación>
+```
