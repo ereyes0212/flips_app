@@ -23,10 +23,10 @@ class NoticiasService {
   static const _cacheKey = 'noticias_cache_v1';
   static const _cacheAtKey = 'noticias_cache_at_v1';
   static const _wordpressUsername = String.fromEnvironment(
-    'WORDPRESS_API_USERNAME',
+    'WP_USER',
   );
   static const _wordpressApplicationPassword = String.fromEnvironment(
-    'WORDPRESS_API_APP_PASSWORD',
+    'WP_PASS',
   );
 
   Future<NoticiasResult> obtenerNoticias({
