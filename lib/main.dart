@@ -3,6 +3,7 @@
 import 'package:flips_app/constants.dart';
 import 'package:flips_app/providers/auth.provider.dart';
 import 'package:flips_app/providers/diarios_digitales.provider.dart';
+import 'package:flips_app/providers/noticias.provider.dart';
 import 'package:flips_app/providers/mi_perfil.provider.dart';
 import 'package:flips_app/providers/mis_facturas.provider.dart';
 import 'package:flips_app/providers/mis_pagos.provider.dart';
@@ -60,6 +61,7 @@ class MyApp extends StatelessWidget {
         ChangeNotifierProvider(create: (context) => MiPerfilProvider()),
         ChangeNotifierProvider(create: (context) => MisFacturasProvider()),
         ChangeNotifierProvider(create: (context) => DiariosDigitalesProvider()),
+        ChangeNotifierProvider(create: (context) => NoticiasProvider()),
         ChangeNotifierProvider(create: (context) => PaquetesProvider()),
         ChangeNotifierProvider(create: (context) => MisPagosProvider()),
         ChangeNotifierProvider(create: (context) => MisSuscripcionProvider()),
