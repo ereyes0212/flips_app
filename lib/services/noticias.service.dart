@@ -41,6 +41,9 @@ class NoticiasService {
       '_embed': '1',
       '_fields': 'id,date,slug,link,title,excerpt,content,categories,_embedded.wp:featuredmedia.source_url,_embedded.wp:featuredmedia.alt_text',
     };
+    print('wordpress auth headers: $_headers');
+    print("wordpress username: $_wordpressUsername");
+    print("wordpress app password: $_wordpressApplicationPassword");
 
     if (categoria != null) query['categories'] = '$categoria';
     if (busqueda != null && busqueda.trim().isNotEmpty) {
