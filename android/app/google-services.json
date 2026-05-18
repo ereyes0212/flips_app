@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "374905649903",
+    "project_id": "diario-tiempo-app",
+    "storage_bucket": "diario-tiempo-app.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:374905649903:android:9cd9e620f46b5d9029791a",
+        "android_client_info": {
+          "package_name": "com.diariotiempohn.app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAgfA1pS9Nyq_YolTU0sGJuxSmh47ygt0A"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

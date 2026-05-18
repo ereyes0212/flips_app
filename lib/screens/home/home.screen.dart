@@ -9,12 +9,15 @@ import 'package:flips_app/screens/mi_perfil/mi_perfil.screen.dart';
 import 'package:flips_app/screens/mis_facturas/mis_facturas.screen.dart';
 import 'package:flips_app/screens/mis_pagos/mis_pagos.screen.dart';
 import 'package:flips_app/screens/mis_suscripcion/mis_suscripcion.screen.dart';
+import 'package:flips_app/screens/notificaciones/notificaciones.screen.dart';
 import 'package:flips_app/screens/paquetes/paquetes.screen.dart';
 import 'package:flips_app/screens/sitio_web/sitio_web.screen.dart';
 import 'package:flips_app/services/auth.service.dart';
+import 'package:flips_app/services/push_notifications.service.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -30,14 +33,22 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   void initState() {
     super.initState();
-    Future.microtask(_validarSuscripcionActiva);
+    Future.microtask(() async {
+      await _validarSuscripcionActiva();
+      await _pedirPermisosNotificaciones();
+    });
   }
 
   Future<void> _validarSuscripcionActiva() async {
     final result = await AuthService().obtenerSuscripcionActiva();
-    if (!mounted || !result.autenticado || result.suscripcionActiva || _dialogoSuscripcionMostrado) return;
+    if (!mounted || !result.autenticado || result.suscripcionActiva) return;
+
+    final shouldShow = await _shouldShowSubscriptionBannerToday();
+    if (!shouldShow || _dialogoSuscripcionMostrado) return;
 
     _dialogoSuscripcionMostrado = true;
+    await _markSubscriptionBannerShownToday();
+
     await showDialog<void>(
       context: context,
       barrierDismissible: false,
@@ -70,6 +81,42 @@ Contrata hoy para desbloquear todo el contenido exclusivo.''',
     );
   }
 
+  Future<void> _pedirPermisosNotificaciones() async {
+    final permissionGranted = await PushNotificationsService.instance.isNotificationPermissionGranted();
+    if (!mounted || permissionGranted) return;
+
+    final permisoMostrado = await PushNotificationsService.instance.hasNotificationPermissionBeenShown();
+    if (!mounted || permisoMostrado) return;
+
+    PushNotificationsService.instance.setNotificationPermissionShown();
+
+    await showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(22)),
+        title: const Text('Habilitar notificaciones'),
+        content: const Text(
+          'Recibe notificaciones importantes sobre tus diarios y noticias relevantes.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text('Ahora no'),
+          ),
+          ElevatedButton.icon(
+            onPressed: () async {
+              Navigator.pop(dialogContext);
+              await PushNotificationsService.instance.requestNotificationPermission();
+            },
+            icon: const Icon(Icons.notifications_active_outlined),
+            label: const Text('Habilitar'),
+          ),
+        ],
+      ),
+    );
+  }
+
   void _confirmarCerrarSesion() {
     showDialog(
       context: context,
@@ -92,6 +139,19 @@ Contrata hoy para desbloquear todo el contenido exclusivo.''',
             ],
           ),
     );
+  }
+
+  Future<bool> _shouldShowSubscriptionBannerToday() async {
+    final prefs = await SharedPreferences.getInstance();
+    final shownDate = prefs.getString('subscription_banner_shown_date') ?? '';
+    final today = DateTime.now().toUtc().toIso8601String().split('T').first;
+    return shownDate != today;
+  }
+
+  Future<void> _markSubscriptionBannerShownToday() async {
+    final prefs = await SharedPreferences.getInstance();
+    final today = DateTime.now().toUtc().toIso8601String().split('T').first;
+    await prefs.setString('subscription_banner_shown_date', today);
   }
 
   List<Widget> _pantallas() {
@@ -165,6 +225,19 @@ class _MasOpcionesScreen extends StatelessWidget {
             Expanded(
               child: ListView(
                 children: [
+                  GridItem(
+                    icono: Icons.notifications_outlined,
+                    funcion: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => const NotificacionesScreen(),
+                        ),
+                      );
+                    },
+                    texto: 'Notificaciones',
+                  ),
+                  const SizedBox(height: 7),
                   GridItem(
                     icono: Icons.inventory_2_outlined,
                     funcion: () {

@@ -27,10 +27,6 @@ Future<void> main() async {
     await Firebase.initializeApp();
     firebaseReady = true;
   } catch (error) {
-    if (kDebugMode) {
-      debugPrint('[Push] Firebase init skipped: $error');
-      debugPrint('[Push] Verify google-services.json/GoogleService-Info.plist and Gradle setup.');
-    }
   }
 
   if (firebaseReady) {

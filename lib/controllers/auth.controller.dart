@@ -43,7 +43,6 @@ class AuthController {
 
       if (response != null && response.ok) {
         await _guardarSesion(response, authprovider);
-        await PushNotificationsService.instance.syncTokenForLoggedInUser();
         _irAlHome(context);
 
         authprovider.loading = false;
@@ -99,7 +98,6 @@ class AuthController {
 
       if (result.ok && result.response != null) {
         await _guardarSesion(result.response!, authprovider);
-        await PushNotificationsService.instance.syncTokenForLoggedInUser();
         _irAlHome(context);
 
         authprovider.loading = false;

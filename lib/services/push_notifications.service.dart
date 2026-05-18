@@ -17,9 +17,20 @@ import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 @pragma('vm:entry-point')
 Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
   await Firebase.initializeApp();
-  if (kDebugMode) {
-    debugPrint('[Push] Background message: ${message.messageId}');
-  }
+}
+
+class PushNotificationItem {
+  PushNotificationItem({
+    this.title,
+    this.body,
+    this.data,
+    required this.receivedAt,
+  });
+
+  final String? title;
+  final String? body;
+  final Map<String, dynamic>? data;
+  final DateTime receivedAt;
 }
 
 class PushNotificationsService {
@@ -32,7 +43,10 @@ class PushNotificationsService {
   final FlutterLocalNotificationsPlugin _localNotificationsPlugin =
       FlutterLocalNotificationsPlugin();
 
+  final List<PushNotificationItem> _notifications = [];
+
   bool _initialized = false;
+  bool _notificationsPermissionShown = false;
 
   bool get _firebaseReady => Firebase.apps.isNotEmpty;
 
@@ -40,16 +54,25 @@ class PushNotificationsService {
     if (_initialized || !_firebaseReady) return;
 
     await _initializeLocalNotifications();
-    await _requestPermission();
+    // No solicitar ni sincronizar token automáticamente al iniciar la app.
+    // El token se registra después de login y permiso explícito del usuario.
     if (!_firebaseReady) return;
-    await _syncCurrentToken();
 
     FirebaseMessaging.onMessage.listen(_onForegroundMessage);
     FirebaseMessaging.onMessageOpenedApp.listen(_handleNotificationTap);
-    _messaging.onTokenRefresh.listen((token) => _syncTokenWithBackend(token));
+    _messaging.onTokenRefresh.listen((token) async {
+      await _syncTokenWithBackend(token);
+      await _subscribeToFlipsTopic();
+    });
+
+    final settings = await _messaging.getNotificationSettings();
+    if (settings.authorizationStatus == AuthorizationStatus.authorized) {
+      await _subscribeToFlipsTopic();
+    }
 
     final initialMessage = await _messaging.getInitialMessage();
     if (initialMessage != null) {
+      _addNotification(initialMessage);
       _handleNotificationTap(initialMessage);
     }
 
@@ -60,6 +83,56 @@ class PushNotificationsService {
     await _syncCurrentToken();
   }
 
+  /// Solicita permiso de notificaciones al usuario
+  /// Retorna true si el permiso fue otorgado
+  Future<bool> requestNotificationPermission() async {
+    if (!_firebaseReady) return false;
+
+    final settings = await _messaging.requestPermission(
+      alert: true,
+      announcement: false,
+      badge: true,
+      carPlay: false,
+      criticalAlert: false,
+      provisional: false,
+      sound: true,
+    );
+
+    final isGranted =
+        settings.authorizationStatus == AuthorizationStatus.authorized;
+
+    if (isGranted) {
+      await _syncCurrentToken();
+      await _subscribeToFlipsTopic();
+    }
+
+    return isGranted;
+  }
+
+  Future<void> _subscribeToFlipsTopic() async {
+    try {
+      await FirebaseMessaging.instance.subscribeToTopic('flips');
+    } catch (error) {}
+  }
+
+  List<PushNotificationItem> get notifications =>
+      List.unmodifiable(_notifications);
+
+  /// Retorna true si el permiso de notificaciones ya está habilitado
+  Future<bool> isNotificationPermissionGranted() async {
+    if (!_firebaseReady) return false;
+    final settings = await _messaging.getNotificationSettings();
+    return settings.authorizationStatus == AuthorizationStatus.authorized;
+  }
+
+  Future<bool> hasNotificationPermissionBeenShown() async {
+    return _notificationsPermissionShown;
+  }
+
+  void setNotificationPermissionShown() {
+    _notificationsPermissionShown = true;
+  }
+
   Future<void> unregisterTokenOnLogout() async {
     if (!_firebaseReady) return;
     final token = await _messaging.getToken();
@@ -68,7 +141,9 @@ class PushNotificationsService {
   }
 
   Future<void> _initializeLocalNotifications() async {
-    const androidSettings = AndroidInitializationSettings('@mipmap/ic_launcher');
+    const androidSettings = AndroidInitializationSettings(
+      '@mipmap/ic_launcher',
+    );
     const iosSettings = DarwinInitializationSettings();
     const initSettings = InitializationSettings(
       android: androidSettings,
@@ -88,14 +163,16 @@ class PushNotificationsService {
     );
 
     const channel = AndroidNotificationChannel(
-      'high_importance_channel',
-      'High Importance Notifications',
-      description: 'Channel used for important notifications.',
+      'new_flips',
+      'Flips Notifications',
+      description: 'Channel used for Flips push notifications.',
       importance: Importance.high,
     );
 
     await _localNotificationsPlugin
-        .resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>()
+        .resolvePlatformSpecificImplementation<
+          AndroidFlutterLocalNotificationsPlugin
+        >()
         ?.createNotificationChannel(channel);
   }
 
@@ -109,10 +186,6 @@ class PushNotificationsService {
       provisional: false,
       sound: true,
     );
-
-    if (kDebugMode) {
-      debugPrint('[Push] Permission status: ${settings.authorizationStatus.name}');
-    }
   }
 
   Future<void> _syncCurrentToken() async {
@@ -120,37 +193,27 @@ class PushNotificationsService {
       if (!_firebaseReady) return;
       final token = await _messaging.getToken();
       if (token == null || token.isEmpty) {
-        if (kDebugMode) debugPrint('[Push] FCM token null/empty.');
         return;
       }
       await _syncTokenWithBackend(token);
-    } on FirebaseException catch (error) {
-      if (kDebugMode) debugPrint('[Push] Error fetching token: ${error.code}');
-    }
+    } on FirebaseException catch (error) {}
   }
 
   Future<void> _syncTokenWithBackend(String token) async {
     try {
       final response = await _httpService.post(
-        '${apiUrl}mobile/push-tokens',
+        '${apiUrl}mobile/push/register-token',
         body: {
           'token': token,
-          'platform': Platform.isIOS ? 'ios' : 'android',
+          'plataforma': Platform.isIOS ? 'ios' : 'android',
+          'activo': true,
         },
       );
 
       if (response.statusCode < 200 || response.statusCode >= 300) {
-        if (kDebugMode) {
-          debugPrint('[Push] Token sync failed: ${response.statusCode}');
-        }
-      } else {
-        if (kDebugMode) debugPrint('[Push] Token synced successfully.');
-      }
+      } else {}
     } on SocketException {
-      if (kDebugMode) debugPrint('[Push] No network for token sync.');
-    } catch (error) {
-      if (kDebugMode) debugPrint('[Push] Token sync error: $error');
-    }
+    } catch (error) {}
   }
 
   Future<void> _deleteTokenFromBackend(String token) async {
@@ -159,16 +222,11 @@ class PushNotificationsService {
         '${apiUrl}mobile/push-tokens',
         body: {'token': token},
       );
-
-      if (kDebugMode) {
-        debugPrint('[Push] Unregister status: ${response.statusCode}');
-      }
-    } catch (error) {
-      if (kDebugMode) debugPrint('[Push] Unregister error: $error');
-    }
+    } catch (error) {}
   }
 
   Future<void> _onForegroundMessage(RemoteMessage message) async {
+    _addNotification(message);
     final notification = message.notification;
     if (notification == null) return;
 
@@ -178,9 +236,9 @@ class PushNotificationsService {
       notification.body,
       const NotificationDetails(
         android: AndroidNotificationDetails(
-          'high_importance_channel',
-          'High Importance Notifications',
-          channelDescription: 'Channel used for important notifications.',
+          'new_flips',
+          'Flips Notifications',
+          channelDescription: 'Channel used for Flips push notifications.',
           importance: Importance.high,
           priority: Priority.high,
           icon: '@mipmap/ic_launcher',
@@ -189,6 +247,32 @@ class PushNotificationsService {
       ),
       payload: jsonEncode(message.data),
     );
+  }
+
+  void _addNotification(RemoteMessage message) {
+    final notification = message.notification;
+    final title =
+        notification?.title ??
+        message.data['title']?.toString() ??
+        'Notificación';
+    final body =
+        notification?.body ??
+        message.data['body']?.toString() ??
+        'Toque para ver detalles.';
+
+    _notifications.insert(
+      0,
+      PushNotificationItem(
+        title: title,
+        body: body,
+        data: message.data,
+        receivedAt: DateTime.now().toUtc(),
+      ),
+    );
+
+    if (_notifications.length > 50) {
+      _notifications.removeRange(50, _notifications.length);
+    }
   }
 
   void _handleNotificationTap(RemoteMessage message) {
@@ -203,17 +287,25 @@ class PushNotificationsService {
     switch (type) {
       case 'factura':
       case 'facturas':
-        navigator.push(MaterialPageRoute(builder: (_) => const MisFacturasScreen()));
+        navigator.push(
+          MaterialPageRoute(builder: (_) => const MisFacturasScreen()),
+        );
         break;
       case 'pago':
       case 'pagos':
-        navigator.push(MaterialPageRoute(builder: (_) => const MisPagosScreen()));
+        navigator.push(
+          MaterialPageRoute(builder: (_) => const MisPagosScreen()),
+        );
         break;
       case 'suscripcion':
-        navigator.push(MaterialPageRoute(builder: (_) => const MisSuscripcionScreen()));
+        navigator.push(
+          MaterialPageRoute(builder: (_) => const MisSuscripcionScreen()),
+        );
         break;
       case 'paquete':
-        navigator.push(MaterialPageRoute(builder: (_) => const PaquetesScreen()));
+        navigator.push(
+          MaterialPageRoute(builder: (_) => const PaquetesScreen()),
+        );
         break;
       default:
         navigator.push(MaterialPageRoute(builder: (_) => const HomeScreen()));
