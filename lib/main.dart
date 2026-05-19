@@ -16,6 +16,7 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
+import 'package:google_mobile_ads/google_mobile_ads.dart';
 import 'package:flips_app/services/push_notifications.service.dart';
 import 'package:provider/provider.dart';
 
@@ -33,6 +34,8 @@ Future<void> main() async {
     FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
     await PushNotificationsService.instance.init();
   }
+
+  await MobileAds.instance.initialize();
 
   runApp(const MyApp());
 }

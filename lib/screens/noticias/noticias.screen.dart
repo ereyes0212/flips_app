@@ -5,6 +5,7 @@ import 'package:flips_app/models/noticias.model.dart';
 import 'package:flips_app/providers/noticias.provider.dart';
 import 'package:flips_app/services/noticias.service.dart';
 import 'package:flutter/material.dart';
+import 'package:google_mobile_ads/google_mobile_ads.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import 'package:share_plus/share_plus.dart';
@@ -26,9 +27,14 @@ class NoticiasScreen extends StatefulWidget {
 }
 
 class _NoticiasScreenState extends State<NoticiasScreen> {
+  static const String _interstitialAdUnitId = '/170101793/APP/Interstitial';
+
   final _controller = NoticiasController();
   final _searchController = TextEditingController();
   Timer? _debounce;
+  int _openedNewsCount = 0;
+  InterstitialAd? _interstitialAd;
+  bool _isInterstitialLoading = false;
 
   @override
   void initState() {
@@ -37,13 +43,65 @@ class _NoticiasScreenState extends State<NoticiasScreen> {
       _controller.cargarNoticias(context);
       _controller.cargarCategorias(context);
     });
+    _loadInterstitial();
   }
 
   @override
   void dispose() {
     _debounce?.cancel();
+    _interstitialAd?.dispose();
     _searchController.dispose();
     super.dispose();
+  }
+
+  void _loadInterstitial() {
+    if (_isInterstitialLoading) return;
+    _isInterstitialLoading = true;
+    InterstitialAd.load(
+      adUnitId: _interstitialAdUnitId,
+      request: const AdManagerAdRequest(),
+      adLoadCallback: InterstitialAdLoadCallback(
+        onAdLoaded: (ad) {
+          _interstitialAd = ad;
+          _isInterstitialLoading = false;
+        },
+        onAdFailedToLoad: (error) {
+          _interstitialAd = null;
+          _isInterstitialLoading = false;
+          debugPrint('Error al cargar interstitial: $error');
+        },
+      ),
+    );
+  }
+
+  void _abrirDetalleConInterstitial(NoticiaModel noticia) {
+    _openedNewsCount += 1;
+    final shouldShowInterstitial = _openedNewsCount % 5 == 0;
+    final ad = _interstitialAd;
+
+    if (!shouldShowInterstitial || ad == null) {
+      _abrirDetalle(context, noticia);
+      if (ad == null) _loadInterstitial();
+      return;
+    }
+
+    ad.fullScreenContentCallback = FullScreenContentCallback(
+      onAdDismissedFullScreenContent: (ad) {
+        ad.dispose();
+        _interstitialAd = null;
+        _loadInterstitial();
+        _abrirDetalle(context, noticia);
+      },
+      onAdFailedToShowFullScreenContent: (ad, error) {
+        ad.dispose();
+        _interstitialAd = null;
+        _loadInterstitial();
+        debugPrint('Error mostrando interstitial: $error');
+        _abrirDetalle(context, noticia);
+      },
+    );
+
+    ad.show();
   }
 
   void _buscar(String value) {
@@ -107,6 +165,7 @@ class _NoticiasScreenState extends State<NoticiasScreen> {
                 context,
                 busqueda: _searchController.text.trim(),
               ),
+              onTapNoticia: _abrirDetalleConInterstitial,
             ),
           ],
         ),
@@ -119,10 +178,12 @@ class _NoticiasContentSlivers extends StatelessWidget {
   const _NoticiasContentSlivers({
     required this.provider,
     required this.onLoadMore,
+    required this.onTapNoticia,
   });
 
   final NoticiasProvider provider;
   final VoidCallback onLoadMore;
+  final ValueChanged<NoticiaModel> onTapNoticia;
 
   @override
   Widget build(BuildContext context) {
@@ -198,7 +259,10 @@ class _NoticiasContentSlivers extends StatelessWidget {
             ),
           ),
         ),
-        _NoticiasList(noticias: provider.noticias),
+        _NoticiasList(
+          noticias: provider.noticias,
+          onTapNoticia: onTapNoticia,
+        ),
         SliverToBoxAdapter(
           child: _LoadMoreButton(
             hasMore: provider.hasMore,
@@ -212,23 +276,90 @@ class _NoticiasContentSlivers extends StatelessWidget {
 }
 
 class _NoticiasList extends StatelessWidget {
-  const _NoticiasList({required this.noticias});
+  const _NoticiasList({required this.noticias, required this.onTapNoticia});
 
   final List<NoticiaModel> noticias;
+  final ValueChanged<NoticiaModel> onTapNoticia;
 
   @override
   Widget build(BuildContext context) {
+    final children = <Widget>[];
+    for (var i = 0; i < noticias.length; i++) {
+      final noticia = noticias[i];
+      children.add(
+        _NoticiaCard(
+          noticia: noticia,
+          onTapOverride: () => onTapNoticia(noticia),
+        ),
+      );
+      if ((i + 1) % 5 == 0 && i != noticias.length - 1) {
+        children.add(
+          const Padding(
+            padding: EdgeInsets.only(top: 8, bottom: 8),
+            child: _InlineNewsAdBanner(),
+          ),
+        );
+      }
+      if (i != noticias.length - 1) {
+        children.add(const SizedBox(height: 14));
+      }
+    }
+
     return SliverPadding(
       padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
-      sliver: SliverList(
-        delegate: SliverChildBuilderDelegate(
-          (context, index) {
-            if (index.isOdd) return const SizedBox(height: 14);
-            return _NoticiaCard(noticia: noticias[index ~/ 2]);
-          },
-          childCount: noticias.length * 2 - 1,
-        ),
+      sliver: SliverList(delegate: SliverChildListDelegate(children)),
+    );
+  }
+}
+
+class _InlineNewsAdBanner extends StatefulWidget {
+  const _InlineNewsAdBanner();
+
+  @override
+  State<_InlineNewsAdBanner> createState() => _InlineNewsAdBannerState();
+}
+
+class _InlineNewsAdBannerState extends State<_InlineNewsAdBanner> {
+  static const String _adUnitId = '/170101793/APP/Interstitial';
+  AdManagerBannerAd? _ad;
+  bool _ready = false;
+
+  @override
+  void initState() {
+    super.initState();
+    final ad = AdManagerBannerAd(
+      adUnitId: _adUnitId,
+      request: const AdManagerAdRequest(),
+      sizes: const [
+        AdSize(width: 300, height: 250),
+        AdSize(width: 320, height: 480),
+        AdSize(width: 336, height: 280),
+      ],
+      listener: AdManagerBannerAdListener(
+        onAdLoaded: (_) => mounted ? setState(() => _ready = true) : null,
+        onAdFailedToLoad: (ad, error) {
+          ad.dispose();
+          debugPrint('Error banner inline noticias: $error');
+        },
       ),
+    );
+    _ad = ad;
+    ad.load();
+  }
+
+  @override
+  void dispose() {
+    _ad?.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (!_ready || _ad == null) return const SizedBox.shrink();
+    return SizedBox(
+      width: 300,
+      height: 250,
+      child: AdWidget(ad: _ad!),
     );
   }
 }
