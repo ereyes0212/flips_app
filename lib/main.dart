@@ -63,14 +63,6 @@ class MyApp extends StatelessWidget {
         ChangeNotifierProvider(create: (context) => PaquetesProvider()),
         ChangeNotifierProvider(create: (context) => MisPagosProvider()),
         ChangeNotifierProvider(create: (context) => MisSuscripcionProvider()),
-        // ChangeNotifierProvider(create: (context) => ClienteProvider()),
-        // ChangeNotifierProvider(create: (context) => SuscripcionProvider()),
-        // ChangeNotifierProvider(create: (context) => PagosProvider()),
-        // ChangeNotifierProvider(create: (context) => FichaTecnicaProvider()),
-        // ChangeNotifierProvider(create: (context) => EquipoProvider()),
-        // ChangeNotifierProvider(create: (context) => FinanzaProvider()),
-        // ChangeNotifierProvider(create: (context) => PromocionProvider()),
-        // ChangeNotifierProvider(create: (context) => MensajeProvider()),
       ],
       child: MaterialApp(
         localizationsDelegates: const [
