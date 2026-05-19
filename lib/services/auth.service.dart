@@ -101,7 +101,7 @@ class AuthService {
   ) async {
     try {
       final response = await _httpService.post(
-        '${apiUrl}$endpoint',
+        '$apiUrl$endpoint',
         body: payload,
         includeAuth: false,
       );

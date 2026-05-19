@@ -1,3 +1,5 @@
+// ignore_for_file: empty_catches
+
 import 'dart:convert';
 import 'dart:io';
 
@@ -176,17 +178,6 @@ class PushNotificationsService {
         ?.createNotificationChannel(channel);
   }
 
-  Future<void> _requestPermission() async {
-    final settings = await _messaging.requestPermission(
-      alert: true,
-      announcement: false,
-      badge: true,
-      carPlay: false,
-      criticalAlert: false,
-      provisional: false,
-      sound: true,
-    );
-  }
 
   Future<void> _syncCurrentToken() async {
     try {
@@ -196,7 +187,7 @@ class PushNotificationsService {
         return;
       }
       await _syncTokenWithBackend(token);
-    } on FirebaseException catch (error) {}
+    } on FirebaseException {}
   }
 
   Future<void> _syncTokenWithBackend(String token) async {
@@ -218,10 +209,6 @@ class PushNotificationsService {
 
   Future<void> _deleteTokenFromBackend(String token) async {
     try {
-      final response = await _httpService.delete(
-        '${apiUrl}mobile/push-tokens',
-        body: {'token': token},
-      );
     } catch (error) {}
   }
 

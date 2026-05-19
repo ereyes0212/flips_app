@@ -42,27 +42,23 @@ class NoticiaContentBlock {
   });
 
   const NoticiaContentBlock.text(String value)
-      : this._(type: NoticiaContentBlockType.text, text: value);
+    : this._(type: NoticiaContentBlockType.text, text: value);
 
   const NoticiaContentBlock.image({required String url, String caption = ''})
-      : this._(
-          type: NoticiaContentBlockType.image,
-          imageUrl: url,
-          caption: caption,
-        );
+    : this._(
+        type: NoticiaContentBlockType.image,
+        imageUrl: url,
+        caption: caption,
+      );
 
   const NoticiaContentBlock.link({required String text, required String url})
-      : this._(
-          type: NoticiaContentBlockType.link,
-          text: text,
-          linkUrl: url,
-        );
+    : this._(type: NoticiaContentBlockType.link, text: text, linkUrl: url);
 
   const NoticiaContentBlock.gallery(List<NoticiaGalleryItem> items)
-      : this._(type: NoticiaContentBlockType.gallery, galleryItems: items);
+    : this._(type: NoticiaContentBlockType.gallery, galleryItems: items);
 
   const NoticiaContentBlock.video(String url)
-      : this._(type: NoticiaContentBlockType.video, videoUrl: url);
+    : this._(type: NoticiaContentBlockType.video, videoUrl: url);
 
   final NoticiaContentBlockType type;
   final String text;
@@ -111,14 +107,16 @@ class NoticiaModel {
   factory NoticiaModel.fromJson(Map<String, dynamic> json) {
     final embedded = json['_embedded'] as Map<String, dynamic>?;
     final featuredMedia = (embedded?['wp:featuredmedia'] as List<dynamic>?);
-    final media = featuredMedia != null && featuredMedia.isNotEmpty
-        ? featuredMedia.first as Map<String, dynamic>
-        : null;
+    final media =
+        featuredMedia != null && featuredMedia.isNotEmpty
+            ? featuredMedia.first as Map<String, dynamic>
+            : null;
     final yoast = json['yoast_head_json'] as Map<String, dynamic>?;
     final ogImages = yoast?['og_image'] as List<dynamic>?;
-    final ogImage = ogImages != null && ogImages.isNotEmpty
-        ? ogImages.first as Map<String, dynamic>
-        : null;
+    final ogImage =
+        ogImages != null && ogImages.isNotEmpty
+            ? ogImages.first as Map<String, dynamic>
+            : null;
     final embeddedImage = (media?['source_url'] ?? '').toString();
     final metadataImage = (ogImage?['url'] ?? '').toString();
 
@@ -135,10 +133,11 @@ class NoticiaModel {
       contentBlocks: _parseContentBlocks(rawContent),
       imageUrl: embeddedImage.isNotEmpty ? embeddedImage : metadataImage,
       imageAlt: _cleanHtml((media?['alt_text'] ?? '').toString()),
-      categories: (json['categories'] as List<dynamic>? ?? [])
-          .map((e) => int.tryParse(e.toString()) ?? 0)
-          .where((e) => e > 0)
-          .toList(),
+      categories:
+          (json['categories'] as List<dynamic>? ?? [])
+              .map((e) => int.tryParse(e.toString()) ?? 0)
+              .where((e) => e > 0)
+              .toList(),
     );
   }
 
@@ -147,7 +146,7 @@ class NoticiaModel {
 
     final blocks = <NoticiaContentBlock>[];
     final mediaRegex = RegExp(
-      "(?:<style\\b[\\s\\S]*?<\\/style>\\s*)?<div\\b(?=[^>]*class\\s*=\\s*(['\"])[^'\"]*\\btd-gallery\\b[^'\"]*\\1)[\\s\\S]*?(?=<p\\b|<h[1-6]\\b|$)|<div\\b(?=[^>]*data-mow_video\\s*=)[^>]*>\\s*<\\/div>|<amp-iframe\\b[^>]*src\\s*=\\s*(['\"])[^'\"]*mowplayer\\.com/watch/[^'\"]*\\2[\\s\\S]*?<\\/amp-iframe>|<iframe\\b[^>]*src\\s*=\\s*(['\"])[^'\"]*mowplayer\\.com/watch/[^'\"]*\\3[\\s\\S]*?<\\/iframe>|<figure\\b[\\s\\S]*?<\\/figure>|<img\\b[^>]*>",
+      r'''(?:<style\b[\s\S]*?<\/style>\s*)?<div\b(?=[^>]*class\s*=\s*(['"])[^'"]*\btd-gallery\b[^'"]*\1)[\s\S]*?(?=<p\b|<h[1-6]\b|$)|<div\b(?=[^>]*data-mow_video\s*=)[^>]*>\s*<\/div>|<amp-iframe\b[^>]*src\s*=\s*(['"])[^'"]*mowplayer\.com/watch/[^'"]*\2[\s\S]*?<\/amp-iframe>|<iframe\b[^>]*src\s*=\s*(['"])[^'"]*mowplayer\.com/watch/[^'"]*\3[\s\S]*?<\/iframe>|<figure\b[\s\S]*?<\/figure>|<img\b[^>]*>''',
       caseSensitive: false,
     );
     var currentIndex = 0;
@@ -186,17 +185,15 @@ class NoticiaModel {
       }
 
       final src = _extractAttribute(fragment, 'src');
-      final imageUrl = src.isNotEmpty
-          ? src
-          : _extractAttribute(fragment, 'data-src');
+      final imageUrl =
+          src.isNotEmpty ? src : _extractAttribute(fragment, 'data-src');
       if (imageUrl.isNotEmpty) {
         final captionMatch = RegExp(
           r'<figcaption\b[^>]*>([\s\S]*?)<\/figcaption>',
           caseSensitive: false,
         ).firstMatch(fragment);
-        final caption = captionMatch == null
-            ? ''
-            : _cleanHtml(captionMatch.group(1) ?? '');
+        final caption =
+            captionMatch == null ? '' : _cleanHtml(captionMatch.group(1) ?? '');
         blocks.add(NoticiaContentBlock.image(url: imageUrl, caption: caption));
       }
 
@@ -237,17 +234,19 @@ class NoticiaModel {
       final href = _extractAttribute(fragment, 'href');
       final src = _extractAttribute(fragment, 'src');
       final dataSrc = _extractAttribute(fragment, 'data-src');
-      final imageUrl = href.isNotEmpty
-          ? href
-          : src.isNotEmpty
+      final imageUrl =
+          href.isNotEmpty
+              ? href
+              : src.isNotEmpty
               ? src
               : dataSrc;
       if (imageUrl.isEmpty || seen.contains(imageUrl)) continue;
 
       final dataCaption = _extractAttribute(fragment, 'data-caption');
-      final caption = dataCaption.isNotEmpty
-          ? _cleanHtml(dataCaption)
-          : _extractFigureCaption(fragment);
+      final caption =
+          dataCaption.isNotEmpty
+              ? _cleanHtml(dataCaption)
+              : _extractFigureCaption(fragment);
       items.add(NoticiaGalleryItem(imageUrl: imageUrl, caption: caption));
       seen.add(imageUrl);
     }
@@ -310,7 +309,8 @@ class NoticiaModel {
 
   static String _extractRelatedArticleLink(String html) {
     final plainText = _cleanHtml(html).toLowerCase();
-    final isRelatedArticle = plainText.contains('te puede interesar') ||
+    final isRelatedArticle =
+        plainText.contains('te puede interesar') ||
         plainText.contains('de igual interés') ||
         plainText.contains('de igual interes') ||
         plainText.contains('también puedes leer') ||
@@ -346,7 +346,10 @@ class NoticiaModel {
     var text = value
         .replaceAll(RegExp(r'<\s*br\s*/?\s*>', caseSensitive: false), '\n')
         .replaceAll(
-          RegExp(r'</\s*(p|div|h[1-6]|li|blockquote)\s*>', caseSensitive: false),
+          RegExp(
+            r'</\s*(p|div|h[1-6]|li|blockquote)\s*>',
+            caseSensitive: false,
+          ),
           preserveParagraphs ? '\n\n' : ' ',
         )
         .replaceAll(RegExp(r'<[^>]*>'), ' ');
