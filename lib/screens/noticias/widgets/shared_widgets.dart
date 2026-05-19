@@ -34,19 +34,31 @@ class _NewsImage extends StatelessWidget {
 
     return ClipRRect(
       borderRadius: borderRadius,
-      child: Image.network(
-        url,
-        width: size,
-        height: size,
-        fit: BoxFit.cover,
-        errorBuilder: (_, __, ___) => placeholder,
-        loadingBuilder: (context, child, loadingProgress) {
-          if (loadingProgress == null) return child;
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final canExpand = constraints.hasBoundedWidth && constraints.hasBoundedHeight;
           return Stack(
-            fit: StackFit.expand,
+            fit: canExpand ? StackFit.expand : StackFit.loose,
             children: [
               placeholder,
-              const Center(child: CircularProgressIndicator(strokeWidth: 2)),
+              Image.network(
+                url,
+                key: ValueKey(url),
+                width: size,
+                height: size,
+                fit: BoxFit.cover,
+                gaplessPlayback: true,
+                errorBuilder: (_, __, ___) => placeholder,
+                frameBuilder: (context, child, frame, wasSynchronouslyLoaded) {
+                  if (wasSynchronouslyLoaded) return child;
+                  return AnimatedOpacity(
+                    opacity: frame == null ? 0 : 1,
+                    duration: const Duration(milliseconds: 180),
+                    curve: Curves.easeOut,
+                    child: child,
+                  );
+                },
+              ),
             ],
           );
         },
