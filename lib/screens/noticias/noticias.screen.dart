@@ -4,6 +4,8 @@ import 'package:flips_app/controllers/noticias.controller.dart';
 import 'package:flips_app/models/noticias.model.dart';
 import 'package:flips_app/providers/noticias.provider.dart';
 import 'package:flips_app/services/noticias.service.dart';
+import 'package:flips_app/services/mi_perfil.service.dart';
+import 'package:flips_app/utils/ad_visibility.util.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
@@ -42,6 +44,7 @@ class _NoticiasScreenState extends State<NoticiasScreen> {
   bool _pendingInterstitial = false;
   AdManagerInterstitialAd? _interstitialAd;
   bool _isInterstitialLoading = false;
+  bool _hideAds = false;
 
   @override
   void initState() {
@@ -50,7 +53,7 @@ class _NoticiasScreenState extends State<NoticiasScreen> {
       _controller.cargarNoticias(context);
       _controller.cargarCategorias(context);
     });
-    _loadInterstitial();
+    _initAdsVisibility();
   }
 
   @override
@@ -62,7 +65,16 @@ class _NoticiasScreenState extends State<NoticiasScreen> {
     super.dispose();
   }
 
+  Future<void> _initAdsVisibility() async {
+    final perfil = await MiPerfilService().obtenerMiPerfil();
+    if (!mounted) return;
+    setState(() => _hideAds = AdVisibilityUtil.shouldHideAds(perfil));
+    if (_hideAds) return;
+    _loadInterstitial();
+  }
+
   void _loadInterstitial() {
+    if (_hideAds) return;
     if (_isInterstitialLoading || _interstitialAd != null) return;
     _retryInterstitialTimer?.cancel();
     _isInterstitialLoading = true;
@@ -106,6 +118,11 @@ class _NoticiasScreenState extends State<NoticiasScreen> {
   }
 
   void _abrirDetalleConInterstitial(NoticiaModel noticia) {
+    if (_hideAds) {
+      _abrirDetalle(context, noticia, _hideAds);
+      return;
+    }
+
     _openedNewsCount += 1;
     final reachedMilestone = _openedNewsCount >= _nextInterstitialAt;
     final shouldShowInterstitial = _pendingInterstitial || reachedMilestone;
@@ -120,7 +137,7 @@ class _NoticiasScreenState extends State<NoticiasScreen> {
       );
     }
     if (!shouldShowInterstitial || ad == null) {
-      _abrirDetalle(context, noticia);
+      _abrirDetalle(context, noticia, _hideAds);
       if (ad == null) _loadInterstitial();
       return;
     }
@@ -132,7 +149,7 @@ class _NoticiasScreenState extends State<NoticiasScreen> {
         _nextInterstitialAt += _interstitialFrequency;
         _interstitialAd = null;
         _loadInterstitial();
-        _abrirDetalle(context, noticia);
+        _abrirDetalle(context, noticia, _hideAds);
       },
       onAdFailedToShowFullScreenContent: (ad, error) {
         ad.dispose();
@@ -140,7 +157,7 @@ class _NoticiasScreenState extends State<NoticiasScreen> {
         _interstitialAd = null;
         _loadInterstitial();
         debugPrint('Error mostrando interstitial: $error');
-        _abrirDetalle(context, noticia);
+        _abrirDetalle(context, noticia, _hideAds);
       },
     );
 
@@ -209,6 +226,7 @@ class _NoticiasScreenState extends State<NoticiasScreen> {
                 busqueda: _searchController.text.trim(),
               ),
               onTapNoticia: _abrirDetalleConInterstitial,
+              hideAds: _hideAds,
             ),
           ],
         ),
@@ -222,11 +240,13 @@ class _NoticiasContentSlivers extends StatelessWidget {
     required this.provider,
     required this.onLoadMore,
     required this.onTapNoticia,
+    required this.hideAds,
   });
 
   final NoticiasProvider provider;
   final VoidCallback onLoadMore;
   final ValueChanged<NoticiaModel> onTapNoticia;
+  final bool hideAds;
 
   @override
   Widget build(BuildContext context) {
@@ -305,6 +325,7 @@ class _NoticiasContentSlivers extends StatelessWidget {
         _NoticiasList(
           noticias: provider.noticias,
           onTapNoticia: onTapNoticia,
+          hideAds: hideAds,
         ),
         SliverToBoxAdapter(
           child: _LoadMoreButton(
@@ -319,10 +340,11 @@ class _NoticiasContentSlivers extends StatelessWidget {
 }
 
 class _NoticiasList extends StatelessWidget {
-  const _NoticiasList({required this.noticias, required this.onTapNoticia});
+  const _NoticiasList({required this.noticias, required this.onTapNoticia, required this.hideAds});
 
   final List<NoticiaModel> noticias;
   final ValueChanged<NoticiaModel> onTapNoticia;
+  final bool hideAds;
 
   @override
   Widget build(BuildContext context) {
@@ -335,7 +357,7 @@ class _NoticiasList extends StatelessWidget {
           onTapOverride: () => onTapNoticia(noticia),
         ),
       );
-      if ((i + 1) % 5 == 0 && i != noticias.length - 1) {
+      if (!hideAds && (i + 1) % 5 == 0 && i != noticias.length - 1) {
         children.add(
           const Padding(
             padding: EdgeInsets.only(top: 8, bottom: 8),
@@ -421,10 +443,10 @@ Future<void> _compartirNoticia(BuildContext context, NoticiaModel noticia) async
   await SharePlus.instance.share(ShareParams(text: mensaje, subject: noticia.title));
 }
 
-void _abrirDetalle(BuildContext context, NoticiaModel noticia) {
+void _abrirDetalle(BuildContext context, NoticiaModel noticia, bool hideAds) {
   Navigator.push(
     context,
-    MaterialPageRoute(builder: (_) => _NoticiaDetalleScreen(noticia: noticia)),
+    MaterialPageRoute(builder: (_) => _NoticiaDetalleScreen(noticia: noticia, hideAds: hideAds)),
   );
 }
 
