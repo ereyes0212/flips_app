@@ -58,7 +58,7 @@ class _NoticiasHeader extends StatelessWidget {
                     ),
                     const SizedBox(height: 6),
                     Text(
-                      'Información actualizada desde WordPress',
+                      'Información actualizada al instante',
                       style: Theme.of(context).textTheme.headlineSmall?.copyWith(
                             color: Colors.white,
                             fontWeight: FontWeight.w900,

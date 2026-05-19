@@ -77,6 +77,7 @@ class _PortadaCard extends StatelessWidget {
                   _DateLabel(date: noticia.date, color: Colors.white),
                 ],
               ),
+              
             ),
           ],
         ),

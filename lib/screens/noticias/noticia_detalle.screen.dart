@@ -69,17 +69,6 @@ class _NoticiaDetalleScreen extends StatelessWidget {
                     categoriasPorId: categoriasPorId,
                     onTap: (categoria) => _abrirCategoria(context, categoria),
                   ),
-                  const SizedBox(height: 20),
-                  if (noticia.excerpt.isNotEmpty) ...[
-                    Text(
-                      noticia.excerpt,
-                      style: theme.textTheme.titleMedium?.copyWith(
-                        color: theme.colorScheme.onSurface.withOpacity(0.72),
-                        height: 1.45,
-                      ),
-                    ),
-                    const SizedBox(height: 18),
-                  ],
                   const Divider(height: 28),
                   Text(
                     noticia.content.isNotEmpty
