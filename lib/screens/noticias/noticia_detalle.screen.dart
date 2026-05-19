@@ -32,10 +32,12 @@ class _NoticiaDetalleScreen extends StatelessWidget {
               background: Stack(
                 fit: StackFit.expand,
                 children: [
-                  _NewsImage(
-                    url: noticia.imageUrl,
-                    iconSize: 72,
-                    borderRadius: BorderRadius.zero,
+                  Positioned.fill(
+                    child: _NewsImage(
+                      url: noticia.imageUrl,
+                      iconSize: 72,
+                      borderRadius: BorderRadius.zero,
+                    ),
                   ),
                   DecoratedBox(
                     decoration: BoxDecoration(
@@ -43,8 +45,29 @@ class _NoticiaDetalleScreen extends StatelessWidget {
                         begin: Alignment.topCenter,
                         end: Alignment.bottomCenter,
                         colors: [
-                          Colors.black.withOpacity(0.02),
-                          Colors.black.withOpacity(0.65),
+                          Colors.black.withOpacity(0.15),
+                          Colors.black.withOpacity(0.82),
+                        ],
+                      ),
+                    ),
+                  ),
+                  Positioned(
+                    left: 16,
+                    right: 16,
+                    bottom: 18,
+                    child: Text(
+                      noticia.title,
+                      maxLines: 3,
+                      overflow: TextOverflow.ellipsis,
+                      style: theme.textTheme.titleLarge?.copyWith(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w900,
+                        shadows: const [
+                          Shadow(
+                            color: Colors.black54,
+                            blurRadius: 10,
+                            offset: Offset(0, 2),
+                          ),
                         ],
                       ),
                     ),
