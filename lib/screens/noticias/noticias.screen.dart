@@ -33,7 +33,7 @@ class _NoticiasScreenState extends State<NoticiasScreen> {
   final _searchController = TextEditingController();
   Timer? _debounce;
   int _openedNewsCount = 0;
-  InterstitialAd? _interstitialAd;
+  AdManagerInterstitialAd? _interstitialAd;
   bool _isInterstitialLoading = false;
 
   @override
@@ -57,10 +57,10 @@ class _NoticiasScreenState extends State<NoticiasScreen> {
   void _loadInterstitial() {
     if (_isInterstitialLoading) return;
     _isInterstitialLoading = true;
-    InterstitialAd.load(
+    AdManagerInterstitialAd.load(
       adUnitId: _interstitialAdUnitId,
       request: const AdManagerAdRequest(),
-      adLoadCallback: InterstitialAdLoadCallback(
+      adLoadCallback: AdManagerInterstitialAdLoadCallback(
         onAdLoaded: (ad) {
           _interstitialAd = ad;
           _isInterstitialLoading = false;
