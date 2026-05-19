@@ -1,9 +1,10 @@
 part of 'noticias.screen.dart';
 
 class _NoticiaDetalleScreen extends StatelessWidget {
-  const _NoticiaDetalleScreen({required this.noticia});
+  const _NoticiaDetalleScreen({required this.noticia, this.hideAds = false});
 
   final NoticiaModel noticia;
+  final bool hideAds;
 
   @override
   Widget build(BuildContext context) {
@@ -95,7 +96,7 @@ class _NoticiaDetalleScreen extends StatelessWidget {
                     onTap: (categoria) => _abrirCategoria(context, categoria),
                   ),
                   const Divider(height: 28),
-                  _ArticleContent(noticia: noticia),
+                  _ArticleContent(noticia: noticia, hideAds: hideAds),
                 ],
               ),
             ),
@@ -107,9 +108,10 @@ class _NoticiaDetalleScreen extends StatelessWidget {
 }
 
 class _ArticleContent extends StatelessWidget {
-  const _ArticleContent({required this.noticia});
+  const _ArticleContent({required this.noticia, required this.hideAds});
 
   final NoticiaModel noticia;
+  final bool hideAds;
 
   @override
   Widget build(BuildContext context) {
@@ -129,7 +131,7 @@ class _ArticleContent extends StatelessWidget {
         for (var index = 0; index < blocks.length; index++) ...[
           if (index > 0) const SizedBox(height: 18),
           _ArticleBlock(block: blocks[index]),
-          if ((index + 1) % 3 == 0 && index != blocks.length - 1) ...[
+          if (!hideAds && (index + 1) % 3 == 0 && index != blocks.length - 1) ...[
             const SizedBox(height: 18),
             const _ArticleInlineAd(),
           ],
