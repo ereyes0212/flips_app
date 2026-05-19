@@ -33,6 +33,7 @@ class _NoticiasScreenState extends State<NoticiasScreen> {
   final _searchController = TextEditingController();
   Timer? _debounce;
   int _openedNewsCount = 0;
+  bool _pendingInterstitial = false;
   AdManagerInterstitialAd? _interstitialAd;
   bool _isInterstitialLoading = false;
 
@@ -76,7 +77,11 @@ class _NoticiasScreenState extends State<NoticiasScreen> {
 
   void _abrirDetalleConInterstitial(NoticiaModel noticia) {
     _openedNewsCount += 1;
-    final shouldShowInterstitial = _openedNewsCount % 5 == 0;
+    final reachedMilestone = _openedNewsCount % 5 == 0;
+    final shouldShowInterstitial = _pendingInterstitial || reachedMilestone;
+    if (reachedMilestone) {
+      _pendingInterstitial = true;
+    }
     final ad = _interstitialAd;
     print(  'Noticias abiertas: $_openedNewsCount, mostrar interstitial: $shouldShowInterstitial');
     if (!shouldShowInterstitial || ad == null) {
@@ -88,12 +93,14 @@ class _NoticiasScreenState extends State<NoticiasScreen> {
     ad.fullScreenContentCallback = FullScreenContentCallback(
       onAdDismissedFullScreenContent: (ad) {
         ad.dispose();
+        _pendingInterstitial = false;
         _interstitialAd = null;
         _loadInterstitial();
         _abrirDetalle(context, noticia);
       },
       onAdFailedToShowFullScreenContent: (ad, error) {
         ad.dispose();
+        _pendingInterstitial = true;
         _interstitialAd = null;
         _loadInterstitial();
         debugPrint('Error mostrando interstitial: $error');
