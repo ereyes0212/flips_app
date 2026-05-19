@@ -9,9 +9,13 @@ class _NoticiasAppBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return SliverAppBar(
-      pinned: true,
+      pinned: false,
       expandedHeight: 150,
-      title: const Text('Noticias'),
+      title: Image.asset(
+        'assets/images/logo.png',
+        height: 30,
+        fit: BoxFit.contain,
+      ),
       flexibleSpace: FlexibleSpaceBar(
         background: _NoticiasHeader(total: total, usingCache: usingCache),
       ),

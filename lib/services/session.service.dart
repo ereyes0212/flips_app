@@ -67,6 +67,12 @@ class SessionService {
 
   static Future<bool> hasValidSession() async => (await getValidToken()) != null;
 
+  static Future<bool> hasStoredSession() async {
+    final prefs = await SharedPreferences.getInstance();
+    final token = normalizeToken(prefs.getString('token'));
+    return token != null && token.isNotEmpty;
+  }
+
   static Future<String?> getSessionCookie() async {
     final prefs = await SharedPreferences.getInstance();
     final cookie = normalizeSessionCookie(prefs.getString('sessionCookie'));
