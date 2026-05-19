@@ -335,7 +335,7 @@ class _InlineNewsAdBannerState extends State<_InlineNewsAdBanner> {
         AdSize(width: 320, height: 480),
         AdSize(width: 336, height: 280),
       ],
-      listener: BannerAdListener(
+      listener: AdManagerBannerAdListener(
         onAdLoaded: (_) => mounted ? setState(() => _ready = true) : null,
         onAdFailedToLoad: (ad, error) {
           ad.dispose();

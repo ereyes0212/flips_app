@@ -38,6 +38,7 @@ class _HomeScreenState extends State<HomeScreen> {
   bool _dialogoSuscripcionMostrado = false;
   AdManagerBannerAd? _bannerAd;
   bool _isBannerAdReady = false;
+  AdSize _bannerSize = AdSize.banner;
 
   @override
   void initState() {
@@ -69,7 +70,7 @@ class _HomeScreenState extends State<HomeScreen> {
       adUnitId: adUnitId,
       request: const AdManagerAdRequest(),
       sizes: const [AdSize(width: 300, height: 50), AdSize.banner],
-      listener: BannerAdListener(
+      listener: AdManagerBannerAdListener(
         onAdLoaded: (ad) {
           if (!mounted) {
             ad.dispose();
@@ -78,6 +79,7 @@ class _HomeScreenState extends State<HomeScreen> {
           setState(() {
             _bannerAd = ad as AdManagerBannerAd;
             _isBannerAdReady = true;
+            _bannerSize = _bannerAd!.sizes.first;
           });
         },
         onAdFailedToLoad: (ad, error) {
@@ -226,8 +228,8 @@ Contrata hoy para desbloquear todo el contenido exclusivo.''',
         children: [
           if (_isBannerAdReady && _bannerAd != null)
             SizedBox(
-              width: _bannerAd!.size.width.toDouble(),
-              height: _bannerAd!.size.height.toDouble(),
+              width: _bannerSize.width.toDouble(),
+              height: _bannerSize.height.toDouble(),
               child: AdWidget(ad: _bannerAd!),
             ),
           AnimatedBottomNavigationBar(

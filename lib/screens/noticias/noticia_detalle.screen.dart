@@ -184,7 +184,7 @@ class _ArticleInlineAdState extends State<_ArticleInlineAd> {
         AdSize(width: 300, height: 300),
         AdSize(width: 336, height: 280),
       ],
-      listener: BannerAdListener(
+      listener: AdManagerBannerAdListener(
         onAdLoaded: (_) {
           if (!mounted) return;
           setState(() => _ready = true);
