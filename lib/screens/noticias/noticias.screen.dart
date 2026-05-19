@@ -244,7 +244,7 @@ Future<void> _compartirNoticia(BuildContext context, NoticiaModel noticia) async
   }
 
   final mensaje = '${noticia.title}\n$link';
-  await SharePlus.instance.share(ShareParams(text: mensaje));
+  await Share.share(mensaje, subject: noticia.title);
 }
 
 void _abrirDetalle(BuildContext context, NoticiaModel noticia) {
