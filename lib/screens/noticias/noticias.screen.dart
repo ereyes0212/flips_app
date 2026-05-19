@@ -4,6 +4,7 @@ import 'package:flips_app/controllers/noticias.controller.dart';
 import 'package:flips_app/models/noticias.model.dart';
 import 'package:flips_app/providers/noticias.provider.dart';
 import 'package:flips_app/services/noticias.service.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
 import 'package:intl/intl.dart';
@@ -77,7 +78,15 @@ class _NoticiasScreenState extends State<NoticiasScreen> {
         onAdFailedToLoad: (error) {
           _interstitialAd = null;
           _isInterstitialLoading = false;
-          debugPrint('Error al cargar interstitial: $error');
+          if (kDebugMode) {
+            if (error.code == 3) {
+              debugPrint(
+                'Interstitial sin inventario (no fill). Se reintentará en ${_retryLoadDelay.inSeconds}s.',
+              );
+            } else {
+              debugPrint('Error al cargar interstitial: $error');
+            }
+          }
           _scheduleInterstitialReload();
         },
       ),
@@ -105,7 +114,11 @@ class _NoticiasScreenState extends State<NoticiasScreen> {
     }
     _maybePreloadInterstitial();
     final ad = _interstitialAd;
-    print(  'Noticias abiertas: $_openedNewsCount, mostrar interstitial: $shouldShowInterstitial');
+    if (kDebugMode) {
+      debugPrint(
+        'Noticias abiertas: $_openedNewsCount, mostrar interstitial: $shouldShowInterstitial',
+      );
+    }
     if (!shouldShowInterstitial || ad == null) {
       _abrirDetalle(context, noticia);
       if (ad == null) _loadInterstitial();
