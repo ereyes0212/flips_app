@@ -21,6 +21,35 @@ class CategoriaNoticiaModel {
   }
 }
 
+enum NoticiaContentBlockType { text, image }
+
+class NoticiaContentBlock {
+  const NoticiaContentBlock._({
+    required this.type,
+    this.text = '',
+    this.imageUrl = '',
+    this.caption = '',
+  });
+
+  const NoticiaContentBlock.text(String value)
+      : this._(type: NoticiaContentBlockType.text, text: value);
+
+  const NoticiaContentBlock.image({required String url, String caption = ''})
+      : this._(
+          type: NoticiaContentBlockType.image,
+          imageUrl: url,
+          caption: caption,
+        );
+
+  final NoticiaContentBlockType type;
+  final String text;
+  final String imageUrl;
+  final String caption;
+
+  bool get isText => type == NoticiaContentBlockType.text;
+  bool get isImage => type == NoticiaContentBlockType.image;
+}
+
 class NoticiaModel {
   NoticiaModel({
     required this.id,
@@ -30,6 +59,7 @@ class NoticiaModel {
     required this.title,
     required this.excerpt,
     required this.content,
+    required this.contentBlocks,
     required this.imageUrl,
     required this.imageAlt,
     required this.categories,
@@ -42,6 +72,7 @@ class NoticiaModel {
   final String title;
   final String excerpt;
   final String content;
+  final List<NoticiaContentBlock> contentBlocks;
   final String imageUrl;
   final String imageAlt;
   final List<int> categories;
@@ -62,6 +93,8 @@ class NoticiaModel {
     final embeddedImage = (media?['source_url'] ?? '').toString();
     final metadataImage = (ogImage?['url'] ?? '').toString();
 
+    final rawContent = (json['content']?['rendered'] ?? '').toString();
+
     return NoticiaModel(
       id: json['id'] ?? 0,
       link: json['link']?.toString() ?? '',
@@ -69,10 +102,8 @@ class NoticiaModel {
       date: DateTime.tryParse(json['date']?.toString() ?? ''),
       title: _cleanHtml((json['title']?['rendered'] ?? '').toString()),
       excerpt: _cleanHtml((json['excerpt']?['rendered'] ?? '').toString()),
-      content: _cleanHtml(
-        (json['content']?['rendered'] ?? '').toString(),
-        preserveParagraphs: true,
-      ),
+      content: _cleanHtml(rawContent, preserveParagraphs: true),
+      contentBlocks: _parseContentBlocks(rawContent),
       imageUrl: embeddedImage.isNotEmpty ? embeddedImage : metadataImage,
       imageAlt: _cleanHtml((media?['alt_text'] ?? '').toString()),
       categories: (json['categories'] as List<dynamic>? ?? [])
@@ -80,6 +111,56 @@ class NoticiaModel {
           .where((e) => e > 0)
           .toList(),
     );
+  }
+
+  static List<NoticiaContentBlock> _parseContentBlocks(String html) {
+    if (html.trim().isEmpty) return const [];
+
+    final blocks = <NoticiaContentBlock>[];
+    final mediaRegex = RegExp(
+      r'<figure\b[\s\S]*?<\/figure>|<img\b[^>]*>',
+      caseSensitive: false,
+    );
+    var currentIndex = 0;
+
+    void addText(String value) {
+      final text = _cleanHtml(value, preserveParagraphs: true);
+      if (text.isNotEmpty) blocks.add(NoticiaContentBlock.text(text));
+    }
+
+    for (final match in mediaRegex.allMatches(html)) {
+      addText(html.substring(currentIndex, match.start));
+
+      final fragment = match.group(0) ?? '';
+      final src = _extractAttribute(fragment, 'src');
+      final imageUrl = src.isNotEmpty
+          ? src
+          : _extractAttribute(fragment, 'data-src');
+      if (imageUrl.isNotEmpty) {
+        final captionMatch = RegExp(
+          r'<figcaption\b[^>]*>([\s\S]*?)<\/figcaption>',
+          caseSensitive: false,
+        ).firstMatch(fragment);
+        final caption = captionMatch == null
+            ? ''
+            : _cleanHtml(captionMatch.group(1) ?? '');
+        blocks.add(NoticiaContentBlock.image(url: imageUrl, caption: caption));
+      }
+
+      currentIndex = match.end;
+    }
+
+    addText(html.substring(currentIndex));
+    return blocks;
+  }
+
+  static String _extractAttribute(String html, String attribute) {
+    final match = RegExp(
+      "$attribute\\s*=\\s*(['\"])(.*?)\\1",
+      caseSensitive: false,
+    ).firstMatch(html);
+    if (match == null) return '';
+    return _decodeHtmlEntities(match.group(2) ?? '').trim();
   }
 
   static String _cleanHtml(String value, {bool preserveParagraphs = false}) {
