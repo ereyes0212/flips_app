@@ -16,6 +16,8 @@ import 'package:flips_app/screens/notificaciones/notificaciones.screen.dart';
 import 'package:flips_app/screens/paquetes/paquetes.screen.dart';
 import 'package:flips_app/screens/sitio_web/sitio_web.screen.dart';
 import 'package:flips_app/services/auth.service.dart';
+import 'package:flips_app/services/mi_perfil.service.dart';
+import 'package:flips_app/utils/ad_visibility.util.dart';
 import 'package:flips_app/services/push_notifications.service.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -36,6 +38,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
   int _currentIndex = 0;
   bool _dialogoSuscripcionMostrado = false;
+  bool _hideAds = false;
   AdManagerBannerAd? _bannerAd;
   bool _isBannerAdReady = false;
   AdSize _bannerSize = AdSize.banner;
@@ -62,7 +65,11 @@ class _HomeScreenState extends State<HomeScreen> {
     return '';
   }
 
-  void _loadBannerAd() {
+  Future<void> _loadBannerAd() async {
+    final perfil = await MiPerfilService().obtenerMiPerfil();
+    if (!mounted) return;
+    _hideAds = AdVisibilityUtil.shouldHideAds(perfil);
+    if (_hideAds) return;
     final adUnitId = _adManagerBannerAdUnitId;
     if (adUnitId.isEmpty) return;
 
@@ -94,7 +101,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Future<void> _validarSuscripcionActiva() async {
     final result = await AuthService().obtenerSuscripcionActiva();
-    if (!mounted || !result.autenticado || result.suscripcionActiva) return;
+    if (!mounted || !result.autenticado || result.suscripcionActiva || _hideAds) return;
 
     final shouldShow = await _shouldShowSubscriptionBannerToday();
     if (!shouldShow || _dialogoSuscripcionMostrado) return;
@@ -226,7 +233,7 @@ Contrata hoy para desbloquear todo el contenido exclusivo.''',
       bottomNavigationBar: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          if (_isBannerAdReady && _bannerAd != null)
+          if (!_hideAds && _isBannerAdReady && _bannerAd != null)
             SizedBox(
               width: _bannerSize.width.toDouble(),
               height: _bannerSize.height.toDouble(),
