@@ -32,10 +32,16 @@ Future<void> main() async {
 
   if (firebaseReady) {
     FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
-    await PushNotificationsService.instance.init();
+    try {
+      await PushNotificationsService.instance
+          .init()
+          .timeout(const Duration(seconds: 4));
+    } catch (_) {}
   }
 
-  await MobileAds.instance.initialize();
+  try {
+    await MobileAds.instance.initialize().timeout(const Duration(seconds: 4));
+  } catch (_) {}
 
   runApp(const MyApp());
 }
