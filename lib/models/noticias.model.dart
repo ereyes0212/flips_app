@@ -21,7 +21,14 @@ class CategoriaNoticiaModel {
   }
 }
 
-enum NoticiaContentBlockType { text, image }
+enum NoticiaContentBlockType { text, image, link, gallery, video }
+
+class NoticiaGalleryItem {
+  const NoticiaGalleryItem({required this.imageUrl, this.caption = ''});
+
+  final String imageUrl;
+  final String caption;
+}
 
 class NoticiaContentBlock {
   const NoticiaContentBlock._({
@@ -29,6 +36,9 @@ class NoticiaContentBlock {
     this.text = '',
     this.imageUrl = '',
     this.caption = '',
+    this.linkUrl = '',
+    this.videoUrl = '',
+    this.galleryItems = const [],
   });
 
   const NoticiaContentBlock.text(String value)
@@ -41,13 +51,32 @@ class NoticiaContentBlock {
           caption: caption,
         );
 
+  const NoticiaContentBlock.link({required String text, required String url})
+      : this._(
+          type: NoticiaContentBlockType.link,
+          text: text,
+          linkUrl: url,
+        );
+
+  const NoticiaContentBlock.gallery(List<NoticiaGalleryItem> items)
+      : this._(type: NoticiaContentBlockType.gallery, galleryItems: items);
+
+  const NoticiaContentBlock.video(String url)
+      : this._(type: NoticiaContentBlockType.video, videoUrl: url);
+
   final NoticiaContentBlockType type;
   final String text;
   final String imageUrl;
   final String caption;
+  final String linkUrl;
+  final String videoUrl;
+  final List<NoticiaGalleryItem> galleryItems;
 
   bool get isText => type == NoticiaContentBlockType.text;
   bool get isImage => type == NoticiaContentBlockType.image;
+  bool get isLink => type == NoticiaContentBlockType.link;
+  bool get isGallery => type == NoticiaContentBlockType.gallery;
+  bool get isVideo => type == NoticiaContentBlockType.video;
 }
 
 class NoticiaModel {
@@ -118,20 +147,44 @@ class NoticiaModel {
 
     final blocks = <NoticiaContentBlock>[];
     final mediaRegex = RegExp(
-      r'<figure\b[\s\S]*?<\/figure>|<img\b[^>]*>',
+      "(?:<style\\b[\\s\\S]*?<\\/style>\\s*)?<div\\b(?=[^>]*class\\s*=\\s*(['\"])[^'\"]*\\btd-gallery\\b[^'\"]*\\1)[\\s\\S]*?(?=<p\\b|<h[1-6]\\b|$)|<div\\b(?=[^>]*data-mow_video\\s*=)[^>]*>\\s*<\\/div>|<amp-iframe\\b[^>]*src\\s*=\\s*(['\"])[^'\"]*mowplayer\\.com/watch/[^'\"]*\\2[\\s\\S]*?<\\/amp-iframe>|<iframe\\b[^>]*src\\s*=\\s*(['\"])[^'\"]*mowplayer\\.com/watch/[^'\"]*\\3[\\s\\S]*?<\\/iframe>|<figure\\b[\\s\\S]*?<\\/figure>|<img\\b[^>]*>",
       caseSensitive: false,
     );
     var currentIndex = 0;
 
     void addText(String value) {
-      final text = _cleanHtml(value, preserveParagraphs: true);
-      if (text.isNotEmpty) blocks.add(NoticiaContentBlock.text(text));
+      for (final fragment in _splitTextFragments(value)) {
+        final text = _cleanHtml(fragment, preserveParagraphs: true);
+        if (text.isEmpty) continue;
+
+        final link = _extractRelatedArticleLink(fragment);
+        if (link.isNotEmpty) {
+          blocks.add(NoticiaContentBlock.link(text: text, url: link));
+          continue;
+        }
+
+        blocks.add(NoticiaContentBlock.text(text));
+      }
     }
 
     for (final match in mediaRegex.allMatches(html)) {
       addText(html.substring(currentIndex, match.start));
 
       final fragment = match.group(0) ?? '';
+      if (_isGalleryFragment(fragment)) {
+        final items = _extractGalleryItems(fragment);
+        if (items.isNotEmpty) blocks.add(NoticiaContentBlock.gallery(items));
+        currentIndex = match.end;
+        continue;
+      }
+
+      final videoUrl = _extractVideoUrl(fragment);
+      if (videoUrl.isNotEmpty) {
+        blocks.add(NoticiaContentBlock.video(videoUrl));
+        currentIndex = match.end;
+        continue;
+      }
+
       final src = _extractAttribute(fragment, 'src');
       final imageUrl = src.isNotEmpty
           ? src
@@ -152,6 +205,132 @@ class NoticiaModel {
 
     addText(html.substring(currentIndex));
     return blocks;
+  }
+
+  static String _extractVideoUrl(String html) {
+    final mowId = _extractAttribute(html, 'data-mow_video');
+    if (mowId.isNotEmpty) return 'https://mowplayer.com/watch/$mowId';
+
+    final src = _extractAttribute(html, 'src');
+    if (src.isEmpty) return '';
+    final normalizedSrc = src.startsWith('//') ? 'https:$src' : src;
+    final uri = Uri.tryParse(normalizedSrc);
+    if (uri == null) return '';
+
+    return uri.host.endsWith('mowplayer.com') ? normalizedSrc : '';
+  }
+
+  static bool _isGalleryFragment(String html) {
+    return RegExp(r'\btd-gallery\b', caseSensitive: false).hasMatch(html);
+  }
+
+  static List<NoticiaGalleryItem> _extractGalleryItems(String html) {
+    final items = <NoticiaGalleryItem>[];
+    final seen = <String>{};
+    final anchorRegex = RegExp(
+      "<a\\b[^>]*class\\s*=\\s*(['\"])[^'\"]*\\bslide-gallery-image-link\\b[^'\"]*\\1[^>]*>[\\s\\S]*?<\\/a>",
+      caseSensitive: false,
+    );
+
+    for (final match in anchorRegex.allMatches(html)) {
+      final fragment = match.group(0) ?? '';
+      final href = _extractAttribute(fragment, 'href');
+      final src = _extractAttribute(fragment, 'src');
+      final dataSrc = _extractAttribute(fragment, 'data-src');
+      final imageUrl = href.isNotEmpty
+          ? href
+          : src.isNotEmpty
+              ? src
+              : dataSrc;
+      if (imageUrl.isEmpty || seen.contains(imageUrl)) continue;
+
+      final dataCaption = _extractAttribute(fragment, 'data-caption');
+      final caption = dataCaption.isNotEmpty
+          ? _cleanHtml(dataCaption)
+          : _extractFigureCaption(fragment);
+      items.add(NoticiaGalleryItem(imageUrl: imageUrl, caption: caption));
+      seen.add(imageUrl);
+    }
+
+    if (items.isNotEmpty) return items;
+
+    final figureRegex = RegExp(
+      r'<figure\b[\s\S]*?<\/figure>|<img\b[^>]*>',
+      caseSensitive: false,
+    );
+    for (final match in figureRegex.allMatches(html)) {
+      final fragment = match.group(0) ?? '';
+      final src = _extractAttribute(fragment, 'src');
+      final dataSrc = _extractAttribute(fragment, 'data-src');
+      final imageUrl = src.isNotEmpty ? src : dataSrc;
+      if (imageUrl.isEmpty || seen.contains(imageUrl)) continue;
+
+      items.add(
+        NoticiaGalleryItem(
+          imageUrl: imageUrl,
+          caption: _extractFigureCaption(fragment),
+        ),
+      );
+      seen.add(imageUrl);
+    }
+
+    return items;
+  }
+
+  static String _extractFigureCaption(String html) {
+    final captionMatch = RegExp(
+      r'<figcaption\b[^>]*>([\s\S]*?)<\/figcaption>',
+      caseSensitive: false,
+    ).firstMatch(html);
+    return captionMatch == null ? '' : _cleanHtml(captionMatch.group(1) ?? '');
+  }
+
+  static List<String> _splitTextFragments(String html) {
+    final fragments = <String>[];
+    final blockRegex = RegExp(
+      r'<(p|div|h[1-6]|li|blockquote)\b[^>]*>[\s\S]*?<\/\1>',
+      caseSensitive: false,
+    );
+    var currentIndex = 0;
+
+    for (final match in blockRegex.allMatches(html)) {
+      if (match.start > currentIndex) {
+        fragments.add(html.substring(currentIndex, match.start));
+      }
+      fragments.add(match.group(0) ?? '');
+      currentIndex = match.end;
+    }
+
+    if (currentIndex < html.length) {
+      fragments.add(html.substring(currentIndex));
+    }
+
+    return fragments.isEmpty ? [html] : fragments;
+  }
+
+  static String _extractRelatedArticleLink(String html) {
+    final plainText = _cleanHtml(html).toLowerCase();
+    final isRelatedArticle = plainText.contains('te puede interesar') ||
+        plainText.contains('de igual interés') ||
+        plainText.contains('de igual interes') ||
+        plainText.contains('también puedes leer') ||
+        plainText.contains('tambien puedes leer') ||
+        plainText.contains('lea también') ||
+        plainText.contains('lea tambien');
+    if (!isRelatedArticle) return '';
+
+    final anchorMatch = RegExp(
+      "<a\\b[^>]*href\\s*=\\s*(['\"])(.*?)\\1[\\s\\S]*?<\\/a>",
+      caseSensitive: false,
+    ).firstMatch(html);
+    if (anchorMatch == null) return '';
+
+    final link = _decodeHtmlEntities(anchorMatch.group(2) ?? '').trim();
+    final uri = Uri.tryParse(link);
+    if (uri == null) return '';
+
+    final host = uri.host.toLowerCase();
+    return host == 'tiempo.hn' || host.endsWith('.tiempo.hn') ? link : '';
   }
 
   static String _extractAttribute(String html, String attribute) {

@@ -7,6 +7,7 @@ import 'package:flips_app/services/noticias.service.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
+import 'package:webview_flutter/webview_flutter.dart';
 
 part 'categoria_noticias.screen.dart';
 part 'noticia_detalle.screen.dart';
