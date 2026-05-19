@@ -28,11 +28,16 @@ class NoticiasScreen extends StatefulWidget {
 
 class _NoticiasScreenState extends State<NoticiasScreen> {
   static const String _interstitialAdUnitId = '/170101793/APP/Interstitial';
+  static const int _interstitialFrequency = 5;
+  static const int _preloadBeforeNewsCount = 2;
+  static const Duration _retryLoadDelay = Duration(seconds: 8);
 
   final _controller = NoticiasController();
   final _searchController = TextEditingController();
   Timer? _debounce;
+  Timer? _retryInterstitialTimer;
   int _openedNewsCount = 0;
+  int _nextInterstitialAt = _interstitialFrequency;
   bool _pendingInterstitial = false;
   AdManagerInterstitialAd? _interstitialAd;
   bool _isInterstitialLoading = false;
@@ -50,19 +55,22 @@ class _NoticiasScreenState extends State<NoticiasScreen> {
   @override
   void dispose() {
     _debounce?.cancel();
+    _retryInterstitialTimer?.cancel();
     _interstitialAd?.dispose();
     _searchController.dispose();
     super.dispose();
   }
 
   void _loadInterstitial() {
-    if (_isInterstitialLoading) return;
+    if (_isInterstitialLoading || _interstitialAd != null) return;
+    _retryInterstitialTimer?.cancel();
     _isInterstitialLoading = true;
     AdManagerInterstitialAd.load(
       adUnitId: _interstitialAdUnitId,
       request: const AdManagerAdRequest(),
       adLoadCallback: AdManagerInterstitialAdLoadCallback(
         onAdLoaded: (ad) {
+          ad.setImmersiveMode(true);
           _interstitialAd = ad;
           _isInterstitialLoading = false;
         },
@@ -70,18 +78,32 @@ class _NoticiasScreenState extends State<NoticiasScreen> {
           _interstitialAd = null;
           _isInterstitialLoading = false;
           debugPrint('Error al cargar interstitial: $error');
+          _scheduleInterstitialReload();
         },
       ),
     );
   }
 
+  void _scheduleInterstitialReload() {
+    _retryInterstitialTimer?.cancel();
+    _retryInterstitialTimer = Timer(_retryLoadDelay, _loadInterstitial);
+  }
+
+  void _maybePreloadInterstitial() {
+    final remaining = _nextInterstitialAt - _openedNewsCount;
+    if (remaining <= _preloadBeforeNewsCount) {
+      _loadInterstitial();
+    }
+  }
+
   void _abrirDetalleConInterstitial(NoticiaModel noticia) {
     _openedNewsCount += 1;
-    final reachedMilestone = _openedNewsCount % 5 == 0;
+    final reachedMilestone = _openedNewsCount >= _nextInterstitialAt;
     final shouldShowInterstitial = _pendingInterstitial || reachedMilestone;
     if (reachedMilestone) {
       _pendingInterstitial = true;
     }
+    _maybePreloadInterstitial();
     final ad = _interstitialAd;
     print(  'Noticias abiertas: $_openedNewsCount, mostrar interstitial: $shouldShowInterstitial');
     if (!shouldShowInterstitial || ad == null) {
@@ -94,6 +116,7 @@ class _NoticiasScreenState extends State<NoticiasScreen> {
       onAdDismissedFullScreenContent: (ad) {
         ad.dispose();
         _pendingInterstitial = false;
+        _nextInterstitialAt += _interstitialFrequency;
         _interstitialAd = null;
         _loadInterstitial();
         _abrirDetalle(context, noticia);
