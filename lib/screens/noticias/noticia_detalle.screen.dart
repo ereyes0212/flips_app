@@ -70,18 +70,119 @@ class _NoticiaDetalleScreen extends StatelessWidget {
                     onTap: (categoria) => _abrirCategoria(context, categoria),
                   ),
                   const Divider(height: 28),
-                  Text(
-                    noticia.content.isNotEmpty
-                        ? noticia.content
-                        : 'Esta noticia no incluye contenido disponible desde la API.',
-                    style: theme.textTheme.bodyLarge?.copyWith(height: 1.65),
-                  ),
+                  _ArticleContent(noticia: noticia),
                 ],
               ),
             ),
           ),
         ],
       ),
+    );
+  }
+}
+
+class _ArticleContent extends StatelessWidget {
+  const _ArticleContent({required this.noticia});
+
+  final NoticiaModel noticia;
+
+  @override
+  Widget build(BuildContext context) {
+    final blocks = _visibleBlocks();
+    if (blocks.isEmpty) {
+      return Text(
+        noticia.content.isNotEmpty
+            ? noticia.content
+            : 'Esta noticia no incluye contenido disponible desde la API.',
+        style: Theme.of(context).textTheme.bodyLarge?.copyWith(height: 1.65),
+      );
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        for (var index = 0; index < blocks.length; index++) ...[
+          if (index > 0) const SizedBox(height: 18),
+          _ArticleBlock(block: blocks[index]),
+        ],
+      ],
+    );
+  }
+
+  List<NoticiaContentBlock> _visibleBlocks() {
+    var skippedFeaturedImage = false;
+    return noticia.contentBlocks.where((block) {
+      if (!block.isImage) return true;
+      final isFeatured = _sameImageUrl(block.imageUrl, noticia.imageUrl);
+      if (isFeatured && !skippedFeaturedImage) {
+        skippedFeaturedImage = true;
+        return false;
+      }
+      return true;
+    }).toList();
+  }
+
+  bool _sameImageUrl(String first, String second) {
+    if (first.isEmpty || second.isEmpty) return false;
+    final firstUri = Uri.tryParse(first);
+    final secondUri = Uri.tryParse(second);
+    if (firstUri == null || secondUri == null) return first == second;
+    return firstUri.host == secondUri.host && firstUri.path == secondUri.path;
+  }
+}
+
+class _ArticleBlock extends StatelessWidget {
+  const _ArticleBlock({required this.block});
+
+  final NoticiaContentBlock block;
+
+  @override
+  Widget build(BuildContext context) {
+    if (block.isImage) return _ArticleImage(block: block);
+
+    return Text(
+      block.text,
+      style: Theme.of(context).textTheme.bodyLarge?.copyWith(height: 1.65),
+    );
+  }
+}
+
+class _ArticleImage extends StatelessWidget {
+  const _ArticleImage({required this.block});
+
+  final NoticiaContentBlock block;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        ClipRRect(
+          borderRadius: BorderRadius.circular(18),
+          child: AspectRatio(
+            aspectRatio: 4 / 3,
+            child: _NewsImage(
+              url: block.imageUrl,
+              borderRadius: BorderRadius.zero,
+              iconSize: 48,
+            ),
+          ),
+        ),
+        if (block.caption.isNotEmpty) ...[
+          const SizedBox(height: 8),
+          Text(
+            block.caption,
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: colorScheme.onSurfaceVariant,
+              fontStyle: FontStyle.italic,
+              height: 1.35,
+            ),
+          ),
+        ],
+      ],
     );
   }
 }
