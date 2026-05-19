@@ -36,6 +36,8 @@ class NoticiasService {
   static const _baseUrl = 'https://tiempo.hn/wp-json/wp/v2';
   static const _cacheKey = 'noticias_cache_v1';
   static const _cacheAtKey = 'noticias_cache_at_v1';
+  static const _postFields =
+      'id,date,slug,link,title,excerpt,content,categories,yoast_head_json,_embedded.wp:featuredmedia.source_url,_embedded.wp:featuredmedia.alt_text';
   static const _wordpressUsername = String.fromEnvironment(
     'WP_USER',
   );
@@ -53,7 +55,7 @@ class NoticiasService {
       'page': '$page',
       'per_page': '$perPage',
       '_embed': '1',
-      '_fields': 'id,date,slug,link,title,excerpt,content,categories,yoast_head_json,_embedded.wp:featuredmedia.source_url,_embedded.wp:featuredmedia.alt_text',
+      '_fields': _postFields,
     };
     if (categoria != null) query['categories'] = '$categoria';
     if (busqueda != null && busqueda.trim().isNotEmpty) {
@@ -95,6 +97,31 @@ class NoticiasService {
     }
   }
 
+  Future<NoticiaModel?> obtenerNoticiaPorLink(String link) async {
+    final slug = _slugFromLink(link);
+    if (slug.isEmpty) return null;
+
+    final query = <String, String>{
+      'slug': slug,
+      'per_page': '1',
+      '_embed': '1',
+      '_fields': _postFields,
+    };
+    final uri = Uri.parse('$_baseUrl/posts').replace(queryParameters: query);
+
+    try {
+      final response = await http.get(uri, headers: _headers);
+      if (response.statusCode != 200) return null;
+
+      final body = jsonDecode(response.body) as List<dynamic>;
+      if (body.isEmpty) return null;
+
+      return NoticiaModel.fromJson(body.first as Map<String, dynamic>);
+    } catch (_) {
+      return null;
+    }
+  }
+
   Future<CategoriasNoticiasResult> obtenerCategorias({int perPage = 100}) async {
     final query = <String, String>{
       'per_page': '$perPage',
@@ -128,6 +155,19 @@ class NoticiasService {
         errorMessage: 'Sin conexión para cargar categorías.',
       );
     }
+  }
+
+  String _slugFromLink(String link) {
+    final uri = Uri.tryParse(link.trim());
+    if (uri == null) return '';
+
+    final segments = uri.pathSegments
+        .map((segment) => segment.trim())
+        .where((segment) => segment.isNotEmpty)
+        .toList();
+    if (segments.isEmpty) return '';
+
+    return segments.last;
   }
 
   Map<String, String> get _headers {
