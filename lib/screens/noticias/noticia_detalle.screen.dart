@@ -16,11 +16,6 @@ class _NoticiaDetalleScreen extends StatelessWidget {
           SliverAppBar(
             expandedHeight: 320,
             pinned: true,
-            title: Text(
-              noticia.title,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-            ),
             actions: [
               IconButton(
                 tooltip: 'Compartir noticia',
