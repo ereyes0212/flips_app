@@ -89,7 +89,10 @@ class _CategoriaNoticiasScreenState extends State<_CategoriaNoticiasScreen> {
                 ),
               )
             else ...[
-              _NoticiasList(noticias: _noticias),
+              _NoticiasList(
+                noticias: _noticias,
+                onTapNoticia: (noticia) => _abrirDetalle(context, noticia),
+              ),
               SliverToBoxAdapter(
                 child: _LoadMoreButton(
                   hasMore: _hasMore,

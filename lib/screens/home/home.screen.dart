@@ -1,5 +1,7 @@
 // ignore_for_file: use_build_context_synchronously
 
+import 'dart:io';
+
 import 'package:animated_bottom_navigation_bar/animated_bottom_navigation_bar.dart';
 import 'package:flips_app/controllers/auth.controller.dart';
 import 'package:flips_app/globals/widgets/widgets.dart';
@@ -17,6 +19,7 @@ import 'package:flips_app/services/auth.service.dart';
 import 'package:flips_app/services/push_notifications.service.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:google_mobile_ads/google_mobile_ads.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -28,16 +31,65 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
+  static const String _adManagerBannerAdUnitIdAndroid = '/170101793/APP/320x50_fijo';
+  static const String _adManagerBannerAdUnitIdIos = '/170101793/APP/320x50_fijo';
+
   int _currentIndex = 0;
   bool _dialogoSuscripcionMostrado = false;
+  AdManagerBannerAd? _bannerAd;
+  bool _isBannerAdReady = false;
+  AdSize _bannerSize = AdSize.banner;
 
   @override
   void initState() {
     super.initState();
+    _loadBannerAd();
     Future.microtask(() async {
       await _validarSuscripcionActiva();
       await _pedirPermisosNotificaciones();
     });
+  }
+
+  @override
+  void dispose() {
+    _bannerAd?.dispose();
+    super.dispose();
+  }
+
+  String get _adManagerBannerAdUnitId {
+    if (Platform.isAndroid) return _adManagerBannerAdUnitIdAndroid;
+    if (Platform.isIOS) return _adManagerBannerAdUnitIdIos;
+    return '';
+  }
+
+  void _loadBannerAd() {
+    final adUnitId = _adManagerBannerAdUnitId;
+    if (adUnitId.isEmpty) return;
+
+    final bannerAd = AdManagerBannerAd(
+      adUnitId: adUnitId,
+      request: const AdManagerAdRequest(),
+      sizes: const [AdSize(width: 300, height: 50), AdSize.banner],
+      listener: AdManagerBannerAdListener(
+        onAdLoaded: (ad) {
+          if (!mounted) {
+            ad.dispose();
+            return;
+          }
+          setState(() {
+            _bannerAd = ad as AdManagerBannerAd;
+            _isBannerAdReady = true;
+            _bannerSize = _bannerAd!.sizes.first;
+          });
+        },
+        onAdFailedToLoad: (ad, error) {
+          ad.dispose();
+          debugPrint('Error al cargar anuncio de Ad Manager: $error');
+        },
+      ),
+    );
+
+    bannerAd.load();
   }
 
   Future<void> _validarSuscripcionActiva() async {
@@ -171,22 +223,33 @@ Contrata hoy para desbloquear todo el contenido exclusivo.''',
     return Scaffold(
       backgroundColor: tema.onSecondary,
       body: _pantallas()[_currentIndex],
-      bottomNavigationBar: AnimatedBottomNavigationBar(
-        icons: const [
-          Icons.article_outlined,
-          Icons.collections_bookmark_outlined,
-          Icons.person_outline,
-          Icons.more_horiz,
+      bottomNavigationBar: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (_isBannerAdReady && _bannerAd != null)
+            SizedBox(
+              width: _bannerSize.width.toDouble(),
+              height: _bannerSize.height.toDouble(),
+              child: AdWidget(ad: _bannerAd!),
+            ),
+          AnimatedBottomNavigationBar(
+            icons: const [
+              Icons.article_outlined,
+              Icons.collections_bookmark_outlined,
+              Icons.person_outline,
+              Icons.more_horiz,
+            ],
+            activeIndex: _currentIndex,
+            gapLocation: GapLocation.none,
+            notchSmoothness: NotchSmoothness.defaultEdge,
+            leftCornerRadius: 32,
+            rightCornerRadius: 32,
+            onTap: (index) => setState(() => _currentIndex = index),
+            activeColor: tema.primary,
+            inactiveColor: tema.secondary,
+            backgroundColor: Colors.white,
+          ),
         ],
-        activeIndex: _currentIndex,
-        gapLocation: GapLocation.none,
-        notchSmoothness: NotchSmoothness.defaultEdge,
-        leftCornerRadius: 32,
-        rightCornerRadius: 32,
-        onTap: (index) => setState(() => _currentIndex = index),
-        activeColor: tema.primary,
-        inactiveColor: tema.secondary,
-        backgroundColor: Colors.white,
       ),
     );
   }
