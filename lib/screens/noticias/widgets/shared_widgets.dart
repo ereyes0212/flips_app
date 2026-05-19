@@ -35,7 +35,7 @@ class _NewsImage extends StatelessWidget {
     return ClipRRect(
       borderRadius: borderRadius,
       child: Stack(
-        fit: StackFit.expand,
+        fit: StackFit.loose,
         children: [
           placeholder,
           Image.network(
