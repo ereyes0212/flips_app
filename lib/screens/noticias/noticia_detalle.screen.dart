@@ -129,6 +129,10 @@ class _ArticleContent extends StatelessWidget {
         for (var index = 0; index < blocks.length; index++) ...[
           if (index > 0) const SizedBox(height: 18),
           _ArticleBlock(block: blocks[index]),
+          if ((index + 1) % 3 == 0 && index != blocks.length - 1) ...[
+            const SizedBox(height: 18),
+            const _ArticleInlineAd(),
+          ],
         ],
       ],
     );
@@ -153,6 +157,64 @@ class _ArticleContent extends StatelessWidget {
     final secondUri = Uri.tryParse(second);
     if (firstUri == null || secondUri == null) return first == second;
     return firstUri.host == secondUri.host && firstUri.path == secondUri.path;
+  }
+}
+
+class _ArticleInlineAd extends StatefulWidget {
+  const _ArticleInlineAd();
+
+  @override
+  State<_ArticleInlineAd> createState() => _ArticleInlineAdState();
+}
+
+class _ArticleInlineAdState extends State<_ArticleInlineAd> {
+  static const String _adUnitId = '/170101793/APP/box_1';
+
+  AdManagerBannerAd? _ad;
+  bool _ready = false;
+
+  @override
+  void initState() {
+    super.initState();
+    final ad = AdManagerBannerAd(
+      adUnitId: _adUnitId,
+      request: const AdManagerAdRequest(),
+      sizes: const [
+        AdSize(width: 300, height: 250),
+        AdSize(width: 300, height: 300),
+        AdSize(width: 336, height: 280),
+      ],
+      listener: BannerAdListener(
+        onAdLoaded: (_) {
+          if (!mounted) return;
+          setState(() => _ready = true);
+        },
+        onAdFailedToLoad: (ad, error) {
+          ad.dispose();
+          debugPrint('Error al cargar box_1 en detalle: $error');
+        },
+      ),
+    );
+    _ad = ad;
+    ad.load();
+  }
+
+  @override
+  void dispose() {
+    _ad?.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (!_ready || _ad == null) return const SizedBox.shrink();
+    return Center(
+      child: SizedBox(
+        width: 300,
+        height: 250,
+        child: AdWidget(ad: _ad!),
+      ),
+    );
   }
 }
 

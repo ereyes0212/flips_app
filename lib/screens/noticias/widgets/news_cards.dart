@@ -87,9 +87,10 @@ class _PortadaCard extends StatelessWidget {
 }
 
 class _NoticiaCard extends StatelessWidget {
-  const _NoticiaCard({required this.noticia});
+  const _NoticiaCard({required this.noticia, this.onTapOverride});
 
   final NoticiaModel noticia;
+  final VoidCallback? onTapOverride;
 
   @override
   Widget build(BuildContext context) {
@@ -100,7 +101,7 @@ class _NoticiaCard extends StatelessWidget {
       margin: EdgeInsets.zero,
       child: InkWell(
         borderRadius: BorderRadius.circular(18),
-        onTap: () => _abrirDetalle(context, noticia),
+        onTap: onTapOverride ?? () => _abrirDetalle(context, noticia),
         child: Padding(
           padding: const EdgeInsets.all(12),
           child: Row(

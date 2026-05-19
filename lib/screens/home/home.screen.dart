@@ -31,12 +31,12 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
-  static const String _adManagerBannerAdUnitIdAndroid = '/6499/example/banner';
-  static const String _adManagerBannerAdUnitIdIos = '/6499/example/banner';
+  static const String _adManagerBannerAdUnitIdAndroid = '/170101793/APP/320x50_fijo';
+  static const String _adManagerBannerAdUnitIdIos = '/170101793/APP/320x50_fijo';
 
   int _currentIndex = 0;
   bool _dialogoSuscripcionMostrado = false;
-  BannerAd? _bannerAd;
+  AdManagerBannerAd? _bannerAd;
   bool _isBannerAdReady = false;
 
   @override
@@ -65,10 +65,10 @@ class _HomeScreenState extends State<HomeScreen> {
     final adUnitId = _adManagerBannerAdUnitId;
     if (adUnitId.isEmpty) return;
 
-    final bannerAd = BannerAd(
+    final bannerAd = AdManagerBannerAd(
       adUnitId: adUnitId,
       request: const AdManagerAdRequest(),
-      size: AdSize.banner,
+      sizes: const [AdSize(width: 300, height: 50), AdSize.banner],
       listener: BannerAdListener(
         onAdLoaded: (ad) {
           if (!mounted) {
@@ -76,7 +76,7 @@ class _HomeScreenState extends State<HomeScreen> {
             return;
           }
           setState(() {
-            _bannerAd = ad as BannerAd;
+            _bannerAd = ad as AdManagerBannerAd;
             _isBannerAdReady = true;
           });
         },
