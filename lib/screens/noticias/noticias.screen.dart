@@ -119,7 +119,7 @@ class _NoticiasScreenState extends State<NoticiasScreen> {
 
   void _abrirDetalleConInterstitial(NoticiaModel noticia) {
     if (_hideAds) {
-      _abrirDetalle(context, noticia, _hideAds);
+      _abrirDetalle(context, noticia, hideAds: _hideAds);
       return;
     }
 
@@ -137,7 +137,7 @@ class _NoticiasScreenState extends State<NoticiasScreen> {
       );
     }
     if (!shouldShowInterstitial || ad == null) {
-      _abrirDetalle(context, noticia, _hideAds);
+      _abrirDetalle(context, noticia, hideAds: _hideAds);
       if (ad == null) _loadInterstitial();
       return;
     }
@@ -149,7 +149,7 @@ class _NoticiasScreenState extends State<NoticiasScreen> {
         _nextInterstitialAt += _interstitialFrequency;
         _interstitialAd = null;
         _loadInterstitial();
-        _abrirDetalle(context, noticia, _hideAds);
+        _abrirDetalle(context, noticia, hideAds: _hideAds);
       },
       onAdFailedToShowFullScreenContent: (ad, error) {
         ad.dispose();
@@ -157,7 +157,7 @@ class _NoticiasScreenState extends State<NoticiasScreen> {
         _interstitialAd = null;
         _loadInterstitial();
         debugPrint('Error mostrando interstitial: $error');
-        _abrirDetalle(context, noticia, _hideAds);
+        _abrirDetalle(context, noticia, hideAds: _hideAds);
       },
     );
 
@@ -340,7 +340,7 @@ class _NoticiasContentSlivers extends StatelessWidget {
 }
 
 class _NoticiasList extends StatelessWidget {
-  const _NoticiasList({required this.noticias, required this.onTapNoticia, required this.hideAds});
+  const _NoticiasList({required this.noticias, required this.onTapNoticia, this.hideAds = false});
 
   final List<NoticiaModel> noticias;
   final ValueChanged<NoticiaModel> onTapNoticia;
@@ -443,7 +443,7 @@ Future<void> _compartirNoticia(BuildContext context, NoticiaModel noticia) async
   await SharePlus.instance.share(ShareParams(text: mensaje, subject: noticia.title));
 }
 
-void _abrirDetalle(BuildContext context, NoticiaModel noticia, bool hideAds) {
+void _abrirDetalle(BuildContext context, NoticiaModel noticia, {bool hideAds = false}) {
   Navigator.push(
     context,
     MaterialPageRoute(builder: (_) => _NoticiaDetalleScreen(noticia: noticia, hideAds: hideAds)),

@@ -1,7 +1,7 @@
 part of 'noticias.screen.dart';
 
 class _NoticiaDetalleScreen extends StatelessWidget {
-  const _NoticiaDetalleScreen({required this.noticia, required this.hideAds});
+  const _NoticiaDetalleScreen({required this.noticia, this.hideAds = false});
 
   final NoticiaModel noticia;
   final bool hideAds;
