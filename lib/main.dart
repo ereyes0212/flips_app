@@ -40,6 +40,16 @@ Future<void> main() async {
   runApp(const MyApp());
 }
 
+Future<bool> _resolveInitialSession() async {
+  try {
+    return await SessionService.hasValidSession().timeout(
+      const Duration(seconds: 4),
+    );
+  } catch (_) {
+    return SessionService.hasStoredSession();
+  }
+}
+
 class MyApp extends StatelessWidget {
   const MyApp({super.key});
   @override
@@ -145,7 +155,7 @@ class MyApp extends StatelessWidget {
         title: 'Diario Tiempo HN',
         routes: {'/login': (_) => const LoginScreen()},
         home: FutureBuilder<bool>(
-          future: SessionService.hasValidSession(),
+          future: _resolveInitialSession(),
           builder: (context, snapshot) {
             if (snapshot.connectionState == ConnectionState.waiting) {
               return const Scaffold(body: Center(child: CircularProgressIndicator()));
