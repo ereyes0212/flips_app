@@ -78,7 +78,7 @@ class _NoticiasScreenState extends State<NoticiasScreen> {
     _openedNewsCount += 1;
     final shouldShowInterstitial = _openedNewsCount % 5 == 0;
     final ad = _interstitialAd;
-
+    print(  'Noticias abiertas: $_openedNewsCount, mostrar interstitial: $shouldShowInterstitial');
     if (!shouldShowInterstitial || ad == null) {
       _abrirDetalle(context, noticia);
       if (ad == null) _loadInterstitial();
