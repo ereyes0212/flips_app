@@ -7,6 +7,7 @@ import 'package:flips_app/services/noticias.service.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
+import 'package:share_plus/share_plus.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 
 part 'categoria_noticias.screen.dart';
@@ -230,6 +231,20 @@ class _NoticiasList extends StatelessWidget {
       ),
     );
   }
+}
+
+
+Future<void> _compartirNoticia(BuildContext context, NoticiaModel noticia) async {
+  final link = noticia.link.trim();
+  if (link.isEmpty) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Esta noticia no tiene un enlace para compartir.')),
+    );
+    return;
+  }
+
+  final mensaje = '${noticia.title}\n$link';
+  await SharePlus.instance.share(ShareParams(text: mensaje, subject: noticia.title));
 }
 
 void _abrirDetalle(BuildContext context, NoticiaModel noticia) {

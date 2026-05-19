@@ -21,6 +21,13 @@ class _NoticiaDetalleScreen extends StatelessWidget {
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
             ),
+            actions: [
+              IconButton(
+                tooltip: 'Compartir noticia',
+                onPressed: () => _compartirNoticia(context, noticia),
+                icon: const Icon(Icons.share_outlined),
+              ),
+            ],
             flexibleSpace: FlexibleSpaceBar(
               background: Stack(
                 fit: StackFit.expand,
