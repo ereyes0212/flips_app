@@ -33,7 +33,6 @@ class _PortadaCard extends StatelessWidget {
               url: noticia.imageUrl,
               iconSize: 64,
               borderRadius: BorderRadius.zero,
-              heroTag: _heroTagForNewsImage(noticia),
             ),
             DecoratedBox(
               decoration: BoxDecoration(
