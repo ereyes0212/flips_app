@@ -116,6 +116,7 @@ class _ArticleContent extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final blocks = _visibleBlocks();
+    final adPositionMap = _adPositionMap(blocks);
     if (blocks.isEmpty) {
       return Text(
         noticia.content.isNotEmpty
@@ -131,13 +132,39 @@ class _ArticleContent extends StatelessWidget {
         for (var index = 0; index < blocks.length; index++) ...[
           if (index > 0) const SizedBox(height: 18),
           _ArticleBlock(block: blocks[index]),
-          if (!hideAds && (index + 1) % 3 == 0 && index != blocks.length - 1) ...[
+          if (!hideAds && adPositionMap.containsKey(index)) ...[
             const SizedBox(height: 18),
-            const _ArticleInlineAd(),
+            _AnimatedArticleInlineAd(adPosition: adPositionMap[index]!),
           ],
         ],
       ],
     );
+  }
+
+  Map<int, int> _adPositionMap(List<NoticiaContentBlock> blocks) {
+    final textIndexes = <int>[];
+    for (var i = 0; i < blocks.length; i++) {
+      if (!blocks[i].isImage &&
+          !blocks[i].isGallery &&
+          !blocks[i].isVideo &&
+          !blocks[i].isLink) {
+        textIndexes.add(i);
+      }
+    }
+    if (textIndexes.length < 4) return const {};
+
+    final maxAds = textIndexes.length > 4 ? 4 : textIndexes.length - 1;
+    final positions = <int>{};
+    for (var i = 1; i <= maxAds; i++) {
+      final ratio = i / (maxAds + 1);
+      var textPosition = (textIndexes.length * ratio).floor();
+      textPosition = textPosition.clamp(1, textIndexes.length - 1).toInt();
+      positions.add(textIndexes[textPosition]);
+    }
+    final sorted = positions.toList()..sort();
+    return {
+      for (var i = 0; i < sorted.length; i++) sorted[i]: i,
+    };
   }
 
   List<NoticiaContentBlock> _visibleBlocks() {
@@ -167,6 +194,27 @@ class _ArticleInlineAd extends StatefulWidget {
 
   @override
   State<_ArticleInlineAd> createState() => _ArticleInlineAdState();
+}
+
+class _AnimatedArticleInlineAd extends StatelessWidget {
+  const _AnimatedArticleInlineAd({required this.adPosition});
+
+  final int adPosition;
+
+  @override
+  Widget build(BuildContext context) {
+    final disableAnimations = MediaQuery.maybeOf(context)?.disableAnimations ?? false;
+    if (disableAnimations) return const _ArticleInlineAd();
+    return TweenAnimationBuilder<double>(
+      tween: Tween(begin: 16, end: 0),
+      duration: Duration(milliseconds: 360 + (adPosition * 90)),
+      curve: Curves.easeOutCubic,
+      builder: (context, offsetY, child) {
+        return Transform.translate(offset: Offset(0, offsetY), child: child);
+      },
+      child: const _ArticleInlineAd(),
+    );
+  }
 }
 
 class _ArticleInlineAdState extends State<_ArticleInlineAd> {

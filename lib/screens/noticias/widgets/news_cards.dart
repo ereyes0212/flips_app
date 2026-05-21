@@ -8,8 +8,9 @@ class _PortadaCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final disableAnimations = MediaQuery.maybeOf(context)?.disableAnimations ?? false;
 
-    return InkWell(
+    final cardChild = InkWell(
       borderRadius: BorderRadius.circular(24),
       onTap: () => _abrirDetalle(context, noticia),
       child: Container(
@@ -77,11 +78,22 @@ class _PortadaCard extends StatelessWidget {
                   _DateLabel(date: noticia.date, color: Colors.white),
                 ],
               ),
-              
             ),
           ],
         ),
       ),
+    );
+
+    if (disableAnimations) return cardChild;
+
+    return TweenAnimationBuilder<double>(
+      tween: Tween(begin: 0.94, end: 1),
+      duration: const Duration(milliseconds: 450),
+      curve: Curves.easeOutCubic,
+      builder: (context, scale, child) {
+        return Transform.scale(scale: scale, child: child);
+      },
+      child: cardChild,
     );
   }
 }
@@ -96,8 +108,9 @@ class _NoticiaCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
+    final disableAnimations = MediaQuery.maybeOf(context)?.disableAnimations ?? false;
 
-    return Card(
+    final cardChild = Card(
       margin: EdgeInsets.zero,
       child: InkWell(
         borderRadius: BorderRadius.circular(18),
@@ -148,6 +161,18 @@ class _NoticiaCard extends StatelessWidget {
           ),
         ),
       ),
+    );
+
+    if (disableAnimations) return cardChild;
+
+    return TweenAnimationBuilder<double>(
+      tween: Tween(begin: 24, end: 0),
+      duration: const Duration(milliseconds: 420),
+      curve: Curves.easeOutCubic,
+      builder: (context, offsetY, child) {
+        return Transform.translate(offset: Offset(0, offsetY), child: child);
+      },
+      child: cardChild,
     );
   }
 }
