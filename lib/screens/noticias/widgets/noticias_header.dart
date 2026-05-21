@@ -38,7 +38,7 @@ class _NoticiasHeader extends StatelessWidget {
         gradient: LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
-          colors: [colorScheme.primary, colorScheme.secondary],
+          colors: [ colorScheme.secondary, colorScheme.primary],
         ),
       ),
       child: SafeArea(
