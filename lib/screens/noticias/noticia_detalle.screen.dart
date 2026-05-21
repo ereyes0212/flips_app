@@ -33,6 +33,7 @@ class _NoticiaDetalleScreen extends StatelessWidget {
                       url: noticia.imageUrl,
                       iconSize: 72,
                       borderRadius: BorderRadius.zero,
+                      heroTag: _heroTagForNewsImage(noticia),
                     ),
                   ),
                   DecoratedBox(
@@ -696,14 +697,31 @@ class _ArticleImage extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        ClipRRect(
+        InkWell(
           borderRadius: BorderRadius.circular(18),
-          child: AspectRatio(
-            aspectRatio: 4 / 3,
-            child: _NewsImage(
-              url: block.imageUrl,
-              borderRadius: BorderRadius.zero,
-              iconSize: 48,
+          onTap: block.imageUrl.isEmpty
+              ? null
+              : () {
+                  Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (_) => _FullscreenImageViewer(
+                        imageUrl: block.imageUrl,
+                        heroTag: 'article-image-${block.imageUrl}',
+                        caption: block.caption,
+                      ),
+                    ),
+                  );
+                },
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(18),
+            child: AspectRatio(
+              aspectRatio: 4 / 3,
+              child: _NewsImage(
+                url: block.imageUrl,
+                borderRadius: BorderRadius.zero,
+                iconSize: 48,
+                heroTag: block.imageUrl.isEmpty ? null : 'article-image-${block.imageUrl}',
+              ),
             ),
           ),
         ),
@@ -719,6 +737,67 @@ class _ArticleImage extends StatelessWidget {
           ),
         ],
       ],
+    );
+  }
+}
+
+class _FullscreenImageViewer extends StatelessWidget {
+  const _FullscreenImageViewer({
+    required this.imageUrl,
+    required this.heroTag,
+    required this.caption,
+  });
+
+  final String imageUrl;
+  final String heroTag;
+  final String caption;
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Colors.black,
+      appBar: AppBar(
+        backgroundColor: Colors.black,
+        foregroundColor: Colors.white,
+      ),
+      body: SafeArea(
+        child: Column(
+          children: [
+            Expanded(
+              child: Center(
+                child: Hero(
+                  tag: heroTag,
+                  child: InteractiveViewer(
+                    minScale: 1,
+                    maxScale: 4,
+                    child: Image.network(
+                      imageUrl,
+                      fit: BoxFit.contain,
+                      errorBuilder: (_, __, ___) => const Icon(
+                        Icons.broken_image_outlined,
+                        color: Colors.white70,
+                        size: 56,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+            if (caption.isNotEmpty)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+                child: Text(
+                  caption,
+                  style: const TextStyle(
+                    color: Colors.white70,
+                    fontStyle: FontStyle.italic,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+              ),
+          ],
+        ),
+      ),
     );
   }
 }

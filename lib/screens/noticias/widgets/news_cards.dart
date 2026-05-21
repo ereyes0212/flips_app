@@ -33,6 +33,7 @@ class _PortadaCard extends StatelessWidget {
               url: noticia.imageUrl,
               iconSize: 64,
               borderRadius: BorderRadius.zero,
+              heroTag: _heroTagForNewsImage(noticia),
             ),
             DecoratedBox(
               decoration: BoxDecoration(
@@ -120,7 +121,11 @@ class _NoticiaCard extends StatelessWidget {
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              _NewsImage(url: noticia.imageUrl, size: 112),
+                _NewsImage(
+                  url: noticia.imageUrl,
+                  size: 112,
+                  heroTag: _heroTagForNewsImage(noticia),
+                ),
               const SizedBox(width: 14),
               Expanded(
                 child: Column(
