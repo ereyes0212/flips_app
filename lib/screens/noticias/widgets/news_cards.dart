@@ -99,10 +99,15 @@ class _PortadaCard extends StatelessWidget {
 }
 
 class _NoticiaCard extends StatelessWidget {
-  const _NoticiaCard({required this.noticia, this.onTapOverride});
+  const _NoticiaCard({
+    required this.noticia,
+    this.onTapOverride,
+    this.enableHero = true,
+  });
 
   final NoticiaModel noticia;
   final VoidCallback? onTapOverride;
+  final bool enableHero;
 
   @override
   Widget build(BuildContext context) {
@@ -123,7 +128,7 @@ class _NoticiaCard extends StatelessWidget {
                 _NewsImage(
                   url: noticia.imageUrl,
                   size: 112,
-                  heroTag: _heroTagForNewsImage(noticia),
+                  heroTag: enableHero ? _heroTagForNewsImage(noticia) : null,
                 ),
               const SizedBox(width: 14),
               Expanded(

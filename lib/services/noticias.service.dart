@@ -50,6 +50,8 @@ class NoticiasService {
     int perPage = 10,
     int? categoria,
     String? busqueda,
+    DateTime? fechaDesde,
+    DateTime? fechaHasta,
   }) async {
     final query = <String, String>{
       'page': '$page',
@@ -60,6 +62,12 @@ class NoticiasService {
     if (categoria != null) query['categories'] = '$categoria';
     if (busqueda != null && busqueda.trim().isNotEmpty) {
       query['search'] = busqueda.trim();
+    }
+    if (fechaDesde != null) {
+      query['after'] = fechaDesde.toUtc().toIso8601String();
+    }
+    if (fechaHasta != null) {
+      query['before'] = fechaHasta.toUtc().toIso8601String();
     }
 
     final uri = Uri.parse('$_baseUrl/posts').replace(queryParameters: query);
