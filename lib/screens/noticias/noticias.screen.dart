@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:flips_app/controllers/noticias.controller.dart';
 import 'package:flips_app/models/noticias.model.dart';
@@ -562,6 +563,23 @@ class NoticiaDetalleScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return _NoticiaDetalleScreen(noticia: noticia, hideAds: hideAds);
+    final noticiaParaDetalle =
+        noticia.localImagePath.isEmpty
+            ? noticia
+            : NoticiaModel(
+                id: noticia.id,
+                link: noticia.link,
+                slug: noticia.slug,
+                date: noticia.date,
+                title: noticia.title,
+                excerpt: noticia.excerpt,
+                content: noticia.content,
+                contentBlocks: noticia.contentBlocks,
+                imageUrl: noticia.localImagePath,
+                imageAlt: noticia.imageAlt,
+                localImagePath: noticia.localImagePath,
+                categories: noticia.categories,
+              );
+    return _NoticiaDetalleScreen(noticia: noticiaParaDetalle, hideAds: hideAds);
   }
 }

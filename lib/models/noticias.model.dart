@@ -87,6 +87,7 @@ class NoticiaModel {
     required this.contentBlocks,
     required this.imageUrl,
     required this.imageAlt,
+    this.localImagePath = '',
     required this.categories,
   });
 
@@ -100,6 +101,7 @@ class NoticiaModel {
   final List<NoticiaContentBlock> contentBlocks;
   final String imageUrl;
   final String imageAlt;
+  final String localImagePath;
   final List<int> categories;
 
   bool get hasImage => imageUrl.isNotEmpty;
@@ -115,6 +117,7 @@ class NoticiaModel {
       'content': content,
       'imageUrl': imageUrl,
       'imageAlt': imageAlt,
+      'localImagePath': localImagePath,
       'categories': categories,
     };
   }
@@ -134,6 +137,7 @@ class NoticiaModel {
       ],
       imageUrl: json['imageUrl']?.toString() ?? '',
       imageAlt: json['imageAlt']?.toString() ?? '',
+      localImagePath: json['localImagePath']?.toString() ?? '',
       categories:
           (json['categories'] as List<dynamic>? ?? [])
               .map((e) => int.tryParse(e.toString()) ?? 0)
@@ -171,6 +175,7 @@ class NoticiaModel {
       contentBlocks: _parseContentBlocks(rawContent),
       imageUrl: embeddedImage.isNotEmpty ? embeddedImage : metadataImage,
       imageAlt: _cleanHtml((media?['alt_text'] ?? '').toString()),
+      localImagePath: '',
       categories:
           (json['categories'] as List<dynamic>? ?? [])
               .map((e) => int.tryParse(e.toString()) ?? 0)

@@ -1,7 +1,9 @@
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:flips_app/models/noticias.model.dart';
 import 'package:http/http.dart' as http;
+import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class NoticiasResult {
@@ -218,7 +220,24 @@ class NoticiasService {
     final prefs = await SharedPreferences.getInstance();
     final saved = await obtenerNoticiasOffline();
     final byId = <int, NoticiaModel>{for (final item in saved) item.id: item};
-    byId[noticia.id] = noticia;
+    final localImagePath = await _guardarImagenLocal(
+      noticia.id,
+      noticia.imageUrl,
+    );
+    byId[noticia.id] = NoticiaModel(
+      id: noticia.id,
+      link: noticia.link,
+      slug: noticia.slug,
+      date: noticia.date,
+      title: noticia.title,
+      excerpt: noticia.excerpt,
+      content: noticia.content,
+      contentBlocks: noticia.contentBlocks,
+      imageUrl: noticia.imageUrl,
+      imageAlt: noticia.imageAlt,
+      localImagePath: localImagePath,
+      categories: noticia.categories,
+    );
     final encoded = jsonEncode(
       byId.values.map((item) => item.toStorageJson()).toList(),
     );
@@ -237,6 +256,22 @@ class NoticiasService {
           .toList();
     } catch (_) {
       return const [];
+    }
+  }
+
+  Future<String> _guardarImagenLocal(int noticiaId, String imageUrl) async {
+    if (imageUrl.trim().isEmpty) return '';
+    try {
+      final uri = Uri.tryParse(imageUrl.trim());
+      if (uri == null) return '';
+      final response = await http.get(uri);
+      if (response.statusCode != 200 || response.bodyBytes.isEmpty) return '';
+      final directory = await getApplicationDocumentsDirectory();
+      final file = File('${directory.path}/offline_news_image_$noticiaId.jpg');
+      await file.writeAsBytes(response.bodyBytes, flush: true);
+      return file.path;
+    } catch (_) {
+      return '';
     }
   }
 }

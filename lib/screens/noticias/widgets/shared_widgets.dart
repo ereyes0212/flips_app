@@ -33,6 +33,8 @@ class _NewsImage extends StatelessWidget {
     );
 
     if (url.isEmpty) return placeholder;
+    final isLocalFile = url.startsWith('/') || url.startsWith('file://');
+    final localPath = url.startsWith('file://') ? Uri.parse(url).toFilePath() : url;
 
     final image = ClipRRect(
       borderRadius: borderRadius,
@@ -43,24 +45,35 @@ class _NewsImage extends StatelessWidget {
             fit: canExpand ? StackFit.expand : StackFit.loose,
             children: [
               placeholder,
-              Image.network(
-                url,
-                key: ValueKey(url),
-                width: size,
-                height: size,
-                fit: BoxFit.cover,
-                gaplessPlayback: true,
-                errorBuilder: (_, __, ___) => placeholder,
-                frameBuilder: (context, child, frame, wasSynchronouslyLoaded) {
-                  if (wasSynchronouslyLoaded) return child;
-                  return AnimatedOpacity(
-                    opacity: frame == null ? 0 : 1,
-                    duration: const Duration(milliseconds: 180),
-                    curve: Curves.easeOut,
-                    child: child,
-                  );
-                },
-              ),
+              if (isLocalFile)
+                Image.file(
+                  File(localPath),
+                  key: ValueKey(localPath),
+                  width: size,
+                  height: size,
+                  fit: BoxFit.cover,
+                  gaplessPlayback: true,
+                  errorBuilder: (_, __, ___) => placeholder,
+                )
+              else
+                Image.network(
+                  url,
+                  key: ValueKey(url),
+                  width: size,
+                  height: size,
+                  fit: BoxFit.cover,
+                  gaplessPlayback: true,
+                  errorBuilder: (_, __, ___) => placeholder,
+                  frameBuilder: (context, child, frame, wasSynchronouslyLoaded) {
+                    if (wasSynchronouslyLoaded) return child;
+                    return AnimatedOpacity(
+                      opacity: frame == null ? 0 : 1,
+                      duration: const Duration(milliseconds: 180),
+                      curve: Curves.easeOut,
+                      child: child,
+                    );
+                  },
+                ),
             ],
           );
         },
