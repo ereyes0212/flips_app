@@ -1,6 +1,8 @@
 import 'package:flips_app/models/noticias.model.dart';
 import 'package:flips_app/providers/noticias.provider.dart';
 import 'package:flips_app/screens/noticias/noticias.screen.dart';
+import 'package:flips_app/screens/paquetes/paquetes.screen.dart';
+import 'package:flips_app/services/auth.service.dart';
 import 'package:flips_app/services/noticias.service.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -14,16 +16,71 @@ class NoticiasOfflineScreen extends StatefulWidget {
 
 class _NoticiasOfflineScreenState extends State<NoticiasOfflineScreen> {
   final _service = NoticiasService();
+  final _authService = AuthService();
+  bool _loadingSubscription = true;
+  bool _hasActiveSubscription = false;
   @override
   void initState() {
     super.initState();
-    Future.microtask(_cargar);
+    Future.microtask(_validarAccesoOffline);
+  }
+
+  Future<void> _validarAccesoOffline() async {
+    final result = await _authService.obtenerSuscripcionActiva();
+    if (!mounted) return;
+
+    final hasActive = result.autenticado && result.suscripcionActiva;
+    setState(() {
+      _hasActiveSubscription = hasActive;
+      _loadingSubscription = false;
+    });
+
+    if (hasActive) {
+      await _cargar();
+      return;
+    }
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      _mostrarDialogoBeneficios();
+    });
   }
 
   Future<void> _cargar() async {
     final noticias = await _service.obtenerNoticiasOffline();
     if (!mounted) return;
     context.read<NoticiasProvider>().setNoticiasOffline(noticias);
+  }
+
+
+  Future<void> _mostrarDialogoBeneficios() async {
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Modo sin conexión para suscriptores'),
+        content: const Text(
+          'Para guardar y leer noticias sin internet necesitas una suscripción activa. '
+          'Con el plan activo puedes acceder al modo offline y disfrutar una experiencia sin anuncios.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text('Ahora no'),
+          ),
+          ElevatedButton.icon(
+            onPressed: () {
+              Navigator.pop(dialogContext);
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const PaquetesScreen()),
+              );
+            },
+            icon: const Icon(Icons.workspace_premium_outlined),
+            label: const Text('Ver planes'),
+          ),
+        ],
+      ),
+    );
   }
 
   Future<void> _eliminar(NoticiaModel noticia) async {
@@ -40,7 +97,16 @@ class _NoticiasOfflineScreenState extends State<NoticiasOfflineScreen> {
     final noticias = context.watch<NoticiasProvider>().noticiasOffline;
     return Scaffold(
       appBar: AppBar(title: const Text('Noticias sin conexión')),
-      body: noticias.isEmpty
+      body: _loadingSubscription
+          ? const Center(child: CircularProgressIndicator())
+          : !_hasActiveSubscription
+              ? _OfflineSubscriptionPrompt(onTapPlans: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => const PaquetesScreen()),
+                  );
+                })
+              : noticias.isEmpty
           ? const Center(child: Text('Aún no tienes noticias guardadas.'))
           : ListView.separated(
               padding: const EdgeInsets.all(16),
@@ -82,6 +148,51 @@ class _NoticiasOfflineScreenState extends State<NoticiasOfflineScreen> {
               separatorBuilder: (_, __) => const SizedBox(height: 12),
               itemCount: noticias.length,
             ),
+    );
+  }
+}
+
+class _OfflineSubscriptionPrompt extends StatelessWidget {
+  const _OfflineSubscriptionPrompt({required this.onTapPlans});
+
+  final VoidCallback onTapPlans;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              Icons.workspace_premium_rounded,
+              size: 56,
+              color: theme.colorScheme.primary,
+            ),
+            const SizedBox(height: 16),
+            Text(
+              'Activa tu suscripción para usar el modo offline',
+              textAlign: TextAlign.center,
+              style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800),
+            ),
+            const SizedBox(height: 10),
+            Text(
+              'Guarda tus noticias favoritas y léelas cuando no tengas internet. '
+              'Además, tendrás una experiencia premium sin anuncios.',
+              textAlign: TextAlign.center,
+              style: theme.textTheme.bodyMedium,
+            ),
+            const SizedBox(height: 18),
+            ElevatedButton.icon(
+              onPressed: onTapPlans,
+              icon: const Icon(Icons.workspace_premium_outlined),
+              label: const Text('Quiero suscribirme'),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }
