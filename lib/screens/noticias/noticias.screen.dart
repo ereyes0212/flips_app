@@ -382,7 +382,10 @@ class _NoticiasContentSlivers extends StatelessWidget {
         SliverToBoxAdapter(
           child: Padding(
             padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
-            child: _PortadaCard(noticia: provider.noticias.first),
+            child: _PortadaCard(
+              noticia: provider.noticias.first,
+              hideAds: hideAds,
+            ),
           ),
         ),
         SliverToBoxAdapter(

@@ -1,9 +1,10 @@
 part of '../noticias.screen.dart';
 
 class _PortadaCard extends StatelessWidget {
-  const _PortadaCard({required this.noticia});
+  const _PortadaCard({required this.noticia, this.hideAds = false});
 
   final NoticiaModel noticia;
+  final bool hideAds;
 
   @override
   Widget build(BuildContext context) {
@@ -12,7 +13,7 @@ class _PortadaCard extends StatelessWidget {
 
     final cardChild = InkWell(
       borderRadius: BorderRadius.circular(24),
-      onTap: () => _abrirDetalle(context, noticia),
+      onTap: () => _abrirDetalle(context, noticia, hideAds: hideAds),
       child: Container(
         height: 310,
         decoration: BoxDecoration(
