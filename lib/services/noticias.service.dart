@@ -144,7 +144,6 @@ class NoticiasService {
     final uri = Uri.parse('$_baseUrl/categories').replace(
       queryParameters: query,
     );
-    print('Fetching categories with URI: $uri');
     try {
       final response = await http.get(uri, headers: _headers);
       if (response.statusCode == 200) {

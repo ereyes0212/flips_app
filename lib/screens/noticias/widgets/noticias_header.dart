@@ -78,26 +78,28 @@ class _NoticiasHeader extends StatelessWidget {
             children: [
               Expanded(
                 child: Column(
-                  mainAxisAlignment: MainAxisAlignment.end,
+                  mainAxisAlignment: MainAxisAlignment.center,
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
+                      
                       'Diario Tiempo HN',
-                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                      style: Theme.of(context).textTheme.titleLarge?.copyWith(
                             color: Colors.white.withOpacity(0.92),
-                            fontWeight: FontWeight.w600,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 30
                           ),
                     ),
                     const SizedBox(height: 6),
                     Text(
-                      'Por escribir la verdad nos leen más.',
+                      'Por saber la verdad nos leen más.',
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
-                      style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                             color: Colors.white,
                             fontWeight: FontWeight.w900,
                             height: 1.1,
-                            fontSize: isSmallPhone ? 22 : null,
+                            fontSize: isSmallPhone ? 28 : null,
                           ),
                     ),
                   ],
