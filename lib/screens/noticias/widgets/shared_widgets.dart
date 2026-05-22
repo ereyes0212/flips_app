@@ -6,12 +6,14 @@ class _NewsImage extends StatelessWidget {
     this.size,
     this.iconSize = 36,
     this.borderRadius = const BorderRadius.all(Radius.circular(16)),
+    this.heroTag,
   });
 
   final String url;
   final double? size;
   final double iconSize;
   final BorderRadius borderRadius;
+  final String? heroTag;
 
   @override
   Widget build(BuildContext context) {
@@ -32,7 +34,7 @@ class _NewsImage extends StatelessWidget {
 
     if (url.isEmpty) return placeholder;
 
-    return ClipRRect(
+    final image = ClipRRect(
       borderRadius: borderRadius,
       child: LayoutBuilder(
         builder: (context, constraints) {
@@ -64,6 +66,9 @@ class _NewsImage extends StatelessWidget {
         },
       ),
     );
+
+    if (heroTag == null || heroTag!.isEmpty) return image;
+    return Hero(tag: heroTag!, child: image);
   }
 }
 

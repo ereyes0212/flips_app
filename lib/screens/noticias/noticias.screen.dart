@@ -450,6 +450,11 @@ void _abrirDetalle(BuildContext context, NoticiaModel noticia, {bool hideAds = f
   );
 }
 
+String _heroTagForNewsImage(NoticiaModel noticia) {
+  if (noticia.imageUrl.isNotEmpty) return 'news-image-${noticia.id}-${noticia.imageUrl}';
+  return 'news-image-${noticia.id}-${noticia.slug}';
+}
+
 void _abrirCategoria(BuildContext context, CategoriaNoticiaModel categoria) {
   Navigator.push(
     context,
