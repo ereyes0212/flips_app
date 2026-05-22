@@ -224,6 +224,10 @@ class NoticiasService {
       noticia.id,
       noticia.imageUrl,
     );
+    final offlineBlocks = await _guardarContenidoMultimediaLocal(
+      noticia.id,
+      noticia.contentBlocks,
+    );
     byId[noticia.id] = NoticiaModel(
       id: noticia.id,
       link: noticia.link,
@@ -232,7 +236,7 @@ class NoticiasService {
       title: noticia.title,
       excerpt: noticia.excerpt,
       content: noticia.content,
-      contentBlocks: noticia.contentBlocks,
+      contentBlocks: offlineBlocks,
       imageUrl: noticia.imageUrl,
       imageAlt: noticia.imageAlt,
       localImagePath: localImagePath,
@@ -273,5 +277,48 @@ class NoticiasService {
     } catch (_) {
       return '';
     }
+  }
+
+  Future<List<NoticiaContentBlock>> _guardarContenidoMultimediaLocal(
+    int noticiaId,
+    List<NoticiaContentBlock> blocks,
+  ) async {
+    final result = <NoticiaContentBlock>[];
+    for (var i = 0; i < blocks.length; i++) {
+      final block = blocks[i];
+      if (block.isImage) {
+        final local = await _guardarImagenLocal(
+          noticiaId * 1000 + i,
+          block.imageUrl,
+        );
+        result.add(
+          NoticiaContentBlock.image(
+            url: local.isNotEmpty ? local : block.imageUrl,
+            caption: block.caption,
+          ),
+        );
+        continue;
+      }
+      if (block.isGallery) {
+        final items = <NoticiaGalleryItem>[];
+        for (var gi = 0; gi < block.galleryItems.length; gi++) {
+          final item = block.galleryItems[gi];
+          final local = await _guardarImagenLocal(
+            noticiaId * 100000 + (i * 100) + gi,
+            item.imageUrl,
+          );
+          items.add(
+            NoticiaGalleryItem(
+              imageUrl: local.isNotEmpty ? local : item.imageUrl,
+              caption: item.caption,
+            ),
+          );
+        }
+        result.add(NoticiaContentBlock.gallery(items));
+        continue;
+      }
+      result.add(block);
+    }
+    return result;
   }
 }

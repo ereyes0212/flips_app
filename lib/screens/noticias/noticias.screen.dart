@@ -299,6 +299,7 @@ class _NoticiasScreenState extends State<NoticiasScreen> {
             ),
             _NoticiasContentSlivers(
               provider: provider,
+              onRetry: _refrescar,
               onLoadMore: () => _controller.cargarMasNoticias(
                 context,
                 busqueda: _searchController.text.trim(),
@@ -318,12 +319,14 @@ class _NoticiasScreenState extends State<NoticiasScreen> {
 class _NoticiasContentSlivers extends StatelessWidget {
   const _NoticiasContentSlivers({
     required this.provider,
+    required this.onRetry,
     required this.onLoadMore,
     required this.onTapNoticia,
     required this.hideAds,
   });
 
   final NoticiasProvider provider;
+  final VoidCallback onRetry;
   final VoidCallback onLoadMore;
   final ValueChanged<NoticiaModel> onTapNoticia;
   final bool hideAds;
@@ -344,8 +347,10 @@ class _NoticiasContentSlivers extends StatelessWidget {
         hasScrollBody: false,
         child: _EmptyState(
           icon: Icons.cloud_off_outlined,
-          title: 'No pudimos cargar las noticias',
-          message: provider.errorMessage,
+          title: 'Sin conexión a internet',
+          message: 'Verifica tu conexión e intenta nuevamente.',
+          actionLabel: 'Reintentar',
+          onAction: onRetry,
         ),
       );
     }

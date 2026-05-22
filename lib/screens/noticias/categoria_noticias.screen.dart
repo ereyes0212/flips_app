@@ -92,8 +92,10 @@ class _CategoriaNoticiasScreenState extends State<_CategoriaNoticiasScreen> {
                 hasScrollBody: false,
                 child: _EmptyState(
                   icon: Icons.cloud_off_outlined,
-                  title: 'No pudimos cargar esta categoría',
-                  message: _error,
+                  title: 'Sin conexión a internet',
+                  message: 'Verifica tu conexión e intenta nuevamente.',
+                  actionLabel: 'Reintentar',
+                  onAction: _cargarNoticias,
                 ),
               )
             else ...[
