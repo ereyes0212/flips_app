@@ -99,7 +99,7 @@ class _NoticiaDetalleScreen extends StatelessWidget {
                   const Divider(height: 28),
                   _ArticleContent(noticia: noticia, hideAds: hideAds),
                   const SizedBox(height: 28),
-                  _RelatedNewsSection(noticia: noticia),
+                  _RelatedNewsSection(noticia: noticia, hideAds: hideAds),
                 ],
               ),
             ),
@@ -134,7 +134,7 @@ class _ArticleContent extends StatelessWidget {
       children: [
         for (var index = 0; index < blocks.length; index++) ...[
           if (index > 0) const SizedBox(height: 18),
-          _ArticleBlock(block: blocks[index]),
+          _ArticleBlock(block: blocks[index], hideAds: hideAds),
           if (!hideAds && adPositionMap.containsKey(index)) ...[
             const SizedBox(height: 18),
             _AnimatedArticleInlineAd(adPosition: adPositionMap[index]!),
@@ -272,16 +272,17 @@ class _ArticleInlineAdState extends State<_ArticleInlineAd> {
 }
 
 class _ArticleBlock extends StatelessWidget {
-  const _ArticleBlock({required this.block});
+  const _ArticleBlock({required this.block, required this.hideAds});
 
   final NoticiaContentBlock block;
+  final bool hideAds;
 
   @override
   Widget build(BuildContext context) {
     if (block.isImage) return _ArticleImage(block: block);
     if (block.isGallery) return _ArticleGallery(block: block);
     if (block.isVideo) return _ArticleVideo(block: block);
-    if (block.isLink) return _ArticleLink(block: block);
+    if (block.isLink) return _ArticleLink(block: block, hideAds: hideAds);
 
     return Text(
       block.text,
@@ -378,9 +379,10 @@ class _ArticleVideoState extends State<_ArticleVideo> {
 }
 
 class _RelatedNewsSection extends StatelessWidget {
-  const _RelatedNewsSection({required this.noticia});
+  const _RelatedNewsSection({required this.noticia, required this.hideAds});
 
   final NoticiaModel noticia;
+  final bool hideAds;
 
   @override
   Widget build(BuildContext context) {
@@ -413,7 +415,10 @@ class _RelatedNewsSection extends StatelessWidget {
             separatorBuilder: (_, __) => const SizedBox(width: 12),
             itemBuilder: (context, index) {
               final item = related[index];
-              final card = SizedBox(width: 232, child: _RelatedNewsCard(noticia: item));
+              final card = SizedBox(
+                width: 232,
+                child: _RelatedNewsCard(noticia: item, hideAds: hideAds),
+              );
               if (disableAnimations) return card;
               return TweenAnimationBuilder<double>(
                 tween: Tween(begin: 0, end: 1),
@@ -437,9 +442,10 @@ class _RelatedNewsSection extends StatelessWidget {
 }
 
 class _RelatedNewsCard extends StatelessWidget {
-  const _RelatedNewsCard({required this.noticia});
+  const _RelatedNewsCard({required this.noticia, required this.hideAds});
 
   final NoticiaModel noticia;
+  final bool hideAds;
 
   @override
   Widget build(BuildContext context) {
@@ -449,7 +455,7 @@ class _RelatedNewsCard extends StatelessWidget {
       margin: EdgeInsets.zero,
       clipBehavior: Clip.antiAlias,
       child: InkWell(
-        onTap: () => _abrirDetalle(context, noticia),
+        onTap: () => _abrirDetalle(context, noticia, hideAds: hideAds),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -729,9 +735,10 @@ class _GalleryThumb extends StatelessWidget {
 }
 
 class _ArticleLink extends StatefulWidget {
-  const _ArticleLink({required this.block});
+  const _ArticleLink({required this.block, required this.hideAds});
 
   final NoticiaContentBlock block;
+  final bool hideAds;
 
   @override
   State<_ArticleLink> createState() => _ArticleLinkState();
@@ -758,7 +765,7 @@ class _ArticleLinkState extends State<_ArticleLink> {
       return;
     }
 
-    _abrirDetalle(context, noticia);
+    _abrirDetalle(context, noticia, hideAds: widget.hideAds);
   }
 
   @override

@@ -1,7 +1,9 @@
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:flips_app/models/noticias.model.dart';
 import 'package:http/http.dart' as http;
+import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class NoticiasResult {
@@ -36,6 +38,7 @@ class NoticiasService {
   static const _baseUrl = 'https://tiempo.hn/wp-json/wp/v2';
   static const _cacheKey = 'noticias_cache_v1';
   static const _cacheAtKey = 'noticias_cache_at_v1';
+  static const _offlineNewsKey = 'offline_news_v1';
   static const _postFields =
       'id,date,slug,link,title,excerpt,content,categories,yoast_head_json,_embedded.wp:featuredmedia.source_url,_embedded.wp:featuredmedia.alt_text';
   static const _wordpressUsername = String.fromEnvironment(
@@ -211,5 +214,152 @@ class NoticiasService {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_cacheKey, body);
     await prefs.setString(_cacheAtKey, DateTime.now().toIso8601String());
+  }
+
+  Future<void> guardarNoticiaOffline(NoticiaModel noticia) async {
+    final prefs = await SharedPreferences.getInstance();
+    final saved = await obtenerNoticiasOffline();
+    final byId = <int, NoticiaModel>{for (final item in saved) item.id: item};
+    final localImagePath = await _guardarImagenLocal(
+      noticia.id,
+      noticia.imageUrl,
+    );
+    final offlineBlocks = await _guardarContenidoMultimediaLocal(
+      noticia.id,
+      noticia.contentBlocks,
+    );
+    byId[noticia.id] = NoticiaModel(
+      id: noticia.id,
+      link: noticia.link,
+      slug: noticia.slug,
+      date: noticia.date,
+      title: noticia.title,
+      excerpt: noticia.excerpt,
+      content: noticia.content,
+      contentBlocks: offlineBlocks,
+      imageUrl: noticia.imageUrl,
+      imageAlt: noticia.imageAlt,
+      localImagePath: localImagePath,
+      categories: noticia.categories,
+    );
+    final encoded = jsonEncode(
+      byId.values.map((item) => item.toStorageJson()).toList(),
+    );
+    await prefs.setString(_offlineNewsKey, encoded);
+  }
+
+  Future<List<NoticiaModel>> obtenerNoticiasOffline() async {
+    final prefs = await SharedPreferences.getInstance();
+    final raw = prefs.getString(_offlineNewsKey);
+    if (raw == null || raw.isEmpty) return const [];
+    try {
+      final body = jsonDecode(raw) as List<dynamic>;
+      return body
+          .map((e) => NoticiaModel.fromStorageJson(e as Map<String, dynamic>))
+          .where((item) => item.id > 0)
+          .toList();
+    } catch (_) {
+      return const [];
+    }
+  }
+
+  Future<void> eliminarNoticiaOffline(int noticiaId) async {
+    final prefs = await SharedPreferences.getInstance();
+    final saved = await obtenerNoticiasOffline();
+    final filtered = saved.where((item) => item.id != noticiaId).toList();
+
+    final removed = saved.where((item) => item.id == noticiaId).toList();
+    for (final item in removed) {
+      await _eliminarArchivoSiExiste(item.localImagePath);
+      for (final block in item.contentBlocks) {
+        if (block.isImage) {
+          await _eliminarArchivoSiExiste(block.imageUrl);
+        } else if (block.isGallery) {
+          for (final galleryItem in block.galleryItems) {
+            await _eliminarArchivoSiExiste(galleryItem.imageUrl);
+          }
+        }
+      }
+    }
+
+    final encoded = jsonEncode(
+      filtered.map((item) => item.toStorageJson()).toList(),
+    );
+    await prefs.setString(_offlineNewsKey, encoded);
+  }
+
+  Future<String> _guardarImagenLocal(int noticiaId, String imageUrl) async {
+    if (imageUrl.trim().isEmpty) return '';
+    try {
+      final uri = Uri.tryParse(imageUrl.trim());
+      if (uri == null) return '';
+      final response = await http.get(uri);
+      if (response.statusCode != 200 || response.bodyBytes.isEmpty) return '';
+      final directory = await getApplicationDocumentsDirectory();
+      final file = File('${directory.path}/offline_news_image_$noticiaId.jpg');
+      await file.writeAsBytes(response.bodyBytes, flush: true);
+      return file.path;
+    } catch (_) {
+      return '';
+    }
+  }
+
+  Future<void> _eliminarArchivoSiExiste(String path) async {
+    final normalized = path.trim();
+    if (normalized.isEmpty) return;
+    if (!normalized.startsWith('/') && !normalized.startsWith('file://')) return;
+    try {
+      final filePath =
+          normalized.startsWith('file://')
+              ? Uri.parse(normalized).toFilePath()
+              : normalized;
+      final file = File(filePath);
+      if (await file.exists()) {
+        await file.delete();
+      }
+    } catch (_) {}
+  }
+
+  Future<List<NoticiaContentBlock>> _guardarContenidoMultimediaLocal(
+    int noticiaId,
+    List<NoticiaContentBlock> blocks,
+  ) async {
+    final result = <NoticiaContentBlock>[];
+    for (var i = 0; i < blocks.length; i++) {
+      final block = blocks[i];
+      if (block.isImage) {
+        final local = await _guardarImagenLocal(
+          noticiaId * 1000 + i,
+          block.imageUrl,
+        );
+        result.add(
+          NoticiaContentBlock.image(
+            url: local.isNotEmpty ? local : block.imageUrl,
+            caption: block.caption,
+          ),
+        );
+        continue;
+      }
+      if (block.isGallery) {
+        final items = <NoticiaGalleryItem>[];
+        for (var gi = 0; gi < block.galleryItems.length; gi++) {
+          final item = block.galleryItems[gi];
+          final local = await _guardarImagenLocal(
+            noticiaId * 100000 + (i * 100) + gi,
+            item.imageUrl,
+          );
+          items.add(
+            NoticiaGalleryItem(
+              imageUrl: local.isNotEmpty ? local : item.imageUrl,
+              caption: item.caption,
+            ),
+          );
+        }
+        result.add(NoticiaContentBlock.gallery(items));
+        continue;
+      }
+      result.add(block);
+    }
+    return result;
   }
 }

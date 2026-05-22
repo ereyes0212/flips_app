@@ -28,6 +28,18 @@ class NoticiaGalleryItem {
 
   final String imageUrl;
   final String caption;
+
+  Map<String, dynamic> toJson() => {
+    'imageUrl': imageUrl,
+    'caption': caption,
+  };
+
+  factory NoticiaGalleryItem.fromJson(Map<String, dynamic> json) {
+    return NoticiaGalleryItem(
+      imageUrl: json['imageUrl']?.toString() ?? '',
+      caption: json['caption']?.toString() ?? '',
+    );
+  }
 }
 
 class NoticiaContentBlock {
@@ -73,6 +85,45 @@ class NoticiaContentBlock {
   bool get isLink => type == NoticiaContentBlockType.link;
   bool get isGallery => type == NoticiaContentBlockType.gallery;
   bool get isVideo => type == NoticiaContentBlockType.video;
+
+  Map<String, dynamic> toJson() => {
+    'type': type.name,
+    'text': text,
+    'imageUrl': imageUrl,
+    'caption': caption,
+    'linkUrl': linkUrl,
+    'videoUrl': videoUrl,
+    'galleryItems': galleryItems.map((e) => e.toJson()).toList(),
+  };
+
+  factory NoticiaContentBlock.fromJson(Map<String, dynamic> json) {
+    final typeName = json['type']?.toString() ?? 'text';
+    final type = NoticiaContentBlockType.values.firstWhere(
+      (element) => element.name == typeName,
+      orElse: () => NoticiaContentBlockType.text,
+    );
+    switch (type) {
+      case NoticiaContentBlockType.image:
+        return NoticiaContentBlock.image(
+          url: json['imageUrl']?.toString() ?? '',
+          caption: json['caption']?.toString() ?? '',
+        );
+      case NoticiaContentBlockType.link:
+        return NoticiaContentBlock.link(
+          text: json['text']?.toString() ?? '',
+          url: json['linkUrl']?.toString() ?? '',
+        );
+      case NoticiaContentBlockType.gallery:
+        final items = (json['galleryItems'] as List<dynamic>? ?? [])
+            .map((e) => NoticiaGalleryItem.fromJson(e as Map<String, dynamic>))
+            .toList();
+        return NoticiaContentBlock.gallery(items);
+      case NoticiaContentBlockType.video:
+        return NoticiaContentBlock.video(json['videoUrl']?.toString() ?? '');
+      case NoticiaContentBlockType.text:
+        return NoticiaContentBlock.text(json['text']?.toString() ?? '');
+    }
+  }
 }
 
 class NoticiaModel {
@@ -87,6 +138,7 @@ class NoticiaModel {
     required this.contentBlocks,
     required this.imageUrl,
     required this.imageAlt,
+    this.localImagePath = '',
     required this.categories,
   });
 
@@ -100,9 +152,50 @@ class NoticiaModel {
   final List<NoticiaContentBlock> contentBlocks;
   final String imageUrl;
   final String imageAlt;
+  final String localImagePath;
   final List<int> categories;
 
   bool get hasImage => imageUrl.isNotEmpty;
+
+  Map<String, dynamic> toStorageJson() {
+    return {
+      'id': id,
+      'link': link,
+      'slug': slug,
+      'date': date?.toIso8601String(),
+      'title': title,
+      'excerpt': excerpt,
+      'content': content,
+      'imageUrl': imageUrl,
+      'imageAlt': imageAlt,
+      'localImagePath': localImagePath,
+      'contentBlocks': contentBlocks.map((e) => e.toJson()).toList(),
+      'categories': categories,
+    };
+  }
+
+  factory NoticiaModel.fromStorageJson(Map<String, dynamic> json) {
+    return NoticiaModel(
+      id: int.tryParse(json['id']?.toString() ?? '') ?? 0,
+      link: json['link']?.toString() ?? '',
+      slug: json['slug']?.toString() ?? '',
+      date: DateTime.tryParse(json['date']?.toString() ?? ''),
+      title: json['title']?.toString() ?? '',
+      excerpt: json['excerpt']?.toString() ?? '',
+      content: json['content']?.toString() ?? '',
+      contentBlocks: (json['contentBlocks'] as List<dynamic>? ?? [])
+          .map((e) => NoticiaContentBlock.fromJson(e as Map<String, dynamic>))
+          .toList(),
+      imageUrl: json['imageUrl']?.toString() ?? '',
+      imageAlt: json['imageAlt']?.toString() ?? '',
+      localImagePath: json['localImagePath']?.toString() ?? '',
+      categories:
+          (json['categories'] as List<dynamic>? ?? [])
+              .map((e) => int.tryParse(e.toString()) ?? 0)
+              .where((e) => e > 0)
+              .toList(),
+    );
+  }
 
   factory NoticiaModel.fromJson(Map<String, dynamic> json) {
     final embedded = json['_embedded'] as Map<String, dynamic>?;
@@ -133,6 +226,7 @@ class NoticiaModel {
       contentBlocks: _parseContentBlocks(rawContent),
       imageUrl: embeddedImage.isNotEmpty ? embeddedImage : metadataImage,
       imageAlt: _cleanHtml((media?['alt_text'] ?? '').toString()),
+      localImagePath: '',
       categories:
           (json['categories'] as List<dynamic>? ?? [])
               .map((e) => int.tryParse(e.toString()) ?? 0)

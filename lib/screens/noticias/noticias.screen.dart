@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:flips_app/controllers/noticias.controller.dart';
 import 'package:flips_app/models/noticias.model.dart';
@@ -46,6 +47,7 @@ class _NoticiasScreenState extends State<NoticiasScreen> {
   bool _isInterstitialLoading = false;
   bool _hideAds = false;
   DateTimeRange? _filtroFecha;
+  final _noticiasService = NoticiasService();
 
   @override
   void initState() {
@@ -53,8 +55,15 @@ class _NoticiasScreenState extends State<NoticiasScreen> {
     Future.microtask(() {
       _controller.cargarNoticias(context);
       _controller.cargarCategorias(context);
+      _cargarNoticiasOffline();
     });
     _initAdsVisibility();
+  }
+
+  Future<void> _cargarNoticiasOffline() async {
+    final noticiasOffline = await _noticiasService.obtenerNoticiasOffline();
+    if (!mounted) return;
+    context.read<NoticiasProvider>().setNoticiasOffline(noticiasOffline);
   }
 
   @override
@@ -290,6 +299,7 @@ class _NoticiasScreenState extends State<NoticiasScreen> {
             ),
             _NoticiasContentSlivers(
               provider: provider,
+              onRetry: _refrescar,
               onLoadMore: () => _controller.cargarMasNoticias(
                 context,
                 busqueda: _searchController.text.trim(),
@@ -309,12 +319,14 @@ class _NoticiasScreenState extends State<NoticiasScreen> {
 class _NoticiasContentSlivers extends StatelessWidget {
   const _NoticiasContentSlivers({
     required this.provider,
+    required this.onRetry,
     required this.onLoadMore,
     required this.onTapNoticia,
     required this.hideAds,
   });
 
   final NoticiasProvider provider;
+  final VoidCallback onRetry;
   final VoidCallback onLoadMore;
   final ValueChanged<NoticiaModel> onTapNoticia;
   final bool hideAds;
@@ -335,8 +347,10 @@ class _NoticiasContentSlivers extends StatelessWidget {
         hasScrollBody: false,
         child: _EmptyState(
           icon: Icons.cloud_off_outlined,
-          title: 'No pudimos cargar las noticias',
-          message: provider.errorMessage,
+          title: 'Sin conexión a internet',
+          message: 'Verifica tu conexión e intenta nuevamente.',
+          actionLabel: 'Reintentar',
+          onAction: onRetry,
         ),
       );
     }
@@ -368,7 +382,10 @@ class _NoticiasContentSlivers extends StatelessWidget {
         SliverToBoxAdapter(
           child: Padding(
             padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
-            child: _PortadaCard(noticia: provider.noticias.first),
+            child: _PortadaCard(
+              noticia: provider.noticias.first,
+              hideAds: hideAds,
+            ),
           ),
         ),
         SliverToBoxAdapter(
@@ -419,12 +436,14 @@ class _NoticiasList extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final offlineIds = context.watch<NoticiasProvider>().noticiasOfflineIds;
     final children = <Widget>[];
     for (var i = 0; i < noticias.length; i++) {
       final noticia = noticias[i];
       children.add(
         _NoticiaCard(
           noticia: noticia,
+          isDownloaded: offlineIds.contains(noticia.id),
           onTapOverride: () => onTapNoticia(noticia),
         ),
       );
@@ -514,11 +533,18 @@ Future<void> _compartirNoticia(BuildContext context, NoticiaModel noticia) async
   await SharePlus.instance.share(ShareParams(text: mensaje, subject: noticia.title));
 }
 
-void _abrirDetalle(BuildContext context, NoticiaModel noticia, {bool hideAds = false}) {
+Future<void> _abrirDetalle(BuildContext context, NoticiaModel noticia, {bool hideAds = false}) async {
   Navigator.push(
     context,
     MaterialPageRoute(builder: (_) => _NoticiaDetalleScreen(noticia: noticia, hideAds: hideAds)),
   );
+
+  final provider = context.read<NoticiasProvider>();
+  Future<void>(() async {
+    await NoticiasService().guardarNoticiaOffline(noticia);
+    final saved = await NoticiasService().obtenerNoticiasOffline();
+    provider.setNoticiasOffline(saved);
+  });
 }
 
 String _heroTagForNewsImage(NoticiaModel noticia) {
@@ -533,4 +559,37 @@ void _abrirCategoria(BuildContext context, CategoriaNoticiaModel categoria) {
       builder: (_) => _CategoriaNoticiasScreen(categoria: categoria),
     ),
   );
+}
+
+class NoticiaDetalleScreen extends StatelessWidget {
+  const NoticiaDetalleScreen({
+    super.key,
+    required this.noticia,
+    this.hideAds = false,
+  });
+
+  final NoticiaModel noticia;
+  final bool hideAds;
+
+  @override
+  Widget build(BuildContext context) {
+    final noticiaParaDetalle =
+        noticia.localImagePath.isEmpty
+            ? noticia
+            : NoticiaModel(
+                id: noticia.id,
+                link: noticia.link,
+                slug: noticia.slug,
+                date: noticia.date,
+                title: noticia.title,
+                excerpt: noticia.excerpt,
+                content: noticia.content,
+                contentBlocks: noticia.contentBlocks,
+                imageUrl: noticia.localImagePath,
+                imageAlt: noticia.imageAlt,
+                localImagePath: noticia.localImagePath,
+                categories: noticia.categories,
+              );
+    return _NoticiaDetalleScreen(noticia: noticiaParaDetalle, hideAds: hideAds);
+  }
 }
