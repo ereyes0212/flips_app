@@ -70,7 +70,7 @@ class _NoticiasHeader extends StatelessWidget {
                     ),
                     const SizedBox(height: 6),
                     Text(
-                      'Por decir la verdad nos leen más.',
+                      'Por escribir la verdad nos leen más.',
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
                       style: Theme.of(context).textTheme.headlineSmall?.copyWith(

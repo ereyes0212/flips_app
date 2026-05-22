@@ -26,7 +26,7 @@ class _NoticiasOfflineScreenState extends State<NoticiasOfflineScreen> {
   }
 
   Future<void> _validarAccesoOffline() async {
-    final result = await _authService.verificarSuscripcionActiva();
+    final result = await _authService.obtenerSuscripcionActiva();
     if (!mounted) return;
 
     final hasActive = result.autenticado && result.suscripcionActiva;
