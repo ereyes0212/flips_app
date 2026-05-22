@@ -45,6 +45,7 @@ class _NoticiasScreenState extends State<NoticiasScreen> {
   AdManagerInterstitialAd? _interstitialAd;
   bool _isInterstitialLoading = false;
   bool _hideAds = false;
+  DateTimeRange? _filtroFecha;
 
   @override
   void initState() {
@@ -167,14 +168,51 @@ class _NoticiasScreenState extends State<NoticiasScreen> {
   void _buscar(String value) {
     _debounce?.cancel();
     _debounce = Timer(const Duration(milliseconds: 450), () {
-      _controller.cargarNoticias(context, busqueda: value.trim());
+      _controller.cargarNoticias(
+        context,
+        busqueda: value.trim(),
+        fechaDesde: _filtroFecha?.start,
+        fechaHasta: _filtroFecha?.end.add(const Duration(days: 1)),
+      );
     });
+  }
+
+  Future<void> _seleccionarFiltroFecha() async {
+    final now = DateTime.now();
+    final picked = await showDateRangePicker(
+      context: context,
+      firstDate: DateTime(2018),
+      lastDate: now,
+      initialDateRange: _filtroFecha,
+      locale: const Locale('es'),
+      helpText: 'Filtrar por fecha',
+      saveText: 'Aplicar',
+    );
+    if (!mounted || picked == null) return;
+    setState(() => _filtroFecha = picked);
+    await _controller.cargarNoticias(
+      context,
+      busqueda: _searchController.text.trim(),
+      fechaDesde: picked.start,
+      fechaHasta: picked.end.add(const Duration(days: 1)),
+    );
+  }
+
+  Future<void> _limpiarFiltroFecha() async {
+    if (_filtroFecha == null) return;
+    setState(() => _filtroFecha = null);
+    await _controller.cargarNoticias(
+      context,
+      busqueda: _searchController.text.trim(),
+    );
   }
 
   Future<void> _refrescar() async {
     await _controller.cargarNoticias(
       context,
       busqueda: _searchController.text.trim(),
+      fechaDesde: _filtroFecha?.start,
+      fechaHasta: _filtroFecha?.end.add(const Duration(days: 1)),
     );
     if (!mounted) return;
     await _controller.cargarCategorias(context);
@@ -204,11 +242,42 @@ class _NoticiasScreenState extends State<NoticiasScreen> {
                   onSubmitted: (value) => _controller.cargarNoticias(
                     context,
                     busqueda: value.trim(),
+                    fechaDesde: _filtroFecha?.start,
+                    fechaHasta: _filtroFecha?.end.add(const Duration(days: 1)),
                   ),
                   onClear: () {
                     _searchController.clear();
-                    _controller.cargarNoticias(context);
+                    _controller.cargarNoticias(
+                      context,
+                      fechaDesde: _filtroFecha?.start,
+                      fechaHasta: _filtroFecha?.end.add(const Duration(days: 1)),
+                    );
                   },
+                ),
+              ),
+            ),
+            SliverToBoxAdapter(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+                child: Wrap(
+                  spacing: 8,
+                  children: [
+                    ActionChip(
+                      avatar: const Icon(Icons.date_range_rounded, size: 18),
+                      label: Text(
+                        _filtroFecha == null
+                            ? 'Buscar por fecha'
+                            : '${DateFormat('dd/MM/yyyy').format(_filtroFecha!.start)} - ${DateFormat('dd/MM/yyyy').format(_filtroFecha!.end)}',
+                      ),
+                      onPressed: _seleccionarFiltroFecha,
+                    ),
+                    if (_filtroFecha != null)
+                      ActionChip(
+                        avatar: const Icon(Icons.close_rounded, size: 18),
+                        label: const Text('Limpiar fecha'),
+                        onPressed: _limpiarFiltroFecha,
+                      ),
+                  ],
                 ),
               ),
             ),
@@ -224,6 +293,8 @@ class _NoticiasScreenState extends State<NoticiasScreen> {
               onLoadMore: () => _controller.cargarMasNoticias(
                 context,
                 busqueda: _searchController.text.trim(),
+                fechaDesde: _filtroFecha?.start,
+                fechaHasta: _filtroFecha?.end.add(const Duration(days: 1)),
               ),
               onTapNoticia: _abrirDetalleConInterstitial,
               hideAds: _hideAds,
@@ -385,7 +456,7 @@ class _InlineNewsAdBanner extends StatefulWidget {
 }
 
 class _InlineNewsAdBannerState extends State<_InlineNewsAdBanner> {
-  static const String _adUnitId = '/170101793/APP/Interstitial';
+  static const String _adUnitId = '/170101793/APP/box_1';
   AdManagerBannerAd? _ad;
   bool _ready = false;
 

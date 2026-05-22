@@ -98,6 +98,8 @@ class _NoticiaDetalleScreen extends StatelessWidget {
                   ),
                   const Divider(height: 28),
                   _ArticleContent(noticia: noticia, hideAds: hideAds),
+                  const SizedBox(height: 28),
+                  _RelatedNewsSection(noticia: noticia),
                 ],
               ),
             ),
@@ -371,6 +373,68 @@ class _ArticleVideoState extends State<_ArticleVideo> {
           ),
         ],
       ),
+    );
+  }
+}
+
+class _RelatedNewsSection extends StatelessWidget {
+  const _RelatedNewsSection({required this.noticia});
+
+  final NoticiaModel noticia;
+
+  @override
+  Widget build(BuildContext context) {
+    final allNews = context.watch<NoticiasProvider>().noticias;
+    final related = allNews
+        .where(
+          (item) =>
+              item.id != noticia.id &&
+              item.categories.any((category) => noticia.categories.contains(category)),
+        )
+        .take(6)
+        .toList();
+    if (related.isEmpty) return const SizedBox.shrink();
+
+    final disableAnimations = MediaQuery.maybeOf(context)?.disableAnimations ?? false;
+    final theme = Theme.of(context);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Te puede interesar',
+          style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800),
+        ),
+        const SizedBox(height: 14),
+        SizedBox(
+          height: 220,
+          child: ListView.separated(
+            scrollDirection: Axis.horizontal,
+            itemCount: related.length,
+            separatorBuilder: (_, __) => const SizedBox(width: 12),
+            itemBuilder: (context, index) {
+              final item = related[index];
+              final card = SizedBox(
+                width: 260,
+                child: _NoticiaCard(noticia: item),
+              );
+              if (disableAnimations) return card;
+              return TweenAnimationBuilder<double>(
+                tween: Tween(begin: 0, end: 1),
+                duration: Duration(milliseconds: 260 + (index * 90)),
+                curve: Curves.easeOutCubic,
+                builder: (_, value, child) => Opacity(
+                  opacity: value,
+                  child: Transform.translate(
+                    offset: Offset((1 - value) * 24, 0),
+                    child: child,
+                  ),
+                ),
+                child: card,
+              );
+            },
+          ),
+        ),
+      ],
     );
   }
 }
