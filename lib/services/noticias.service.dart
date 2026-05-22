@@ -263,6 +263,31 @@ class NoticiasService {
     }
   }
 
+  Future<void> eliminarNoticiaOffline(int noticiaId) async {
+    final prefs = await SharedPreferences.getInstance();
+    final saved = await obtenerNoticiasOffline();
+    final filtered = saved.where((item) => item.id != noticiaId).toList();
+
+    final removed = saved.where((item) => item.id == noticiaId).toList();
+    for (final item in removed) {
+      await _eliminarArchivoSiExiste(item.localImagePath);
+      for (final block in item.contentBlocks) {
+        if (block.isImage) {
+          await _eliminarArchivoSiExiste(block.imageUrl);
+        } else if (block.isGallery) {
+          for (final galleryItem in block.galleryItems) {
+            await _eliminarArchivoSiExiste(galleryItem.imageUrl);
+          }
+        }
+      }
+    }
+
+    final encoded = jsonEncode(
+      filtered.map((item) => item.toStorageJson()).toList(),
+    );
+    await prefs.setString(_offlineNewsKey, encoded);
+  }
+
   Future<String> _guardarImagenLocal(int noticiaId, String imageUrl) async {
     if (imageUrl.trim().isEmpty) return '';
     try {
@@ -277,6 +302,22 @@ class NoticiasService {
     } catch (_) {
       return '';
     }
+  }
+
+  Future<void> _eliminarArchivoSiExiste(String path) async {
+    final normalized = path.trim();
+    if (normalized.isEmpty) return;
+    if (!normalized.startsWith('/') && !normalized.startsWith('file://')) return;
+    try {
+      final filePath =
+          normalized.startsWith('file://')
+              ? Uri.parse(normalized).toFilePath()
+              : normalized;
+      final file = File(filePath);
+      if (await file.exists()) {
+        await file.delete();
+      }
+    } catch (_) {}
   }
 
   Future<List<NoticiaContentBlock>> _guardarContenidoMultimediaLocal(

@@ -13,6 +13,7 @@ class NoticiasOfflineScreen extends StatefulWidget {
 }
 
 class _NoticiasOfflineScreenState extends State<NoticiasOfflineScreen> {
+  final _service = NoticiasService();
   @override
   void initState() {
     super.initState();
@@ -20,9 +21,18 @@ class _NoticiasOfflineScreenState extends State<NoticiasOfflineScreen> {
   }
 
   Future<void> _cargar() async {
-    final noticias = await NoticiasService().obtenerNoticiasOffline();
+    final noticias = await _service.obtenerNoticiasOffline();
     if (!mounted) return;
     context.read<NoticiasProvider>().setNoticiasOffline(noticias);
+  }
+
+  Future<void> _eliminar(NoticiaModel noticia) async {
+    await _service.eliminarNoticiaOffline(noticia.id);
+    await _cargar();
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Noticia eliminada de sin conexión.')),
+    );
   }
 
   @override
@@ -34,7 +44,41 @@ class _NoticiasOfflineScreenState extends State<NoticiasOfflineScreen> {
           ? const Center(child: Text('Aún no tienes noticias guardadas.'))
           : ListView.separated(
               padding: const EdgeInsets.all(16),
-              itemBuilder: (_, i) => _OfflineCard(noticia: noticias[i]),
+              itemBuilder: (_, i) => Dismissible(
+                key: ValueKey('offline-${noticias[i].id}'),
+                direction: DismissDirection.endToStart,
+                background: Container(
+                  alignment: Alignment.centerRight,
+                  padding: const EdgeInsets.symmetric(horizontal: 20),
+                  decoration: BoxDecoration(
+                    color: Colors.red.shade600,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: const Icon(Icons.delete_outline_rounded, color: Colors.white),
+                ),
+                confirmDismiss: (_) async {
+                  return await showDialog<bool>(
+                        context: context,
+                        builder: (dialogContext) => AlertDialog(
+                          title: const Text('Eliminar noticia'),
+                          content: const Text('¿Quieres eliminar esta noticia guardada?'),
+                          actions: [
+                            TextButton(
+                              onPressed: () => Navigator.pop(dialogContext, false),
+                              child: const Text('Cancelar'),
+                            ),
+                            ElevatedButton(
+                              onPressed: () => Navigator.pop(dialogContext, true),
+                              child: const Text('Eliminar'),
+                            ),
+                          ],
+                        ),
+                      ) ??
+                      false;
+                },
+                onDismissed: (_) => _eliminar(noticias[i]),
+                child: _OfflineCard(noticia: noticias[i]),
+              ),
               separatorBuilder: (_, __) => const SizedBox(height: 12),
               itemCount: noticias.length,
             ),
