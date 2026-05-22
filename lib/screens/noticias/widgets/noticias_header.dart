@@ -11,10 +11,16 @@ class _NoticiasAppBar extends StatelessWidget {
     return SliverAppBar(
       pinned: false,
       expandedHeight: 150,
-      title: Image.asset(
-        'assets/images/logo.png',
-        height: 30,
-        fit: BoxFit.contain,
+      title: LayoutBuilder(
+        builder: (context, constraints) {
+          final screenWidth = MediaQuery.sizeOf(context).width;
+          final logoHeight = screenWidth < 360 ? 34.0 : 38.0;
+          return Image.asset(
+            'assets/images/logo.png',
+            height: logoHeight,
+            fit: BoxFit.contain,
+          );
+        },
       ),
       flexibleSpace: FlexibleSpaceBar(
         background: _NoticiasHeader(total: total, usingCache: usingCache),
@@ -32,6 +38,8 @@ class _NoticiasHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
+    final screenWidth = MediaQuery.sizeOf(context).width;
+    final isSmallPhone = screenWidth < 360;
 
     return Container(
       decoration: BoxDecoration(
@@ -62,11 +70,14 @@ class _NoticiasHeader extends StatelessWidget {
                     ),
                     const SizedBox(height: 6),
                     Text(
-                      'Información actualizada al instante',
+                      'Por escribir la verdad nos leen más.',
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
                       style: Theme.of(context).textTheme.headlineSmall?.copyWith(
                             color: Colors.white,
                             fontWeight: FontWeight.w900,
-                            height: 1.05,
+                            height: 1.1,
+                            fontSize: isSmallPhone ? 22 : null,
                           ),
                     ),
                   ],

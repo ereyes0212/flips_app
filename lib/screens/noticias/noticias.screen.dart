@@ -539,6 +539,8 @@ Future<void> _abrirDetalle(BuildContext context, NoticiaModel noticia, {bool hid
     MaterialPageRoute(builder: (_) => _NoticiaDetalleScreen(noticia: noticia, hideAds: hideAds)),
   );
 
+  if (!hideAds) return;
+
   final provider = context.read<NoticiasProvider>();
   Future<void>(() async {
     await NoticiasService().guardarNoticiaOffline(noticia);
