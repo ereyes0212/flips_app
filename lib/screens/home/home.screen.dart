@@ -6,8 +6,10 @@ import 'package:animated_bottom_navigation_bar/animated_bottom_navigation_bar.da
 import 'package:flips_app/controllers/auth.controller.dart';
 import 'package:flips_app/globals/widgets/widgets.dart';
 import 'package:flips_app/providers/auth.provider.dart';
+import 'package:flips_app/providers/noticias.provider.dart';
 import 'package:flips_app/screens/diarios_digitales/diarios_digitales.screen.dart';
 import 'package:flips_app/screens/noticias/noticias.screen.dart';
+import 'package:flips_app/screens/noticias/noticias_offline.screen.dart';
 import 'package:flips_app/screens/mi_perfil/mi_perfil.screen.dart';
 import 'package:flips_app/screens/mis_facturas/mis_facturas.screen.dart';
 import 'package:flips_app/screens/mis_pagos/mis_pagos.screen.dart';
@@ -271,6 +273,7 @@ class _MasOpcionesScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     final tema = Theme.of(context).colorScheme;
     final nombre = context.watch<AuthProvider>().nombreUsuario;
+    final offlineCount = context.watch<NoticiasProvider>().noticiasOffline.length;
 
     return SafeArea(
       child: Padding(
@@ -296,6 +299,23 @@ class _MasOpcionesScreen extends StatelessWidget {
             Expanded(
               child: ListView(
                 children: [
+                  GridItem(
+                    icono: Icons.download_for_offline_outlined,
+                    funcion: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => const NoticiasOfflineScreen(),
+                        ),
+                      );
+                    },
+                    texto: 'Noticias sin conexión',
+                    subtitulo: offlineCount > 0 ? '$offlineCount guardadas' : 'Sin noticias guardadas',
+                    trailing: offlineCount > 0
+                        ? const Icon(Icons.download_done_rounded, color: Colors.green)
+                        : null,
+                  ),
+                  const SizedBox(height: 7),
                   GridItem(
                     icono: Icons.public,
                     funcion: () {

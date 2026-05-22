@@ -46,6 +46,7 @@ class _NoticiasScreenState extends State<NoticiasScreen> {
   bool _isInterstitialLoading = false;
   bool _hideAds = false;
   DateTimeRange? _filtroFecha;
+  final _noticiasService = NoticiasService();
 
   @override
   void initState() {
@@ -53,8 +54,15 @@ class _NoticiasScreenState extends State<NoticiasScreen> {
     Future.microtask(() {
       _controller.cargarNoticias(context);
       _controller.cargarCategorias(context);
+      _cargarNoticiasOffline();
     });
     _initAdsVisibility();
+  }
+
+  Future<void> _cargarNoticiasOffline() async {
+    final noticiasOffline = await _noticiasService.obtenerNoticiasOffline();
+    if (!mounted) return;
+    context.read<NoticiasProvider>().setNoticiasOffline(noticiasOffline);
   }
 
   @override
@@ -419,12 +427,14 @@ class _NoticiasList extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final offlineIds = context.watch<NoticiasProvider>().noticiasOfflineIds;
     final children = <Widget>[];
     for (var i = 0; i < noticias.length; i++) {
       final noticia = noticias[i];
       children.add(
         _NoticiaCard(
           noticia: noticia,
+          isDownloaded: offlineIds.contains(noticia.id),
           onTapOverride: () => onTapNoticia(noticia),
         ),
       );
@@ -514,7 +524,12 @@ Future<void> _compartirNoticia(BuildContext context, NoticiaModel noticia) async
   await SharePlus.instance.share(ShareParams(text: mensaje, subject: noticia.title));
 }
 
-void _abrirDetalle(BuildContext context, NoticiaModel noticia, {bool hideAds = false}) {
+Future<void> _abrirDetalle(BuildContext context, NoticiaModel noticia, {bool hideAds = false}) async {
+  await NoticiasService().guardarNoticiaOffline(noticia);
+  final provider = context.read<NoticiasProvider>();
+  final saved = await NoticiasService().obtenerNoticiasOffline();
+  provider.setNoticiasOffline(saved);
+  if (!context.mounted) return;
   Navigator.push(
     context,
     MaterialPageRoute(builder: (_) => _NoticiaDetalleScreen(noticia: noticia, hideAds: hideAds)),

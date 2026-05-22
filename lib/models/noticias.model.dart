@@ -104,6 +104,44 @@ class NoticiaModel {
 
   bool get hasImage => imageUrl.isNotEmpty;
 
+  Map<String, dynamic> toStorageJson() {
+    return {
+      'id': id,
+      'link': link,
+      'slug': slug,
+      'date': date?.toIso8601String(),
+      'title': title,
+      'excerpt': excerpt,
+      'content': content,
+      'imageUrl': imageUrl,
+      'imageAlt': imageAlt,
+      'categories': categories,
+    };
+  }
+
+  factory NoticiaModel.fromStorageJson(Map<String, dynamic> json) {
+    return NoticiaModel(
+      id: int.tryParse(json['id']?.toString() ?? '') ?? 0,
+      link: json['link']?.toString() ?? '',
+      slug: json['slug']?.toString() ?? '',
+      date: DateTime.tryParse(json['date']?.toString() ?? ''),
+      title: json['title']?.toString() ?? '',
+      excerpt: json['excerpt']?.toString() ?? '',
+      content: json['content']?.toString() ?? '',
+      contentBlocks: [
+        if ((json['content']?.toString() ?? '').trim().isNotEmpty)
+          NoticiaContentBlock.text(json['content'].toString()),
+      ],
+      imageUrl: json['imageUrl']?.toString() ?? '',
+      imageAlt: json['imageAlt']?.toString() ?? '',
+      categories:
+          (json['categories'] as List<dynamic>? ?? [])
+              .map((e) => int.tryParse(e.toString()) ?? 0)
+              .where((e) => e > 0)
+              .toList(),
+    );
+  }
+
   factory NoticiaModel.fromJson(Map<String, dynamic> json) {
     final embedded = json['_embedded'] as Map<String, dynamic>?;
     final featuredMedia = (embedded?['wp:featuredmedia'] as List<dynamic>?);

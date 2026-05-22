@@ -101,11 +101,13 @@ class _PortadaCard extends StatelessWidget {
 class _NoticiaCard extends StatelessWidget {
   const _NoticiaCard({
     required this.noticia,
+    this.isDownloaded = false,
     this.onTapOverride,
     this.enableHero = true,
   });
 
   final NoticiaModel noticia;
+  final bool isDownloaded;
   final VoidCallback? onTapOverride;
   final bool enableHero;
 
@@ -138,6 +140,14 @@ class _NoticiaCard extends StatelessWidget {
                     Row(
                       children: [
                         _DateLabel(date: noticia.date),
+                        if (isDownloaded) ...[
+                          const SizedBox(width: 8),
+                          Icon(
+                            Icons.download_done_rounded,
+                            size: 16,
+                            color: Colors.green.shade700,
+                          ),
+                        ],
                         const Spacer(),
                         Icon(
                           Icons.arrow_forward_ios_rounded,
@@ -147,6 +157,17 @@ class _NoticiaCard extends StatelessWidget {
                       ],
                     ),
                     const SizedBox(height: 8),
+                    if (isDownloaded)
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 6),
+                        child: Text(
+                          'Descargada para sin conexión',
+                          style: theme.textTheme.labelMedium?.copyWith(
+                            color: Colors.green.shade700,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ),
                     Text(
                       noticia.title,
                       maxLines: 3,

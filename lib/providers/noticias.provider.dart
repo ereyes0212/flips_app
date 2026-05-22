@@ -10,6 +10,7 @@ class NoticiasProvider with ChangeNotifier {
   int _page = 1;
   bool _hasMore = true;
   List<NoticiaModel> _noticias = [];
+  List<NoticiaModel> _noticiasOffline = [];
   List<CategoriaNoticiaModel> _categorias = [];
 
   bool get loading => _loading;
@@ -20,6 +21,8 @@ class NoticiasProvider with ChangeNotifier {
   int get page => _page;
   bool get hasMore => _hasMore;
   List<NoticiaModel> get noticias => _noticias;
+  List<NoticiaModel> get noticiasOffline => _noticiasOffline;
+  Set<int> get noticiasOfflineIds => _noticiasOffline.map((e) => e.id).toSet();
   List<CategoriaNoticiaModel> get categorias => _categorias;
   Map<int, CategoriaNoticiaModel> get categoriasPorId => {
         for (final categoria in _categorias) categoria.id: categoria,
@@ -62,6 +65,11 @@ class NoticiasProvider with ChangeNotifier {
 
   void setCategorias(List<CategoriaNoticiaModel> value) {
     _categorias = value;
+    notifyListeners();
+  }
+
+  void setNoticiasOffline(List<NoticiaModel> value) {
+    _noticiasOffline = value;
     notifyListeners();
   }
 

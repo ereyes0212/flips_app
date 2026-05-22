@@ -36,6 +36,7 @@ class NoticiasService {
   static const _baseUrl = 'https://tiempo.hn/wp-json/wp/v2';
   static const _cacheKey = 'noticias_cache_v1';
   static const _cacheAtKey = 'noticias_cache_at_v1';
+  static const _offlineNewsKey = 'offline_news_v1';
   static const _postFields =
       'id,date,slug,link,title,excerpt,content,categories,yoast_head_json,_embedded.wp:featuredmedia.source_url,_embedded.wp:featuredmedia.alt_text';
   static const _wordpressUsername = String.fromEnvironment(
@@ -211,5 +212,31 @@ class NoticiasService {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_cacheKey, body);
     await prefs.setString(_cacheAtKey, DateTime.now().toIso8601String());
+  }
+
+  Future<void> guardarNoticiaOffline(NoticiaModel noticia) async {
+    final prefs = await SharedPreferences.getInstance();
+    final saved = await obtenerNoticiasOffline();
+    final byId = <int, NoticiaModel>{for (final item in saved) item.id: item};
+    byId[noticia.id] = noticia;
+    final encoded = jsonEncode(
+      byId.values.map((item) => item.toStorageJson()).toList(),
+    );
+    await prefs.setString(_offlineNewsKey, encoded);
+  }
+
+  Future<List<NoticiaModel>> obtenerNoticiasOffline() async {
+    final prefs = await SharedPreferences.getInstance();
+    final raw = prefs.getString(_offlineNewsKey);
+    if (raw == null || raw.isEmpty) return const [];
+    try {
+      final body = jsonDecode(raw) as List<dynamic>;
+      return body
+          .map((e) => NoticiaModel.fromStorageJson(e as Map<String, dynamic>))
+          .where((item) => item.id > 0)
+          .toList();
+    } catch (_) {
+      return const [];
+    }
   }
 }
