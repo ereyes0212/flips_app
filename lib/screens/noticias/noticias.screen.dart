@@ -531,15 +531,17 @@ Future<void> _compartirNoticia(BuildContext context, NoticiaModel noticia) async
 }
 
 Future<void> _abrirDetalle(BuildContext context, NoticiaModel noticia, {bool hideAds = false}) async {
-  await NoticiasService().guardarNoticiaOffline(noticia);
-  final provider = context.read<NoticiasProvider>();
-  final saved = await NoticiasService().obtenerNoticiasOffline();
-  provider.setNoticiasOffline(saved);
-  if (!context.mounted) return;
   Navigator.push(
     context,
     MaterialPageRoute(builder: (_) => _NoticiaDetalleScreen(noticia: noticia, hideAds: hideAds)),
   );
+
+  final provider = context.read<NoticiasProvider>();
+  Future<void>(() async {
+    await NoticiasService().guardarNoticiaOffline(noticia);
+    final saved = await NoticiasService().obtenerNoticiasOffline();
+    provider.setNoticiasOffline(saved);
+  });
 }
 
 String _heroTagForNewsImage(NoticiaModel noticia) {
