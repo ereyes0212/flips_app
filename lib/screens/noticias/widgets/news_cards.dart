@@ -1,3 +1,5 @@
+// ignore_for_file: unused_element_parameter
+
 part of '../noticias.screen.dart';
 
 class _PortadaCard extends StatelessWidget {
