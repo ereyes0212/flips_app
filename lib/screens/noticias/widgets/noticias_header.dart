@@ -15,10 +15,30 @@ class _NoticiasAppBar extends StatelessWidget {
         builder: (context, constraints) {
           final screenWidth = MediaQuery.sizeOf(context).width;
           final logoHeight = screenWidth < 360 ? 34.0 : 38.0;
-          return Image.asset(
-            'assets/images/logo.png',
-            height: logoHeight,
-            fit: BoxFit.contain,
+          return Row(
+            children: [
+              Image.asset(
+                'assets/images/logo.png',
+                height: logoHeight,
+                fit: BoxFit.contain,
+              ),
+              const Spacer(),
+              _SocialIconButton(
+                icon: Icons.facebook_rounded,
+                tooltip: 'Facebook',
+                onTap: () => _openSocial(context, 'Facebook', 'https://www.facebook.com/diariotiempo/'),
+              ),
+              _SocialIconButton(
+                icon: Icons.alternate_email_rounded,
+                tooltip: 'X',
+                onTap: () => _openSocial(context, 'X', 'https://x.com/TiempoHonduras'),
+              ),
+              _SocialIconButton(
+                icon: Icons.camera_alt_rounded,
+                tooltip: 'Instagram',
+                onTap: () => _openSocial(context, 'Instagram', 'https://www.instagram.com/diariotiempo/'),
+              ),
+            ],
           );
         },
       ),
@@ -167,6 +187,83 @@ class _HeaderChip extends StatelessWidget {
               fontWeight: FontWeight.w800,
             ),
           ),
+        ],
+      ),
+    );
+  }
+}
+
+
+void _openSocial(BuildContext context, String title, String url) {
+  Navigator.push(
+    context,
+    MaterialPageRoute(builder: (_) => _SocialWebScreen(title: title, url: url)),
+  );
+}
+
+class _SocialIconButton extends StatelessWidget {
+  const _SocialIconButton({required this.icon, required this.tooltip, required this.onTap});
+
+  final IconData icon;
+  final String tooltip;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return IconButton(
+      visualDensity: VisualDensity.compact,
+      constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+      onPressed: onTap,
+      tooltip: tooltip,
+      icon: Icon(icon, color: Colors.white, size: 19),
+    );
+  }
+}
+
+class _SocialWebScreen extends StatefulWidget {
+  const _SocialWebScreen({required this.title, required this.url});
+
+  final String title;
+  final String url;
+
+  @override
+  State<_SocialWebScreen> createState() => _SocialWebScreenState();
+}
+
+class _SocialWebScreenState extends State<_SocialWebScreen> {
+  late final WebViewController _controller;
+  bool _loading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = WebViewController()
+      ..setJavaScriptMode(JavaScriptMode.unrestricted)
+      ..setNavigationDelegate(
+        NavigationDelegate(
+          onPageStarted: (_) => setState(() => _loading = true),
+          onPageFinished: (_) => setState(() => _loading = false),
+        ),
+      )
+      ..loadRequest(Uri.parse(widget.url));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: Text(widget.title),
+        actions: [
+          IconButton(
+            onPressed: () => _controller.reload(),
+            icon: const Icon(Icons.refresh),
+          ),
+        ],
+      ),
+      body: Stack(
+        children: [
+          WebViewWidget(controller: _controller),
+          if (_loading) const Center(child: CircularProgressIndicator()),
         ],
       ),
     );
