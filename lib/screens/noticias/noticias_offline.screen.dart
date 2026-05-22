@@ -1,5 +1,6 @@
 import 'package:flips_app/models/noticias.model.dart';
 import 'package:flips_app/providers/noticias.provider.dart';
+import 'package:flips_app/screens/noticias/noticias.screen.dart';
 import 'package:flips_app/services/noticias.service.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -50,9 +51,18 @@ class _OfflineCard extends StatelessWidget {
     return Card(
       elevation: 1,
       child: ListTile(
+        onTap: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) => NoticiaDetalleScreen(noticia: noticia, hideAds: true),
+            ),
+          );
+        },
         leading: const Icon(Icons.download_done_rounded, color: Colors.green),
         title: Text(noticia.title, maxLines: 2, overflow: TextOverflow.ellipsis),
         subtitle: Text(noticia.excerpt, maxLines: 2, overflow: TextOverflow.ellipsis),
+        trailing: const Icon(Icons.chevron_right_rounded),
       ),
     );
   }

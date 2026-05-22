@@ -549,3 +549,19 @@ void _abrirCategoria(BuildContext context, CategoriaNoticiaModel categoria) {
     ),
   );
 }
+
+class NoticiaDetalleScreen extends StatelessWidget {
+  const NoticiaDetalleScreen({
+    super.key,
+    required this.noticia,
+    this.hideAds = false,
+  });
+
+  final NoticiaModel noticia;
+  final bool hideAds;
+
+  @override
+  Widget build(BuildContext context) {
+    return _NoticiaDetalleScreen(noticia: noticia, hideAds: hideAds);
+  }
+}
