@@ -413,10 +413,7 @@ class _RelatedNewsSection extends StatelessWidget {
             separatorBuilder: (_, __) => const SizedBox(width: 12),
             itemBuilder: (context, index) {
               final item = related[index];
-              final card = SizedBox(
-                width: 260,
-                child: _NoticiaCard(noticia: item),
-              );
+              final card = SizedBox(width: 232, child: _RelatedNewsCard(noticia: item));
               if (disableAnimations) return card;
               return TweenAnimationBuilder<double>(
                 tween: Tween(begin: 0, end: 1),
@@ -435,6 +432,73 @@ class _RelatedNewsSection extends StatelessWidget {
           ),
         ),
       ],
+    );
+  }
+}
+
+class _RelatedNewsCard extends StatelessWidget {
+  const _RelatedNewsCard({required this.noticia});
+
+  final NoticiaModel noticia;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    return Card(
+      margin: EdgeInsets.zero,
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: () => _abrirDetalle(context, noticia),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            AspectRatio(
+              aspectRatio: 16 / 9,
+              child: _NewsImage(
+                url: noticia.imageUrl,
+                borderRadius: BorderRadius.zero,
+                iconSize: 28,
+              ),
+            ),
+            Expanded(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(10, 8, 10, 10),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      noticia.title,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: theme.textTheme.titleSmall?.copyWith(
+                        fontWeight: FontWeight.w800,
+                        height: 1.2,
+                      ),
+                    ),
+                    const Spacer(),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: _DateLabel(
+                            date: noticia.date,
+                            color: colorScheme.onSurfaceVariant,
+                          ),
+                        ),
+                        Icon(
+                          Icons.arrow_forward_ios_rounded,
+                          size: 12,
+                          color: colorScheme.primary,
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

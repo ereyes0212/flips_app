@@ -313,6 +313,8 @@ class NoticiaModel {
         plainText.contains('te puede interesar') ||
         plainText.contains('de igual interés') ||
         plainText.contains('de igual interes') ||
+        plainText.contains('también puede leer') ||
+        plainText.contains('tambien puede leer') ||
         plainText.contains('también puedes leer') ||
         plainText.contains('tambien puedes leer') ||
         plainText.contains('lea también') ||
