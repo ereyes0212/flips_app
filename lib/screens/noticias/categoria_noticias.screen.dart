@@ -18,11 +18,19 @@ class _CategoriaNoticiasScreenState extends State<_CategoriaNoticiasScreen> {
   var _error = '';
   var _page = 1;
   var _hasMore = true;
+  bool _hideAds = false;
 
   @override
   void initState() {
     super.initState();
     Future.microtask(_cargarNoticias);
+    _initAdsVisibility();
+  }
+
+  Future<void> _initAdsVisibility() async {
+    final perfil = await MiPerfilService().obtenerMiPerfil();
+    if (!mounted) return;
+    setState(() => _hideAds = AdVisibilityUtil.shouldHideAds(perfil));
   }
 
   Future<void> _cargarNoticias({bool reset = true}) async {
@@ -91,7 +99,9 @@ class _CategoriaNoticiasScreenState extends State<_CategoriaNoticiasScreen> {
             else ...[
               _NoticiasList(
                 noticias: _noticias,
-                onTapNoticia: (noticia) => _abrirDetalle(context, noticia),
+                onTapNoticia: (noticia) =>
+                    _abrirDetalle(context, noticia, hideAds: _hideAds),
+                hideAds: _hideAds,
               ),
               SliverToBoxAdapter(
                 child: _LoadMoreButton(

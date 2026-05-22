@@ -6,13 +6,22 @@ import 'package:provider/provider.dart';
 class NoticiasController {
   final NoticiasService _service = NoticiasService();
 
-  Future<void> cargarNoticias(BuildContext context, {String? busqueda}) async {
+  Future<void> cargarNoticias(
+    BuildContext context, {
+    String? busqueda,
+    DateTime? fechaDesde,
+    DateTime? fechaHasta,
+  }) async {
     final provider = Provider.of<NoticiasProvider>(context, listen: false);
     provider.loading = true;
     provider.setError('');
     provider.setUsingCache(false);
 
-    final result = await _service.obtenerNoticias(busqueda: busqueda);
+    final result = await _service.obtenerNoticias(
+      busqueda: busqueda,
+      fechaDesde: fechaDesde,
+      fechaHasta: fechaHasta,
+    );
     if (!result.success) {
       provider.setError(result.errorMessage);
     }
@@ -23,7 +32,12 @@ class NoticiasController {
     provider.loading = false;
   }
 
-  Future<void> cargarMasNoticias(BuildContext context, {String? busqueda}) async {
+  Future<void> cargarMasNoticias(
+    BuildContext context, {
+    String? busqueda,
+    DateTime? fechaDesde,
+    DateTime? fechaHasta,
+  }) async {
     final provider = Provider.of<NoticiasProvider>(context, listen: false);
     if (provider.loading || provider.loadingMore || !provider.hasMore) return;
 
@@ -32,6 +46,8 @@ class NoticiasController {
     final result = await _service.obtenerNoticias(
       page: nextPage,
       busqueda: busqueda,
+      fechaDesde: fechaDesde,
+      fechaHasta: fechaHasta,
     );
 
     if (result.success) {
