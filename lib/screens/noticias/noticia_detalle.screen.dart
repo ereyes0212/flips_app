@@ -331,14 +331,33 @@ class _ArticleTextBlockState extends State<_ArticleTextBlock> {
   }
 
   String _decodeHtmlEntities(String value) {
-    return value
+    var text = value
         .replaceAll('&nbsp;', ' ')
         .replaceAll('&amp;', '&')
         .replaceAll('&quot;', '"')
         .replaceAll('&#039;', "'")
         .replaceAll('&apos;', "'")
         .replaceAll('&lt;', '<')
-        .replaceAll('&gt;', '>');
+        .replaceAll('&gt;', '>')
+        .replaceAll('&ldquo;', '“')
+        .replaceAll('&rdquo;', '”')
+        .replaceAll('&lsquo;', '‘')
+        .replaceAll('&rsquo;', '’')
+        .replaceAll('&ndash;', '–')
+        .replaceAll('&mdash;', '—')
+        .replaceAll('&hellip;', '…');
+
+    text = text.replaceAllMapped(RegExp(r'&#(\d+);'), (match) {
+      final codePoint = int.tryParse(match.group(1) ?? '');
+      if (codePoint == null) return match.group(0) ?? '';
+      return String.fromCharCode(codePoint);
+    });
+
+    return text.replaceAllMapped(RegExp(r'&#x([0-9a-fA-F]+);'), (match) {
+      final codePoint = int.tryParse(match.group(1) ?? '', radix: 16);
+      if (codePoint == null) return match.group(0) ?? '';
+      return String.fromCharCode(codePoint);
+    });
   }
 
   String _stripRedaccionPrefix(String value) {
@@ -955,14 +974,33 @@ class _ArticleLinkState extends State<_ArticleLink> {
   }
 
   String _decodeHtmlEntities(String value) {
-    return value
+    var text = value
         .replaceAll('&nbsp;', ' ')
         .replaceAll('&amp;', '&')
         .replaceAll('&quot;', '"')
         .replaceAll('&#039;', "'")
         .replaceAll('&apos;', "'")
         .replaceAll('&lt;', '<')
-        .replaceAll('&gt;', '>');
+        .replaceAll('&gt;', '>')
+        .replaceAll('&ldquo;', '“')
+        .replaceAll('&rdquo;', '”')
+        .replaceAll('&lsquo;', '‘')
+        .replaceAll('&rsquo;', '’')
+        .replaceAll('&ndash;', '–')
+        .replaceAll('&mdash;', '—')
+        .replaceAll('&hellip;', '…');
+
+    text = text.replaceAllMapped(RegExp(r'&#(\d+);'), (match) {
+      final codePoint = int.tryParse(match.group(1) ?? '');
+      if (codePoint == null) return match.group(0) ?? '';
+      return String.fromCharCode(codePoint);
+    });
+
+    return text.replaceAllMapped(RegExp(r'&#x([0-9a-fA-F]+);'), (match) {
+      final codePoint = int.tryParse(match.group(1) ?? '', radix: 16);
+      if (codePoint == null) return match.group(0) ?? '';
+      return String.fromCharCode(codePoint);
+    });
   }
 
   List<TextSpan> _buildLabelSpans(TextStyle baseStyle) {
