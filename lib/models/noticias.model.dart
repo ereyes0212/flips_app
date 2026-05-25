@@ -51,10 +51,11 @@ class NoticiaContentBlock {
     this.linkUrl = '',
     this.videoUrl = '',
     this.galleryItems = const [],
+    this.sourceHtml = '',
   });
 
-  const NoticiaContentBlock.text(String value)
-    : this._(type: NoticiaContentBlockType.text, text: value);
+  const NoticiaContentBlock.text(String value, {String sourceHtml = ''})
+    : this._(type: NoticiaContentBlockType.text, text: value, sourceHtml: sourceHtml);
 
   const NoticiaContentBlock.image({required String url, String caption = ''})
     : this._(
@@ -64,7 +65,12 @@ class NoticiaContentBlock {
       );
 
   const NoticiaContentBlock.link({required String text, required String url})
-    : this._(type: NoticiaContentBlockType.link, text: text, linkUrl: url);
+    : this._(
+        type: NoticiaContentBlockType.link,
+        text: text,
+        linkUrl: url,
+        sourceHtml: text,
+      );
 
   const NoticiaContentBlock.gallery(List<NoticiaGalleryItem> items)
     : this._(type: NoticiaContentBlockType.gallery, galleryItems: items);
@@ -79,6 +85,20 @@ class NoticiaContentBlock {
   final String linkUrl;
   final String videoUrl;
   final List<NoticiaGalleryItem> galleryItems;
+  final String sourceHtml;
+
+  NoticiaContentBlock copyWithSourceHtml(String value) {
+    return NoticiaContentBlock._(
+      type: type,
+      text: text,
+      imageUrl: imageUrl,
+      caption: caption,
+      linkUrl: linkUrl,
+      videoUrl: videoUrl,
+      galleryItems: galleryItems,
+      sourceHtml: value,
+    );
+  }
 
   bool get isText => type == NoticiaContentBlockType.text;
   bool get isImage => type == NoticiaContentBlockType.image;
@@ -94,6 +114,7 @@ class NoticiaContentBlock {
     'linkUrl': linkUrl,
     'videoUrl': videoUrl,
     'galleryItems': galleryItems.map((e) => e.toJson()).toList(),
+    'sourceHtml': sourceHtml,
   };
 
   factory NoticiaContentBlock.fromJson(Map<String, dynamic> json) {
@@ -112,7 +133,7 @@ class NoticiaContentBlock {
         return NoticiaContentBlock.link(
           text: json['text']?.toString() ?? '',
           url: json['linkUrl']?.toString() ?? '',
-        );
+        ).copyWithSourceHtml(json['sourceHtml']?.toString() ?? '');
       case NoticiaContentBlockType.gallery:
         final items = (json['galleryItems'] as List<dynamic>? ?? [])
             .map((e) => NoticiaGalleryItem.fromJson(e as Map<String, dynamic>))
@@ -121,7 +142,10 @@ class NoticiaContentBlock {
       case NoticiaContentBlockType.video:
         return NoticiaContentBlock.video(json['videoUrl']?.toString() ?? '');
       case NoticiaContentBlockType.text:
-        return NoticiaContentBlock.text(json['text']?.toString() ?? '');
+        return NoticiaContentBlock.text(
+          json['text']?.toString() ?? '',
+          sourceHtml: json['sourceHtml']?.toString() ?? '',
+        );
     }
   }
 }
@@ -251,12 +275,17 @@ class NoticiaModel {
         if (text.isEmpty) continue;
 
         final link = _extractRelatedArticleLink(fragment);
-        if (link.isNotEmpty) {
-          blocks.add(NoticiaContentBlock.link(text: text, url: link));
+        if (link.isNotEmpty && _isHighlightedRelatedLinkText(text)) {
+          blocks.add(
+            NoticiaContentBlock.link(
+              text: text,
+              url: link,
+            ).copyWithSourceHtml(fragment),
+          );
           continue;
         }
 
-        blocks.add(NoticiaContentBlock.text(text));
+        blocks.add(NoticiaContentBlock.text(text, sourceHtml: fragment));
       }
     }
 
@@ -402,19 +431,6 @@ class NoticiaModel {
   }
 
   static String _extractRelatedArticleLink(String html) {
-    final plainText = _cleanHtml(html).toLowerCase();
-    final isRelatedArticle =
-        plainText.contains('te puede interesar') ||
-        plainText.contains('de igual interés') ||
-        plainText.contains('de igual interes') ||
-        plainText.contains('también puede leer') ||
-        plainText.contains('tambien puede leer') ||
-        plainText.contains('también puedes leer') ||
-        plainText.contains('tambien puedes leer') ||
-        plainText.contains('lea también') ||
-        plainText.contains('lea tambien');
-    if (!isRelatedArticle) return '';
-
     final anchorMatch = RegExp(
       "<a\\b[^>]*href\\s*=\\s*(['\"])(.*?)\\1[\\s\\S]*?<\\/a>",
       caseSensitive: false,
@@ -422,11 +438,23 @@ class NoticiaModel {
     if (anchorMatch == null) return '';
 
     final link = _decodeHtmlEntities(anchorMatch.group(2) ?? '').trim();
-    final uri = Uri.tryParse(link);
+    final normalizedLink = link.startsWith('/')
+        ? 'https://tiempo.hn$link'
+        : link.startsWith('//')
+        ? 'https:$link'
+        : link;
+    final uri = Uri.tryParse(normalizedLink);
     if (uri == null) return '';
 
     final host = uri.host.toLowerCase();
-    return host == 'tiempo.hn' || host.endsWith('.tiempo.hn') ? link : '';
+    return host == 'tiempo.hn' || host.endsWith('.tiempo.hn') ? normalizedLink : '';
+  }
+
+  static bool _isHighlightedRelatedLinkText(String text) {
+    final normalized = text.toLowerCase();
+    return normalized.contains('le puede interesar') ||
+        normalized.contains('lea la edición anterior') ||
+        normalized.contains('lea la edicion anterior');
   }
 
   static String _extractAttribute(String html, String attribute) {
@@ -453,14 +481,16 @@ class NoticiaModel {
     text = _decodeHtmlEntities(text);
 
     if (preserveParagraphs) {
-      return text
+      return _stripRedaccionPrefix(
+        text
           .split('\n')
           .map((line) => line.replaceAll(RegExp(r'\s+'), ' ').trim())
           .where((line) => line.isNotEmpty)
-          .join('\n\n');
+          .join('\n\n'),
+      );
     }
 
-    return text.replaceAll(RegExp(r'\s+'), ' ').trim();
+    return _stripRedaccionPrefix(text.replaceAll(RegExp(r'\s+'), ' ').trim());
   }
 
   static String _decodeHtmlEntities(String value) {
@@ -492,6 +522,13 @@ class NoticiaModel {
       return String.fromCharCode(codePoint);
     });
   }
+
+  static String _stripRedaccionPrefix(String value) {
+    return value.replaceFirst(
+      RegExp(r'^\s*redacci[oó]n[\s:,\-–—]+\s*', caseSensitive: false),
+      '',
+    );
+  }
 }
 
 String _cleanHtml(String value, {bool preserveParagraphs = false}) {
@@ -506,14 +543,16 @@ String _cleanHtml(String value, {bool preserveParagraphs = false}) {
   text = _decodeHtmlEntities(text);
 
   if (preserveParagraphs) {
-    return text
+    return _stripRedaccionPrefix(
+      text
         .split('\n')
         .map((line) => line.replaceAll(RegExp(r'\s+'), ' ').trim())
         .where((line) => line.isNotEmpty)
-        .join('\n\n');
+        .join('\n\n'),
+    );
   }
 
-  return text.replaceAll(RegExp(r'\s+'), ' ').trim();
+  return _stripRedaccionPrefix(text.replaceAll(RegExp(r'\s+'), ' ').trim());
 }
 
 String _decodeHtmlEntities(String value) {
@@ -544,4 +583,11 @@ String _decodeHtmlEntities(String value) {
     if (codePoint == null) return match.group(0) ?? '';
     return String.fromCharCode(codePoint);
   });
+}
+
+String _stripRedaccionPrefix(String value) {
+  return value.replaceFirst(
+    RegExp(r'^\s*redacci[oó]n[\s:,\-–—]+\s*', caseSensitive: false),
+    '',
+  );
 }
