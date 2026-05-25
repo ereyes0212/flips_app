@@ -65,7 +65,12 @@ class NoticiaContentBlock {
       );
 
   const NoticiaContentBlock.link({required String text, required String url})
-    : this._(type: NoticiaContentBlockType.link, text: text, linkUrl: url);
+    : this._(
+        type: NoticiaContentBlockType.link,
+        text: text,
+        linkUrl: url,
+        sourceHtml: text,
+      );
 
   const NoticiaContentBlock.gallery(List<NoticiaGalleryItem> items)
     : this._(type: NoticiaContentBlockType.gallery, galleryItems: items);
@@ -81,6 +86,19 @@ class NoticiaContentBlock {
   final String videoUrl;
   final List<NoticiaGalleryItem> galleryItems;
   final String sourceHtml;
+
+  NoticiaContentBlock copyWithSourceHtml(String value) {
+    return NoticiaContentBlock._(
+      type: type,
+      text: text,
+      imageUrl: imageUrl,
+      caption: caption,
+      linkUrl: linkUrl,
+      videoUrl: videoUrl,
+      galleryItems: galleryItems,
+      sourceHtml: value,
+    );
+  }
 
   bool get isText => type == NoticiaContentBlockType.text;
   bool get isImage => type == NoticiaContentBlockType.image;
@@ -115,7 +133,7 @@ class NoticiaContentBlock {
         return NoticiaContentBlock.link(
           text: json['text']?.toString() ?? '',
           url: json['linkUrl']?.toString() ?? '',
-        );
+        ).copyWithSourceHtml(json['sourceHtml']?.toString() ?? '');
       case NoticiaContentBlockType.gallery:
         final items = (json['galleryItems'] as List<dynamic>? ?? [])
             .map((e) => NoticiaGalleryItem.fromJson(e as Map<String, dynamic>))
@@ -258,7 +276,12 @@ class NoticiaModel {
 
         final link = _extractRelatedArticleLink(fragment);
         if (link.isNotEmpty) {
-          blocks.add(NoticiaContentBlock.link(text: text, url: link));
+          blocks.add(
+            NoticiaContentBlock.link(
+              text: text,
+              url: link,
+            ).copyWithSourceHtml(fragment),
+          );
           continue;
         }
 
@@ -408,19 +431,6 @@ class NoticiaModel {
   }
 
   static String _extractRelatedArticleLink(String html) {
-    final plainText = _cleanHtml(html).toLowerCase();
-    final isRelatedArticle =
-        plainText.contains('te puede interesar') ||
-        plainText.contains('de igual interés') ||
-        plainText.contains('de igual interes') ||
-        plainText.contains('también puede leer') ||
-        plainText.contains('tambien puede leer') ||
-        plainText.contains('también puedes leer') ||
-        plainText.contains('tambien puedes leer') ||
-        plainText.contains('lea también') ||
-        plainText.contains('lea tambien');
-    if (!isRelatedArticle) return '';
-
     final anchorMatch = RegExp(
       "<a\\b[^>]*href\\s*=\\s*(['\"])(.*?)\\1[\\s\\S]*?<\\/a>",
       caseSensitive: false,
@@ -428,11 +438,16 @@ class NoticiaModel {
     if (anchorMatch == null) return '';
 
     final link = _decodeHtmlEntities(anchorMatch.group(2) ?? '').trim();
-    final uri = Uri.tryParse(link);
+    final normalizedLink = link.startsWith('/')
+        ? 'https://tiempo.hn$link'
+        : link.startsWith('//')
+        ? 'https:$link'
+        : link;
+    final uri = Uri.tryParse(normalizedLink);
     if (uri == null) return '';
 
     final host = uri.host.toLowerCase();
-    return host == 'tiempo.hn' || host.endsWith('.tiempo.hn') ? link : '';
+    return host == 'tiempo.hn' || host.endsWith('.tiempo.hn') ? normalizedLink : '';
   }
 
   static String _extractAttribute(String html, String attribute) {

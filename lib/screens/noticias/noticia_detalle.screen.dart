@@ -349,7 +349,11 @@ class _ArticleTextBlockState extends State<_ArticleTextBlock> {
   }
 
   Future<void> _openLink(String rawUrl) async {
-    final normalizedUrl = rawUrl.startsWith('//') ? 'https:$rawUrl' : rawUrl;
+    final normalizedUrl = rawUrl.startsWith('/')
+        ? 'https://tiempo.hn$rawUrl'
+        : rawUrl.startsWith('//')
+        ? 'https:$rawUrl'
+        : rawUrl;
     final uri = Uri.tryParse(normalizedUrl);
     if (uri == null) return;
 
@@ -919,6 +923,41 @@ class _ArticleLinkState extends State<_ArticleLink> {
   final _service = NoticiasService();
   bool _loading = false;
 
+  List<TextSpan> _buildLabelSpans(TextStyle baseStyle) {
+    final source = widget.block.sourceHtml;
+    if (source.isEmpty) return [TextSpan(text: widget.block.text, style: baseStyle)];
+
+    final spans = <TextSpan>[];
+    final tagRegex = RegExp(r'<[^>]+>');
+    var current = 0;
+    var boldDepth = 0;
+
+    void addText(String raw) {
+      final cleaned = _cleanHtml(raw, preserveParagraphs: true);
+      if (cleaned.isEmpty) return;
+      spans.add(
+        TextSpan(
+          text: cleaned,
+          style: boldDepth > 0
+              ? baseStyle.copyWith(fontWeight: FontWeight.w800)
+              : baseStyle,
+        ),
+      );
+    }
+
+    for (final match in tagRegex.allMatches(source)) {
+      addText(source.substring(current, match.start));
+      final tag = (match.group(0) ?? '').toLowerCase();
+      if (tag.startsWith('<strong') || tag.startsWith('<b')) boldDepth++;
+      if (tag.startsWith('</strong') || tag.startsWith('</b')) {
+        if (boldDepth > 0) boldDepth--;
+      }
+      current = match.end;
+    }
+    addText(source.substring(current));
+    return spans.isEmpty ? [TextSpan(text: widget.block.text, style: baseStyle)] : spans;
+  }
+
   Future<void> _openLinkedNoticia() async {
     if (_loading) return;
 
@@ -967,12 +1006,16 @@ class _ArticleLinkState extends State<_ArticleLink> {
                     ),
               const SizedBox(width: 12),
               Expanded(
-                child: Text(
-                  widget.block.text,
-                  style: theme.textTheme.bodyMedium?.copyWith(
-                    color: colorScheme.primary,
-                    fontWeight: FontWeight.w800,
-                    height: 1.35,
+                child: RichText(
+                  text: TextSpan(
+                    children: _buildLabelSpans(
+                      theme.textTheme.bodyMedium?.copyWith(
+                            color: colorScheme.primary,
+                            fontWeight: FontWeight.w800,
+                            height: 1.35,
+                          ) ??
+                          const TextStyle(),
+                    ),
                   ),
                 ),
               ),
