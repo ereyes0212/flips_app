@@ -458,14 +458,14 @@ class _ArticleTextBlockState extends State<_ArticleTextBlock> {
         strippedPrefix = true;
       }
       if (cleaned.isNotEmpty) {
+        final linkUrl = currentLinkUrl;
         spans.add(
           TextSpan(
             text: cleaned,
             style: resolveStyle(),
-            recognizer: currentLinkUrl == null
+            recognizer: linkUrl == null || linkUrl.isEmpty
                 ? null
-                : (TapGestureRecognizer()
-                  ..onTap = () => _openLink(currentLinkUrl!)),
+                : (TapGestureRecognizer()..onTap = () => _openLink(linkUrl)),
           ),
         );
       }
