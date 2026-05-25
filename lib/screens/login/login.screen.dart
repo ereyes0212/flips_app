@@ -7,6 +7,7 @@ import 'package:flips_app/controllers/login/login_flows.controller.dart';
 import 'package:flips_app/screens/login/widgets/auth_flow_sheet.widget.dart';
 import 'package:flips_app/services/auth.service.dart';
 import 'package:flutter/material.dart';
+import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 
@@ -123,7 +124,7 @@ class _LoginScreenState extends State<LoginScreen> {
                       onPressed: authprovider.loading
                           ? null
                           : () => AuthController().loginWithGoogleController(context),
-                      icon: const Icon(Icons.g_mobiledata_rounded, size: 28),
+                      icon: const Icon(FontAwesomeIcons.google, size: 28,),
                       label: const Text('Continuar con Google'),
                     ),
                   ),
