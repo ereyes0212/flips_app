@@ -438,16 +438,34 @@ class NoticiaModel {
     if (anchorMatch == null) return '';
 
     final link = _decodeHtmlEntities(anchorMatch.group(2) ?? '').trim();
-    final normalizedLink = link.startsWith('/')
-        ? 'https://tiempo.hn$link'
-        : link.startsWith('//')
-        ? 'https:$link'
-        : link;
+    final normalizedLink = _normalizeTiempoLink(link);
     final uri = Uri.tryParse(normalizedLink);
-    if (uri == null) return '';
+    if (uri == null || uri.host.isEmpty) return '';
 
     final host = uri.host.toLowerCase();
     return host == 'tiempo.hn' || host.endsWith('.tiempo.hn') ? normalizedLink : '';
+  }
+
+  static String _normalizeTiempoLink(String rawLink) {
+    final link = _decodeHtmlEntities(rawLink).trim();
+    if (link.isEmpty) return '';
+
+    if (link.startsWith('/')) return 'https://tiempo.hn$link';
+    if (link.startsWith('//')) return 'https:$link';
+
+    final parsed = Uri.tryParse(link);
+    if (parsed == null) return link;
+
+    if (!parsed.hasScheme && parsed.hasAuthority) {
+      return 'https://$link';
+    }
+
+    if (!parsed.hasScheme && !parsed.hasAuthority) {
+      final path = link.startsWith('/') ? link : '/$link';
+      return 'https://tiempo.hn$path';
+    }
+
+    return link;
   }
 
   static bool _isHighlightedRelatedLinkText(String text) {
@@ -525,7 +543,7 @@ class NoticiaModel {
 
   static String _stripRedaccionPrefix(String value) {
     return value.replaceFirst(
-      RegExp(r'^\s*redacci[oó]n[\s:,\-–—]+\s*', caseSensitive: false),
+      RegExp(r'^\s*redacci[oó]n[\s\.:,\-–—]+\s*', caseSensitive: false),
       '',
     );
   }
@@ -587,7 +605,7 @@ String _decodeHtmlEntities(String value) {
 
 String _stripRedaccionPrefix(String value) {
   return value.replaceFirst(
-    RegExp(r'^\s*redacci[oó]n[\s:,\-–—]+\s*', caseSensitive: false),
+    RegExp(r'^\s*redacci[oó]n[\s\.:,\-–—]+\s*', caseSensitive: false),
     '',
   );
 }
