@@ -13,15 +13,28 @@ class AnalyticsService {
     required List<int> categoryIds,
     String source = 'wordpress_api',
   }) async {
+    final categoryPath = categoryIds.join(',');
+
     await _logEvent(
-      name: 'note_view',
+      name: 'select_content',
       parameters: {
-        'note_id': noteId,
-        'note_slug': slug,
-        'title': _sanitize(title),
-        'category_ids': categoryIds.join(','),
+        'content_type': 'article',
+        'item_id': noteId.toString(),
+        'item_name': _sanitize(title),
+        'item_category': categoryPath,
         'source': source,
-        'content_type': 'note',
+      },
+    );
+
+    await _logEvent(
+      name: 'view_item',
+      parameters: {
+        'item_id': noteId.toString(),
+        'item_name': _sanitize(title),
+        'item_category': categoryPath,
+        'item_variant': _sanitize(slug),
+        'source': source,
+        'content_type': 'article',
       },
     );
   }
@@ -33,12 +46,13 @@ class AnalyticsService {
     String method = 'system_share_sheet',
   }) async {
     await _logEvent(
-      name: 'note_share',
+      name: 'share',
       parameters: {
-        'note_id': noteId,
-        'note_slug': slug,
-        'title': _sanitize(title),
-        'method': method,
+        'content_type': 'article',
+        'item_id': noteId.toString(),
+        'item_name': _sanitize(title),
+        'item_variant': _sanitize(slug),
+        'method': _sanitize(method),
       },
     );
   }
