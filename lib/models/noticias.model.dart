@@ -275,7 +275,7 @@ class NoticiaModel {
         if (text.isEmpty) continue;
 
         final link = _extractRelatedArticleLink(fragment);
-        if (link.isNotEmpty) {
+        if (link.isNotEmpty && _isHighlightedRelatedLinkText(text)) {
           blocks.add(
             NoticiaContentBlock.link(
               text: text,
@@ -448,6 +448,13 @@ class NoticiaModel {
 
     final host = uri.host.toLowerCase();
     return host == 'tiempo.hn' || host.endsWith('.tiempo.hn') ? normalizedLink : '';
+  }
+
+  static bool _isHighlightedRelatedLinkText(String text) {
+    final normalized = text.toLowerCase();
+    return normalized.contains('le puede interesar') ||
+        normalized.contains('lea la edición anterior') ||
+        normalized.contains('lea la edicion anterior');
   }
 
   static String _extractAttribute(String html, String attribute) {

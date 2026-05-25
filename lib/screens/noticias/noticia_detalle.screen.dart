@@ -397,6 +397,7 @@ class _ArticleTextBlockState extends State<_ArticleTextBlock> {
     var current = 0;
     var boldDepth = 0;
     String? currentLinkUrl;
+    var strippedPrefix = false;
 
     TextStyle resolveStyle() {
       var resolved = currentLinkUrl != null ? linkStyle : baseStyle;
@@ -412,7 +413,12 @@ class _ArticleTextBlockState extends State<_ArticleTextBlock> {
     }
 
     void addText(String raw) {
-      final cleaned = _cleanHtml(raw, preserveParagraphs: true);
+      var cleaned = _decodeHtmlEntities(raw);
+      if (cleaned.isEmpty) return;
+      if (!strippedPrefix) {
+        cleaned = _stripRedaccionPrefix(cleaned);
+        strippedPrefix = true;
+      }
       if (cleaned.isNotEmpty) {
         spans.add(
           TextSpan(
