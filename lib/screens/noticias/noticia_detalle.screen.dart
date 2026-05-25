@@ -923,6 +923,42 @@ class _ArticleLinkState extends State<_ArticleLink> {
   final _service = NoticiasService();
   bool _loading = false;
 
+  String _cleanHtml(String value, {bool preserveParagraphs = false}) {
+    var text = value
+        .replaceAll(RegExp(r'<\s*br\s*/?\s*>', caseSensitive: false), '\n')
+        .replaceAll(
+          RegExp(
+            r'</\s*(p|div|h[1-6]|li|blockquote)\s*>',
+            caseSensitive: false,
+          ),
+          preserveParagraphs ? '\n\n' : ' ',
+        )
+        .replaceAll(RegExp(r'<[^>]*>'), ' ');
+
+    text = _decodeHtmlEntities(text);
+
+    if (preserveParagraphs) {
+      return text
+          .split('\n')
+          .map((line) => line.replaceAll(RegExp(r'\s+'), ' ').trim())
+          .where((line) => line.isNotEmpty)
+          .join('\n\n');
+    }
+
+    return text.replaceAll(RegExp(r'\s+'), ' ').trim();
+  }
+
+  String _decodeHtmlEntities(String value) {
+    return value
+        .replaceAll('&nbsp;', ' ')
+        .replaceAll('&amp;', '&')
+        .replaceAll('&quot;', '"')
+        .replaceAll('&#039;', "'")
+        .replaceAll('&apos;', "'")
+        .replaceAll('&lt;', '<')
+        .replaceAll('&gt;', '>');
+  }
+
   List<TextSpan> _buildLabelSpans(TextStyle baseStyle) {
     final source = widget.block.sourceHtml;
     if (source.isEmpty) return [TextSpan(text: widget.block.text, style: baseStyle)];
