@@ -14,7 +14,7 @@ class _NoticiasAppBar extends StatelessWidget {
       title: LayoutBuilder(
         builder: (context, constraints) {
           final screenWidth = MediaQuery.sizeOf(context).width;
-          final logoHeight = screenWidth < 360 ? 34.0 : 38.0;
+          final logoHeight = screenWidth < 360 ? 34.0 : 50.0;
           return Row(
             children: [
               Image.asset(
