@@ -545,7 +545,7 @@ class NoticiaModel {
 
   static String _stripRedaccionPrefix(String value) {
     return value.replaceFirst(
-      RegExp(r'^\s*redacci[oó]n[\s:,\-–—]+\s*', caseSensitive: false),
+      RegExp(r'^\s*redacci[oó]n[\s\.:,\-–—]+\s*', caseSensitive: false),
       '',
     );
   }
@@ -607,7 +607,7 @@ String _decodeHtmlEntities(String value) {
 
 String _stripRedaccionPrefix(String value) {
   return value.replaceFirst(
-    RegExp(r'^\s*redacci[oó]n[\s:,\-–—]+\s*', caseSensitive: false),
+    RegExp(r'^\s*redacci[oó]n[\s\.:,\-–—]+\s*', caseSensitive: false),
     '',
   );
 }
