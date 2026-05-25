@@ -367,14 +367,33 @@ class _ArticleTextBlockState extends State<_ArticleTextBlock> {
     );
   }
 
+
+
+  String _normalizeLink(String rawUrl) {
+    final candidate = _decodeHtmlEntities(rawUrl).trim();
+    if (candidate.isEmpty) return candidate;
+
+    if (candidate.startsWith('/')) return 'https://tiempo.hn$candidate';
+    if (candidate.startsWith('//')) return 'https:$candidate';
+
+    final parsed = Uri.tryParse(candidate);
+    if (parsed == null) return candidate;
+
+    if (!parsed.hasScheme && parsed.hasAuthority) {
+      return 'https://$candidate';
+    }
+
+    if (!parsed.hasScheme && !parsed.hasAuthority) {
+      final path = candidate.startsWith('/') ? candidate : '/$candidate';
+      return 'https://tiempo.hn$path';
+    }
+
+    return candidate;
+  }
   Future<void> _openLink(String rawUrl) async {
-    final normalizedUrl = rawUrl.startsWith('/')
-        ? 'https://tiempo.hn$rawUrl'
-        : rawUrl.startsWith('//')
-        ? 'https:$rawUrl'
-        : rawUrl;
+    final normalizedUrl = _normalizeLink(rawUrl);
     final uri = Uri.tryParse(normalizedUrl);
-    if (uri == null) return;
+    if (uri == null || (!uri.hasScheme && !uri.hasAuthority)) return;
 
     final noticia = await _service.obtenerNoticiaPorLink(normalizedUrl);
     if (!mounted) return;
@@ -456,7 +475,7 @@ class _ArticleTextBlockState extends State<_ArticleTextBlock> {
       addText(html.substring(current, match.start));
       final tag = match.group(0)?.toLowerCase() ?? '';
 
-      if (tag.startsWith('<a ')) {
+      if (RegExp(r'^<a\b', caseSensitive: false).hasMatch(tag)) {
         final hrefMatch = RegExp(
           r'''href\s*=\s*(['"])(.*?)\1''',
           caseSensitive: false,
