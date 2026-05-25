@@ -363,7 +363,7 @@ class _ArticleTextBlockState extends State<_ArticleTextBlock> {
 
   String _stripRedaccionPrefix(String value) {
     return value.replaceFirst(
-      RegExp(r'^\s*redacci[oó]n[\s:,\-–—]+\s*', caseSensitive: false),
+      RegExp(r'^\s*redacci[oó]n[\s\.:,\-–—]+\s*', caseSensitive: false),
       '',
     );
   }
