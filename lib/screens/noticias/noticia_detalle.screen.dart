@@ -366,36 +366,88 @@ class _ArticleTextBlockState extends State<_ArticleTextBlock> {
 
   List<TextSpan> _buildSpans(TextStyle style, TextStyle linkStyle) {
     final source = widget.block.sourceHtml;
-    if (source.isEmpty || !source.contains('<a')) {
+    if (source.isEmpty) {
       return [TextSpan(text: widget.block.text, style: style)];
     }
 
     final spans = <TextSpan>[];
-    final regex = RegExp(r"<a\b[^>]*href\s*=\s*(['\"])(.*?)\1[^>]*>([\s\S]*?)<\/a>", caseSensitive: false);
+    final parts = source.split('\n\n');
+    for (var i = 0; i < parts.length; i++) {
+      final partSpans = _buildInlineSpansFromHtml(parts[i], style, linkStyle);
+      spans.addAll(partSpans);
+      if (i < parts.length - 1) {
+        spans.add(TextSpan(text: '\n\n', style: style));
+      }
+    }
+
+    return spans.isEmpty ? [TextSpan(text: widget.block.text, style: style)] : spans;
+  }
+
+  List<TextSpan> _buildInlineSpansFromHtml(
+    String html,
+    TextStyle baseStyle,
+    TextStyle linkStyle,
+  ) {
+    final spans = <TextSpan>[];
+    final tagRegex = RegExp(r'<[^>]+>');
     var current = 0;
+    var boldDepth = 0;
+    String? currentLinkUrl;
 
-    for (final match in regex.allMatches(source)) {
-      final before = _cleanHtml(source.substring(current, match.start), preserveParagraphs: true);
-      if (before.isNotEmpty) spans.add(TextSpan(text: before, style: style));
+    TextStyle resolveStyle() {
+      var resolved = currentLinkUrl != null ? linkStyle : baseStyle;
+      if (boldDepth > 0) {
+        final currentWeight = resolved.fontWeight ?? FontWeight.normal;
+        resolved = resolved.copyWith(
+          fontWeight: currentWeight.index < FontWeight.w700.index
+              ? FontWeight.w700
+              : currentWeight,
+        );
+      }
+      return resolved;
+    }
 
-      final url = _decodeHtmlEntities(match.group(2) ?? '').trim();
-      final label = _cleanHtml(match.group(3) ?? '', preserveParagraphs: true);
-      if (label.isNotEmpty) {
+    void addText(String raw) {
+      final cleaned = _cleanHtml(raw, preserveParagraphs: true);
+      if (cleaned.isNotEmpty) {
         spans.add(
           TextSpan(
-            text: label,
-            style: linkStyle,
-            recognizer: TapGestureRecognizer()..onTap = () => _openLink(url),
+            text: cleaned,
+            style: resolveStyle(),
+            recognizer: currentLinkUrl == null
+                ? null
+                : (TapGestureRecognizer()
+                  ..onTap = () => _openLink(currentLinkUrl!)),
           ),
         );
+      }
+    }
+
+    for (final match in tagRegex.allMatches(html)) {
+      addText(html.substring(current, match.start));
+      final tag = match.group(0)?.toLowerCase() ?? '';
+
+      if (tag.startsWith('<a ')) {
+        final hrefMatch = RegExp(
+          r'''href\s*=\s*(['"])(.*?)\1''',
+          caseSensitive: false,
+        ).firstMatch(match.group(0) ?? '');
+        currentLinkUrl = _decodeHtmlEntities(hrefMatch?.group(2) ?? '').trim();
+      } else if (tag.startsWith('</a')) {
+        currentLinkUrl = null;
+      } else if (tag.startsWith('<strong') || tag.startsWith('<b')) {
+        boldDepth++;
+      } else if (tag.startsWith('</strong') || tag.startsWith('</b')) {
+        if (boldDepth > 0) boldDepth--;
+      } else if (tag.startsWith('<br')) {
+        addText('\n');
       }
 
       current = match.end;
     }
 
-    final after = _cleanHtml(source.substring(current), preserveParagraphs: true);
-    if (after.isNotEmpty) spans.add(TextSpan(text: after, style: style));
-    return spans.isEmpty ? [TextSpan(text: widget.block.text, style: style)] : spans;
+    addText(html.substring(current));
+    return spans;
   }
 
   @override
