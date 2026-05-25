@@ -51,10 +51,11 @@ class NoticiaContentBlock {
     this.linkUrl = '',
     this.videoUrl = '',
     this.galleryItems = const [],
+    this.sourceHtml = '',
   });
 
-  const NoticiaContentBlock.text(String value)
-    : this._(type: NoticiaContentBlockType.text, text: value);
+  const NoticiaContentBlock.text(String value, {String sourceHtml = ''})
+    : this._(type: NoticiaContentBlockType.text, text: value, sourceHtml: sourceHtml);
 
   const NoticiaContentBlock.image({required String url, String caption = ''})
     : this._(
@@ -79,6 +80,7 @@ class NoticiaContentBlock {
   final String linkUrl;
   final String videoUrl;
   final List<NoticiaGalleryItem> galleryItems;
+  final String sourceHtml;
 
   bool get isText => type == NoticiaContentBlockType.text;
   bool get isImage => type == NoticiaContentBlockType.image;
@@ -94,6 +96,7 @@ class NoticiaContentBlock {
     'linkUrl': linkUrl,
     'videoUrl': videoUrl,
     'galleryItems': galleryItems.map((e) => e.toJson()).toList(),
+    'sourceHtml': sourceHtml,
   };
 
   factory NoticiaContentBlock.fromJson(Map<String, dynamic> json) {
@@ -121,7 +124,10 @@ class NoticiaContentBlock {
       case NoticiaContentBlockType.video:
         return NoticiaContentBlock.video(json['videoUrl']?.toString() ?? '');
       case NoticiaContentBlockType.text:
-        return NoticiaContentBlock.text(json['text']?.toString() ?? '');
+        return NoticiaContentBlock.text(
+          json['text']?.toString() ?? '',
+          sourceHtml: json['sourceHtml']?.toString() ?? '',
+        );
     }
   }
 }
@@ -256,7 +262,7 @@ class NoticiaModel {
           continue;
         }
 
-        blocks.add(NoticiaContentBlock.text(text));
+        blocks.add(NoticiaContentBlock.text(text, sourceHtml: fragment));
       }
     }
 

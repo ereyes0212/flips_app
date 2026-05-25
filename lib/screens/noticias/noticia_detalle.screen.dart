@@ -284,13 +284,123 @@ class _ArticleBlock extends StatelessWidget {
     if (block.isVideo) return _ArticleVideo(block: block);
     if (block.isLink) return _ArticleLink(block: block, hideAds: hideAds);
 
-    return Text(
-      block.text,
-      style: Theme.of(context).textTheme.bodyLarge?.copyWith(height: 1.65),
-    );
+    return _ArticleTextBlock(block: block);
   }
 }
 
+
+
+
+class _ArticleTextBlock extends StatefulWidget {
+  const _ArticleTextBlock({required this.block});
+
+  final NoticiaContentBlock block;
+
+  @override
+  State<_ArticleTextBlock> createState() => _ArticleTextBlockState();
+}
+
+class _ArticleTextBlockState extends State<_ArticleTextBlock> {
+  final _service = NoticiasService();
+
+  String _cleanHtml(String value, {bool preserveParagraphs = false}) {
+    var text = value
+        .replaceAll(RegExp(r'<\s*br\s*/?\s*>', caseSensitive: false), '\n')
+        .replaceAll(
+          RegExp(
+            r'</\s*(p|div|h[1-6]|li|blockquote)\s*>',
+            caseSensitive: false,
+          ),
+          preserveParagraphs ? '\n\n' : ' ',
+        )
+        .replaceAll(RegExp(r'<[^>]*>'), ' ');
+
+    text = _decodeHtmlEntities(text);
+
+    if (preserveParagraphs) {
+      return text
+          .split('\n')
+          .map((line) => line.replaceAll(RegExp(r'\s+'), ' ').trim())
+          .where((line) => line.isNotEmpty)
+          .join('\n\n');
+    }
+
+    return text.replaceAll(RegExp(r'\s+'), ' ').trim();
+  }
+
+  String _decodeHtmlEntities(String value) {
+    return value
+        .replaceAll('&nbsp;', ' ')
+        .replaceAll('&amp;', '&')
+        .replaceAll('&quot;', '"')
+        .replaceAll('&#039;', "'")
+        .replaceAll('&apos;', "'")
+        .replaceAll('&lt;', '<')
+        .replaceAll('&gt;', '>');
+  }
+
+  Future<void> _openLink(String rawUrl) async {
+    final normalizedUrl = rawUrl.startsWith('//') ? 'https:$rawUrl' : rawUrl;
+    final uri = Uri.tryParse(normalizedUrl);
+    if (uri == null) return;
+
+    final noticia = await _service.obtenerNoticiaPorLink(normalizedUrl);
+    if (!mounted) return;
+
+    if (noticia != null) {
+      _abrirDetalle(context, noticia);
+      return;
+    }
+
+    await launchUrl(uri, mode: LaunchMode.externalApplication);
+  }
+
+  List<TextSpan> _buildSpans(TextStyle style, TextStyle linkStyle) {
+    final source = widget.block.sourceHtml;
+    if (source.isEmpty || !source.contains('<a')) {
+      return [TextSpan(text: widget.block.text, style: style)];
+    }
+
+    final spans = <TextSpan>[];
+    final regex = RegExp(r"<a\b[^>]*href\s*=\s*(['\"])(.*?)\1[^>]*>([\s\S]*?)<\/a>", caseSensitive: false);
+    var current = 0;
+
+    for (final match in regex.allMatches(source)) {
+      final before = _cleanHtml(source.substring(current, match.start), preserveParagraphs: true);
+      if (before.isNotEmpty) spans.add(TextSpan(text: before, style: style));
+
+      final url = _decodeHtmlEntities(match.group(2) ?? '').trim();
+      final label = _cleanHtml(match.group(3) ?? '', preserveParagraphs: true);
+      if (label.isNotEmpty) {
+        spans.add(
+          TextSpan(
+            text: label,
+            style: linkStyle,
+            recognizer: TapGestureRecognizer()..onTap = () => _openLink(url),
+          ),
+        );
+      }
+
+      current = match.end;
+    }
+
+    final after = _cleanHtml(source.substring(current), preserveParagraphs: true);
+    if (after.isNotEmpty) spans.add(TextSpan(text: after, style: style));
+    return spans.isEmpty ? [TextSpan(text: widget.block.text, style: style)] : spans;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final baseStyle = Theme.of(context).textTheme.bodyLarge?.copyWith(height: 1.65);
+    final linkStyle = baseStyle?.copyWith(
+      color: Theme.of(context).colorScheme.primary,
+      fontWeight: FontWeight.w700,
+      decoration: TextDecoration.underline,
+    );
+
+    return RichText(text: TextSpan(children: _buildSpans(baseStyle ?? const TextStyle(), linkStyle ?? const TextStyle())));
+  }
+}
 
 class _ArticleVideo extends StatefulWidget {
   const _ArticleVideo({required this.block});
