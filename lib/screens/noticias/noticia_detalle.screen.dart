@@ -1003,10 +1003,14 @@ class _ArticleLinkState extends State<_ArticleLink> {
 
     setState(() => _loading = false);
     if (noticia == null) {
+      final uri = Uri.tryParse(widget.block.linkUrl);
+      if (uri != null) {
+        await launchUrl(uri, mode: LaunchMode.externalApplication);
+        return;
+      }
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('No se pudo cargar la noticia relacionada.'),
-        ),
+        const SnackBar(content: Text('No se pudo abrir el enlace.')),
       );
       return;
     }
