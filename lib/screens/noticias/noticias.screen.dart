@@ -8,6 +8,7 @@ import 'package:flips_app/services/noticias.service.dart';
 import 'package:flips_app/services/mi_perfil.service.dart';
 import 'package:flips_app/utils/ad_visibility.util.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
 import 'package:intl/intl.dart';
