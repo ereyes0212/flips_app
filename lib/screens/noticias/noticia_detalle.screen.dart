@@ -475,7 +475,7 @@ class _ArticleTextBlockState extends State<_ArticleTextBlock> {
       addText(html.substring(current, match.start));
       final tag = match.group(0)?.toLowerCase() ?? '';
 
-      if (tag.startsWith('<a ')) {
+      if (RegExp(r'^<a\b', caseSensitive: false).hasMatch(tag)) {
         final hrefMatch = RegExp(
           r'''href\s*=\s*(['"])(.*?)\1''',
           caseSensitive: false,
