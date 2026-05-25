@@ -302,6 +302,7 @@ class _ArticleTextBlock extends StatefulWidget {
 
 class _ArticleTextBlockState extends State<_ArticleTextBlock> {
   final _service = NoticiasService();
+  bool _openingLink = false;
 
   String _cleanHtml(String value, {bool preserveParagraphs = false}) {
     var text = value
@@ -391,19 +392,28 @@ class _ArticleTextBlockState extends State<_ArticleTextBlock> {
     return candidate;
   }
   Future<void> _openLink(String rawUrl) async {
+    if (_openingLink) return;
+
     final normalizedUrl = _normalizeLink(rawUrl);
     final uri = Uri.tryParse(normalizedUrl);
     if (uri == null || (!uri.hasScheme && !uri.hasAuthority)) return;
 
-    final noticia = await _service.obtenerNoticiaPorLink(normalizedUrl);
-    if (!mounted) return;
+    if (mounted) setState(() => _openingLink = true);
+    try {
+      final noticia = await _service.obtenerNoticiaPorLink(normalizedUrl);
+      if (!mounted) return;
 
-    if (noticia != null) {
-      _abrirDetalle(context, noticia);
-      return;
+      if (noticia != null) {
+        _abrirDetalle(context, noticia);
+        return;
+      }
+
+      await launchUrl(uri, mode: LaunchMode.externalApplication);
+    } finally {
+      if (mounted) {
+        setState(() => _openingLink = false);
+      }
     }
-
-    await launchUrl(uri, mode: LaunchMode.externalApplication);
   }
 
   List<TextSpan> _buildSpans(TextStyle style, TextStyle linkStyle) {
@@ -507,7 +517,34 @@ class _ArticleTextBlockState extends State<_ArticleTextBlock> {
       decoration: TextDecoration.underline,
     );
 
-    return RichText(text: TextSpan(children: _buildSpans(baseStyle ?? const TextStyle(), linkStyle ?? const TextStyle())));
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        if (_openingLink)
+          const Padding(
+            padding: EdgeInsets.only(bottom: 8),
+            child: Row(
+              children: [
+                SizedBox(
+                  width: 14,
+                  height: 14,
+                  child: CircularProgressIndicator(strokeWidth: 2.2),
+                ),
+                SizedBox(width: 8),
+                Text('Cargando noticia...'),
+              ],
+            ),
+          ),
+        RichText(
+          text: TextSpan(
+            children: _buildSpans(
+              baseStyle ?? const TextStyle(),
+              linkStyle ?? const TextStyle(),
+            ),
+          ),
+        ),
+      ],
+    );
   }
 }
 
