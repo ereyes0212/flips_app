@@ -459,14 +459,16 @@ class NoticiaModel {
     text = _decodeHtmlEntities(text);
 
     if (preserveParagraphs) {
-      return text
+      return _stripRedaccionPrefix(
+        text
           .split('\n')
           .map((line) => line.replaceAll(RegExp(r'\s+'), ' ').trim())
           .where((line) => line.isNotEmpty)
-          .join('\n\n');
+          .join('\n\n'),
+      );
     }
 
-    return text.replaceAll(RegExp(r'\s+'), ' ').trim();
+    return _stripRedaccionPrefix(text.replaceAll(RegExp(r'\s+'), ' ').trim());
   }
 
   static String _decodeHtmlEntities(String value) {
@@ -498,6 +500,13 @@ class NoticiaModel {
       return String.fromCharCode(codePoint);
     });
   }
+
+  static String _stripRedaccionPrefix(String value) {
+    return value.replaceFirst(
+      RegExp(r'^\s*redacci[oó]n[\s:,\-–—]+\s*', caseSensitive: false),
+      '',
+    );
+  }
 }
 
 String _cleanHtml(String value, {bool preserveParagraphs = false}) {
@@ -512,14 +521,16 @@ String _cleanHtml(String value, {bool preserveParagraphs = false}) {
   text = _decodeHtmlEntities(text);
 
   if (preserveParagraphs) {
-    return text
+    return _stripRedaccionPrefix(
+      text
         .split('\n')
         .map((line) => line.replaceAll(RegExp(r'\s+'), ' ').trim())
         .where((line) => line.isNotEmpty)
-        .join('\n\n');
+        .join('\n\n'),
+    );
   }
 
-  return text.replaceAll(RegExp(r'\s+'), ' ').trim();
+  return _stripRedaccionPrefix(text.replaceAll(RegExp(r'\s+'), ' ').trim());
 }
 
 String _decodeHtmlEntities(String value) {
@@ -550,4 +561,11 @@ String _decodeHtmlEntities(String value) {
     if (codePoint == null) return match.group(0) ?? '';
     return String.fromCharCode(codePoint);
   });
+}
+
+String _stripRedaccionPrefix(String value) {
+  return value.replaceFirst(
+    RegExp(r'^\s*redacci[oó]n[\s:,\-–—]+\s*', caseSensitive: false),
+    '',
+  );
 }

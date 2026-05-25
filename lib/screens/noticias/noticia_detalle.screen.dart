@@ -318,14 +318,16 @@ class _ArticleTextBlockState extends State<_ArticleTextBlock> {
     text = _decodeHtmlEntities(text);
 
     if (preserveParagraphs) {
-      return text
+      return _stripRedaccionPrefix(
+        text
           .split('\n')
           .map((line) => line.replaceAll(RegExp(r'\s+'), ' ').trim())
           .where((line) => line.isNotEmpty)
-          .join('\n\n');
+          .join('\n\n'),
+      );
     }
 
-    return text.replaceAll(RegExp(r'\s+'), ' ').trim();
+    return _stripRedaccionPrefix(text.replaceAll(RegExp(r'\s+'), ' ').trim());
   }
 
   String _decodeHtmlEntities(String value) {
@@ -337,6 +339,13 @@ class _ArticleTextBlockState extends State<_ArticleTextBlock> {
         .replaceAll('&apos;', "'")
         .replaceAll('&lt;', '<')
         .replaceAll('&gt;', '>');
+  }
+
+  String _stripRedaccionPrefix(String value) {
+    return value.replaceFirst(
+      RegExp(r'^\s*redacci[oó]n[\s:,\-–—]+\s*', caseSensitive: false),
+      '',
+    );
   }
 
   Future<void> _openLink(String rawUrl) async {
