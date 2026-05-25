@@ -5,6 +5,7 @@ import 'package:flips_app/controllers/noticias.controller.dart';
 import 'package:flips_app/models/noticias.model.dart';
 import 'package:flips_app/providers/noticias.provider.dart';
 import 'package:flips_app/services/noticias.service.dart';
+import 'package:flips_app/services/analytics.service.dart';
 import 'package:flips_app/services/mi_perfil.service.dart';
 import 'package:flips_app/utils/ad_visibility.util.dart';
 import 'package:flutter/foundation.dart';
@@ -534,9 +535,21 @@ Future<void> _compartirNoticia(BuildContext context, NoticiaModel noticia) async
 
   final mensaje = '${noticia.title}\n$link';
   await SharePlus.instance.share(ShareParams(text: mensaje, subject: noticia.title));
+  await AnalyticsService.logNoteShare(
+    noteId: noticia.id,
+    slug: noticia.slug,
+    title: noticia.title,
+  );
 }
 
 Future<void> _abrirDetalle(BuildContext context, NoticiaModel noticia, {bool hideAds = false}) async {
+  await AnalyticsService.logNoteView(
+    noteId: noticia.id,
+    slug: noticia.slug,
+    title: noticia.title,
+    categoryIds: noticia.categories,
+  );
+
   Navigator.push(
     context,
     MaterialPageRoute(builder: (_) => _NoticiaDetalleScreen(noticia: noticia, hideAds: hideAds)),
