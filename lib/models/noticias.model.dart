@@ -454,6 +454,8 @@ class NoticiaModel {
     final normalized = text.toLowerCase();
     return normalized.contains('le puede interesar') ||
         normalized.contains('lea la edición anterior') ||
+        normalized.contains('también puede leer') ||
+        normalized.contains('de igual importancia') ||
         normalized.contains('lea la edicion anterior');
   }
 
