@@ -284,13 +284,188 @@ class _ArticleBlock extends StatelessWidget {
     if (block.isVideo) return _ArticleVideo(block: block);
     if (block.isLink) return _ArticleLink(block: block, hideAds: hideAds);
 
-    return Text(
-      block.text,
-      style: Theme.of(context).textTheme.bodyLarge?.copyWith(height: 1.65),
-    );
+    return _ArticleTextBlock(block: block);
   }
 }
 
+
+
+
+class _ArticleTextBlock extends StatefulWidget {
+  const _ArticleTextBlock({required this.block});
+
+  final NoticiaContentBlock block;
+
+  @override
+  State<_ArticleTextBlock> createState() => _ArticleTextBlockState();
+}
+
+class _ArticleTextBlockState extends State<_ArticleTextBlock> {
+  final _service = NoticiasService();
+
+  String _cleanHtml(String value, {bool preserveParagraphs = false}) {
+    var text = value
+        .replaceAll(RegExp(r'<\s*br\s*/?\s*>', caseSensitive: false), '\n')
+        .replaceAll(
+          RegExp(
+            r'</\s*(p|div|h[1-6]|li|blockquote)\s*>',
+            caseSensitive: false,
+          ),
+          preserveParagraphs ? '\n\n' : ' ',
+        )
+        .replaceAll(RegExp(r'<[^>]*>'), ' ');
+
+    text = _decodeHtmlEntities(text);
+
+    if (preserveParagraphs) {
+      return _stripRedaccionPrefix(
+        text
+          .split('\n')
+          .map((line) => line.replaceAll(RegExp(r'\s+'), ' ').trim())
+          .where((line) => line.isNotEmpty)
+          .join('\n\n'),
+      );
+    }
+
+    return _stripRedaccionPrefix(text.replaceAll(RegExp(r'\s+'), ' ').trim());
+  }
+
+  String _decodeHtmlEntities(String value) {
+    return value
+        .replaceAll('&nbsp;', ' ')
+        .replaceAll('&amp;', '&')
+        .replaceAll('&quot;', '"')
+        .replaceAll('&#039;', "'")
+        .replaceAll('&apos;', "'")
+        .replaceAll('&lt;', '<')
+        .replaceAll('&gt;', '>');
+  }
+
+  String _stripRedaccionPrefix(String value) {
+    return value.replaceFirst(
+      RegExp(r'^\s*redacci[oó]n[\s:,\-–—]+\s*', caseSensitive: false),
+      '',
+    );
+  }
+
+  Future<void> _openLink(String rawUrl) async {
+    final normalizedUrl = rawUrl.startsWith('/')
+        ? 'https://tiempo.hn$rawUrl'
+        : rawUrl.startsWith('//')
+        ? 'https:$rawUrl'
+        : rawUrl;
+    final uri = Uri.tryParse(normalizedUrl);
+    if (uri == null) return;
+
+    final noticia = await _service.obtenerNoticiaPorLink(normalizedUrl);
+    if (!mounted) return;
+
+    if (noticia != null) {
+      _abrirDetalle(context, noticia);
+      return;
+    }
+
+    await launchUrl(uri, mode: LaunchMode.externalApplication);
+  }
+
+  List<TextSpan> _buildSpans(TextStyle style, TextStyle linkStyle) {
+    final source = widget.block.sourceHtml;
+    if (source.isEmpty) {
+      return [TextSpan(text: widget.block.text, style: style)];
+    }
+
+    final spans = <TextSpan>[];
+    final parts = source.split('\n\n');
+    for (var i = 0; i < parts.length; i++) {
+      final partSpans = _buildInlineSpansFromHtml(parts[i], style, linkStyle);
+      spans.addAll(partSpans);
+      if (i < parts.length - 1) {
+        spans.add(TextSpan(text: '\n\n', style: style));
+      }
+    }
+
+    return spans.isEmpty ? [TextSpan(text: widget.block.text, style: style)] : spans;
+  }
+
+  List<TextSpan> _buildInlineSpansFromHtml(
+    String html,
+    TextStyle baseStyle,
+    TextStyle linkStyle,
+  ) {
+    final spans = <TextSpan>[];
+    final tagRegex = RegExp(r'<[^>]+>');
+    var current = 0;
+    var boldDepth = 0;
+    String? currentLinkUrl;
+
+    TextStyle resolveStyle() {
+      var resolved = currentLinkUrl != null ? linkStyle : baseStyle;
+      if (boldDepth > 0) {
+        final currentWeight = resolved.fontWeight ?? FontWeight.normal;
+        resolved = resolved.copyWith(
+          fontWeight: currentWeight.index < FontWeight.w700.index
+              ? FontWeight.w700
+              : currentWeight,
+        );
+      }
+      return resolved;
+    }
+
+    void addText(String raw) {
+      final cleaned = _cleanHtml(raw, preserveParagraphs: true);
+      if (cleaned.isNotEmpty) {
+        spans.add(
+          TextSpan(
+            text: cleaned,
+            style: resolveStyle(),
+            recognizer: currentLinkUrl == null
+                ? null
+                : (TapGestureRecognizer()
+                  ..onTap = () => _openLink(currentLinkUrl!)),
+          ),
+        );
+      }
+    }
+
+    for (final match in tagRegex.allMatches(html)) {
+      addText(html.substring(current, match.start));
+      final tag = match.group(0)?.toLowerCase() ?? '';
+
+      if (tag.startsWith('<a ')) {
+        final hrefMatch = RegExp(
+          r'''href\s*=\s*(['"])(.*?)\1''',
+          caseSensitive: false,
+        ).firstMatch(match.group(0) ?? '');
+        currentLinkUrl = _decodeHtmlEntities(hrefMatch?.group(2) ?? '').trim();
+      } else if (tag.startsWith('</a')) {
+        currentLinkUrl = null;
+      } else if (tag.startsWith('<strong') || tag.startsWith('<b')) {
+        boldDepth++;
+      } else if (tag.startsWith('</strong') || tag.startsWith('</b')) {
+        if (boldDepth > 0) boldDepth--;
+      } else if (tag.startsWith('<br')) {
+        addText('\n');
+      }
+
+      current = match.end;
+    }
+
+    addText(html.substring(current));
+    return spans;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final baseStyle = Theme.of(context).textTheme.bodyLarge?.copyWith(height: 1.65);
+    final linkStyle = baseStyle?.copyWith(
+      color: Theme.of(context).colorScheme.primary,
+      fontWeight: FontWeight.w700,
+      decoration: TextDecoration.underline,
+    );
+
+    return RichText(text: TextSpan(children: _buildSpans(baseStyle ?? const TextStyle(), linkStyle ?? const TextStyle())));
+  }
+}
 
 class _ArticleVideo extends StatefulWidget {
   const _ArticleVideo({required this.block});
@@ -748,6 +923,77 @@ class _ArticleLinkState extends State<_ArticleLink> {
   final _service = NoticiasService();
   bool _loading = false;
 
+  String _cleanHtml(String value, {bool preserveParagraphs = false}) {
+    var text = value
+        .replaceAll(RegExp(r'<\s*br\s*/?\s*>', caseSensitive: false), '\n')
+        .replaceAll(
+          RegExp(
+            r'</\s*(p|div|h[1-6]|li|blockquote)\s*>',
+            caseSensitive: false,
+          ),
+          preserveParagraphs ? '\n\n' : ' ',
+        )
+        .replaceAll(RegExp(r'<[^>]*>'), ' ');
+
+    text = _decodeHtmlEntities(text);
+
+    if (preserveParagraphs) {
+      return text
+          .split('\n')
+          .map((line) => line.replaceAll(RegExp(r'\s+'), ' ').trim())
+          .where((line) => line.isNotEmpty)
+          .join('\n\n');
+    }
+
+    return text.replaceAll(RegExp(r'\s+'), ' ').trim();
+  }
+
+  String _decodeHtmlEntities(String value) {
+    return value
+        .replaceAll('&nbsp;', ' ')
+        .replaceAll('&amp;', '&')
+        .replaceAll('&quot;', '"')
+        .replaceAll('&#039;', "'")
+        .replaceAll('&apos;', "'")
+        .replaceAll('&lt;', '<')
+        .replaceAll('&gt;', '>');
+  }
+
+  List<TextSpan> _buildLabelSpans(TextStyle baseStyle) {
+    final source = widget.block.sourceHtml;
+    if (source.isEmpty) return [TextSpan(text: widget.block.text, style: baseStyle)];
+
+    final spans = <TextSpan>[];
+    final tagRegex = RegExp(r'<[^>]+>');
+    var current = 0;
+    var boldDepth = 0;
+
+    void addText(String raw) {
+      final cleaned = _cleanHtml(raw, preserveParagraphs: true);
+      if (cleaned.isEmpty) return;
+      spans.add(
+        TextSpan(
+          text: cleaned,
+          style: boldDepth > 0
+              ? baseStyle.copyWith(fontWeight: FontWeight.w800)
+              : baseStyle,
+        ),
+      );
+    }
+
+    for (final match in tagRegex.allMatches(source)) {
+      addText(source.substring(current, match.start));
+      final tag = (match.group(0) ?? '').toLowerCase();
+      if (tag.startsWith('<strong') || tag.startsWith('<b')) boldDepth++;
+      if (tag.startsWith('</strong') || tag.startsWith('</b')) {
+        if (boldDepth > 0) boldDepth--;
+      }
+      current = match.end;
+    }
+    addText(source.substring(current));
+    return spans.isEmpty ? [TextSpan(text: widget.block.text, style: baseStyle)] : spans;
+  }
+
   Future<void> _openLinkedNoticia() async {
     if (_loading) return;
 
@@ -796,12 +1042,16 @@ class _ArticleLinkState extends State<_ArticleLink> {
                     ),
               const SizedBox(width: 12),
               Expanded(
-                child: Text(
-                  widget.block.text,
-                  style: theme.textTheme.bodyMedium?.copyWith(
-                    color: colorScheme.primary,
-                    fontWeight: FontWeight.w800,
-                    height: 1.35,
+                child: RichText(
+                  text: TextSpan(
+                    children: _buildLabelSpans(
+                      theme.textTheme.bodyMedium?.copyWith(
+                            color: colorScheme.primary,
+                            fontWeight: FontWeight.w800,
+                            height: 1.35,
+                          ) ??
+                          const TextStyle(),
+                    ),
                   ),
                 ),
               ),
