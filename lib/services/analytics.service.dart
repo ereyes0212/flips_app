@@ -76,16 +76,30 @@ class AnalyticsService {
   static Future<void> logNewsScreen({
     required String slug,
     required String title,
+    required String path,
     required List<int> categoryIds,
   }) async {
     try {
+      final screenName = _sanitize(title);
       final normalizedSlug = _sanitize(slug);
-      final fallbackTitle = _sanitize(title);
-      final screenName = normalizedSlug.isEmpty ? fallbackTitle : normalizedSlug;
+      final fallbackName = normalizedSlug.isEmpty ? 'noticia_detalle' : normalizedSlug;
+      final resolvedScreenName = screenName.isEmpty ? fallbackName : screenName;
       await _analytics.logScreenView(
-        screenName: screenName,
+        screenName: resolvedScreenName,
         screenClass: 'NoticiaDetalleScreen',
       );
+
+      final normalizedPath = _sanitize(path);
+      if (normalizedPath.isNotEmpty) {
+        await _analytics.logEvent(
+          name: 'page_view',
+          parameters: {
+            'page_title': resolvedScreenName,
+            'page_path': normalizedPath,
+            'page_location': normalizedPath,
+          },
+        );
+      }
     } catch (error) {
       if (kDebugMode) {
         debugPrint('No se pudo registrar screen_view de noticia: $error');
@@ -99,6 +113,35 @@ class AnalyticsService {
         'event_label': _sanitize(slug),
       },
     );
+  }
+
+
+
+  static Future<void> logRouteScreen({
+    required String path,
+  }) async {
+    final normalizedPath = _sanitize(path);
+    if (normalizedPath.isEmpty) return;
+
+    try {
+      await _analytics.logScreenView(
+        screenName: normalizedPath,
+        screenClass: 'AppRoute',
+      );
+
+      await _analytics.logEvent(
+        name: 'page_view',
+        parameters: {
+          'page_title': normalizedPath,
+          'page_path': normalizedPath,
+          'page_location': normalizedPath,
+        },
+      );
+    } catch (error) {
+      if (kDebugMode) {
+        debugPrint('No se pudo registrar screen_view de ruta: $error');
+      }
+    }
   }
 
   static Future<void> logNoteShare({

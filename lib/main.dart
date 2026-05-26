@@ -11,6 +11,7 @@ import 'package:flips_app/providers/mis_suscripcion.provider.dart';
 import 'package:flips_app/providers/paquetes.provider.dart';
 import 'package:flips_app/screens/home/home.screen.dart';
 import 'package:flips_app/screens/login/login.screen.dart';
+import 'package:flips_app/services/app_analytics_route_observer.dart';
 import 'package:flips_app/services/session.service.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
@@ -81,6 +82,7 @@ class MyApp extends StatelessWidget {
         ChangeNotifierProvider(create: (context) => MisSuscripcionProvider()),
       ],
       child: MaterialApp(
+        navigatorObservers: [AppAnalyticsRouteObserver()],
         localizationsDelegates: const [
           GlobalMaterialLocalizations.delegate,
           GlobalWidgetsLocalizations.delegate,

@@ -102,7 +102,16 @@ class _LoginScreenState extends State<LoginScreen> {
                       onPressed: authprovider.loading
                           ? null
                           : () => AuthController().loginController(txtUser.text.trim(), txtPass.text.trim(), context),
-                      child: authprovider.loading ? const CircularProgressIndicator() : const Text('Iniciar sesión'),
+                      child: authprovider.loading
+                          ? const SizedBox(
+                              width: 22,
+                              height: 22,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2.4,
+                                valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                              ),
+                            )
+                          : const Text('Iniciar sesión'),
                     ),
                   ),
                   const SizedBox(height: 12),
