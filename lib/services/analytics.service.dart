@@ -35,7 +35,7 @@ class AnalyticsService {
         'item_variant': _sanitize(slug),
         'source': source,
         'content_type': 'article',
-        'event_category': 'news',
+        'event_category': categoryPath,
         'event_label': _sanitize(slug),
       },
     );
@@ -73,17 +73,29 @@ class AnalyticsService {
     );
   }
 
-
   static Future<void> logNewsScreen({
     required String slug,
     required String title,
+    required List<int> categoryIds,
   }) async {
+    try {
+      final normalizedSlug = _sanitize(slug);
+      final fallbackTitle = _sanitize(title);
+      final screenName = normalizedSlug.isEmpty ? 'news:$fallbackTitle' : 'news:$normalizedSlug';
+      await _analytics.logScreenView(
+        screenName: screenName,
+        screenClass: 'NoticiaDetalleScreen',
+      );
+    } catch (error) {
+      if (kDebugMode) {
+        debugPrint('No se pudo registrar screen_view de noticia: $error');
+      }
+    }
+
     await _logEvent(
-      name: 'screen_view',
+      name: 'news_screen_view',
       parameters: {
-        'firebase_screen': _sanitize('news:${slug.trim().isEmpty ? title : slug}'),
-        'firebase_screen_class': 'NoticiaDetalleScreen',
-        'event_category': 'news',
+        'event_category': categoryIds.join(','),
         'event_label': _sanitize(slug),
       },
     );

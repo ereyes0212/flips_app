@@ -558,6 +558,7 @@ Future<void> _abrirDetalle(BuildContext context, NoticiaModel noticia, {bool hid
   await AnalyticsService.logNewsScreen(
     slug: noticia.slug,
     title: noticia.title,
+    categoryIds: noticia.categories,
   );
 
   Navigator.push(
