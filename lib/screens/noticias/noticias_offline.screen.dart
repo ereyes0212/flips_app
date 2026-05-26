@@ -19,6 +19,8 @@ class _NoticiasOfflineScreenState extends State<NoticiasOfflineScreen> {
   final _authService = AuthService();
   bool _loadingSubscription = true;
   bool _hasActiveSubscription = false;
+  final Set<int> _selectedIds = <int>{};
+  bool _selectionMode = false;
   @override
   void initState() {
     super.initState();
@@ -83,6 +85,74 @@ class _NoticiasOfflineScreenState extends State<NoticiasOfflineScreen> {
     );
   }
 
+
+
+  void _toggleSelectionMode() {
+    setState(() {
+      _selectionMode = !_selectionMode;
+      if (!_selectionMode) _selectedIds.clear();
+    });
+  }
+
+  void _toggleItemSelection(int id) {
+    setState(() {
+      if (_selectedIds.contains(id)) {
+        _selectedIds.remove(id);
+      } else {
+        _selectedIds.add(id);
+      }
+      if (_selectedIds.isEmpty) _selectionMode = false;
+    });
+  }
+
+  void _selectAll(List<NoticiaModel> noticias) {
+    setState(() {
+      _selectionMode = true;
+      _selectedIds
+        ..clear()
+        ..addAll(noticias.map((n) => n.id));
+    });
+  }
+
+  Future<void> _deleteSelected(List<NoticiaModel> noticias) async {
+    final ids = _selectedIds.toList();
+    if (ids.isEmpty) return;
+
+    final confirmed = await showDialog<bool>(
+          context: context,
+          builder: (dialogContext) => AlertDialog(
+            title: const Text('Eliminar noticias'),
+            content: Text('¿Quieres eliminar ${ids.length} noticias guardadas?'),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(dialogContext, false),
+                child: const Text('Cancelar'),
+              ),
+              ElevatedButton(
+                onPressed: () => Navigator.pop(dialogContext, true),
+                child: const Text('Eliminar'),
+              ),
+            ],
+          ),
+        ) ??
+        false;
+
+    if (!confirmed) return;
+
+    for (final id in ids) {
+      await _service.eliminarNoticiaOffline(id);
+    }
+    await _cargar();
+    if (!mounted) return;
+    setState(() {
+      _selectedIds.clear();
+      _selectionMode = false;
+    });
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('${ids.length} noticias eliminadas de sin conexión.')),
+    );
+  }
+
   Future<void> _eliminar(NoticiaModel noticia) async {
     await _service.eliminarNoticiaOffline(noticia.id);
     await _cargar();
@@ -96,7 +166,30 @@ class _NoticiasOfflineScreenState extends State<NoticiasOfflineScreen> {
   Widget build(BuildContext context) {
     final noticias = context.watch<NoticiasProvider>().noticiasOffline;
     return Scaffold(
-      appBar: AppBar(title: const Text('Noticias sin conexión')),
+      appBar: AppBar(
+        title: Text(_selectionMode ? '${_selectedIds.length} seleccionadas' : 'Noticias sin conexión'),
+        actions: _hasActiveSubscription
+            ? [
+                IconButton(
+                  tooltip: _selectionMode ? 'Cancelar selección' : 'Seleccionar',
+                  onPressed: _toggleSelectionMode,
+                  icon: Icon(_selectionMode ? Icons.close : Icons.checklist_rounded),
+                ),
+                if (!_selectionMode && noticias.isNotEmpty)
+                  IconButton(
+                    tooltip: 'Seleccionar todas',
+                    onPressed: () => _selectAll(noticias),
+                    icon: const Icon(Icons.select_all_rounded),
+                  ),
+                if (_selectionMode && _selectedIds.isNotEmpty)
+                  IconButton(
+                    tooltip: 'Eliminar seleccionadas',
+                    onPressed: () => _deleteSelected(noticias),
+                    icon: const Icon(Icons.delete_sweep_rounded),
+                  ),
+              ]
+            : null,
+      ),
       body: _loadingSubscription
           ? const Center(child: CircularProgressIndicator())
           : !_hasActiveSubscription
@@ -112,7 +205,7 @@ class _NoticiasOfflineScreenState extends State<NoticiasOfflineScreen> {
               padding: const EdgeInsets.all(16),
               itemBuilder: (_, i) => Dismissible(
                 key: ValueKey('offline-${noticias[i].id}'),
-                direction: DismissDirection.endToStart,
+                direction: _selectionMode ? DismissDirection.none : DismissDirection.endToStart,
                 background: Container(
                   alignment: Alignment.centerRight,
                   padding: const EdgeInsets.symmetric(horizontal: 20),
@@ -143,7 +236,12 @@ class _NoticiasOfflineScreenState extends State<NoticiasOfflineScreen> {
                       false;
                 },
                 onDismissed: (_) => _eliminar(noticias[i]),
-                child: _OfflineCard(noticia: noticias[i]),
+                child: _OfflineCard(
+                  noticia: noticias[i],
+                  selectionMode: _selectionMode,
+                  selected: _selectedIds.contains(noticias[i].id),
+                  onToggleSelection: () => _toggleItemSelection(noticias[i].id),
+                ),
               ),
               separatorBuilder: (_, __) => const SizedBox(height: 12),
               itemCount: noticias.length,
@@ -198,8 +296,16 @@ class _OfflineSubscriptionPrompt extends StatelessWidget {
 }
 
 class _OfflineCard extends StatelessWidget {
-  const _OfflineCard({required this.noticia});
+  const _OfflineCard({
+    required this.noticia,
+    required this.selectionMode,
+    required this.selected,
+    required this.onToggleSelection,
+  });
   final NoticiaModel noticia;
+  final bool selectionMode;
+  final bool selected;
+  final VoidCallback onToggleSelection;
 
   @override
   Widget build(BuildContext context) {
@@ -207,6 +313,10 @@ class _OfflineCard extends StatelessWidget {
       elevation: 1,
       child: ListTile(
         onTap: () {
+          if (selectionMode) {
+            onToggleSelection();
+            return;
+          }
           Navigator.push(
             context,
             MaterialPageRoute(
@@ -214,10 +324,16 @@ class _OfflineCard extends StatelessWidget {
             ),
           );
         },
-        leading: const Icon(Icons.download_done_rounded, color: Colors.green),
+        onLongPress: onToggleSelection,
+        leading: selectionMode
+            ? Checkbox(
+                value: selected,
+                onChanged: (_) => onToggleSelection(),
+              )
+            : const Icon(Icons.download_done_rounded, color: Colors.green),
         title: Text(noticia.title, maxLines: 2, overflow: TextOverflow.ellipsis),
         subtitle: Text(noticia.excerpt, maxLines: 2, overflow: TextOverflow.ellipsis),
-        trailing: const Icon(Icons.chevron_right_rounded),
+        trailing: selectionMode ? null : const Icon(Icons.chevron_right_rounded),
       ),
     );
   }

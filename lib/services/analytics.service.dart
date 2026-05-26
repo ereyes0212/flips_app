@@ -84,12 +84,22 @@ class AnalyticsService {
       final normalizedSlug = _sanitize(slug);
       final fallbackName = normalizedSlug.isEmpty ? 'noticia_detalle' : normalizedSlug;
       final resolvedScreenName = screenName.isEmpty ? fallbackName : screenName;
-      final normalizedPath = _sanitize(path);
-      final screenClass = normalizedPath.isEmpty ? 'NoticiaDetalleScreen' : normalizedPath;
       await _analytics.logScreenView(
         screenName: resolvedScreenName,
-        screenClass: screenClass,
+        screenClass: 'NoticiaDetalleScreen',
       );
+
+      final normalizedPath = _sanitize(path);
+      if (normalizedPath.isNotEmpty) {
+        await _analytics.logEvent(
+          name: 'page_view',
+          parameters: {
+            'page_title': resolvedScreenName,
+            'page_path': normalizedPath,
+            'page_location': normalizedPath,
+          },
+        );
+      }
     } catch (error) {
       if (kDebugMode) {
         debugPrint('No se pudo registrar screen_view de noticia: $error');
