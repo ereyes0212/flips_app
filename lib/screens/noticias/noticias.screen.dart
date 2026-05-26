@@ -561,7 +561,7 @@ Future<void> _abrirDetalle(BuildContext context, NoticiaModel noticia, {bool hid
     categoryIds: noticia.categories,
   );
 
-  final screenPath = '/noticias/${noticia.date.toString().split('T').first}/${noticia.slug}';
+  final screenPath = _analyticsPathFromNews(noticia);
 
   Navigator.push(
     context,
@@ -579,6 +579,19 @@ Future<void> _abrirDetalle(BuildContext context, NoticiaModel noticia, {bool hid
     final saved = await NoticiasService().obtenerNoticiasOffline();
     provider.setNoticiasOffline(saved);
   });
+}
+
+
+String _analyticsPathFromNews(NoticiaModel noticia) {
+  final rawLink = noticia.link.trim();
+  if (rawLink.isNotEmpty) {
+    final uri = Uri.tryParse(rawLink);
+    final path = uri?.path.trim() ?? '';
+    if (path.isNotEmpty && path != '/') return path;
+    if (rawLink.startsWith('/')) return rawLink;
+  }
+
+  return '/noticias/${noticia.slug}';
 }
 
 String _heroTagForNewsImage(NoticiaModel noticia) {
