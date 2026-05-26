@@ -564,7 +564,6 @@ Future<void> _abrirDetalle(BuildContext context, NoticiaModel noticia, {bool hid
     categoryIds: noticia.categories,
   );
 
-  final screenPath = _analyticsPathFromNews(noticia);
 
   Navigator.push(
     context,
