@@ -35,6 +35,56 @@ class AnalyticsService {
         'item_variant': _sanitize(slug),
         'source': source,
         'content_type': 'article',
+        'event_category': 'news',
+        'event_label': _sanitize(slug),
+      },
+    );
+  }
+
+  static Future<void> logNewsSearch({
+    required String query,
+  }) async {
+    final trimmedQuery = query.trim();
+    if (trimmedQuery.isEmpty) return;
+
+    await _logEvent(
+      name: 'search',
+      parameters: {
+        'search_term': _sanitize(trimmedQuery),
+        'event_category': 'news_search',
+        'event_label': _sanitize(trimmedQuery),
+      },
+    );
+  }
+
+  static Future<void> logCategorySearch({
+    required int categoryId,
+    required String categoryName,
+  }) async {
+    await _logEvent(
+      name: 'select_content',
+      parameters: {
+        'content_type': 'category',
+        'item_id': categoryId.toString(),
+        'item_name': _sanitize(categoryName),
+        'event_category': 'category_search',
+        'event_label': _sanitize(categoryName),
+      },
+    );
+  }
+
+
+  static Future<void> logNewsScreen({
+    required String slug,
+    required String title,
+  }) async {
+    await _logEvent(
+      name: 'screen_view',
+      parameters: {
+        'firebase_screen': _sanitize('news:${slug.trim().isEmpty ? title : slug}'),
+        'firebase_screen_class': 'NoticiaDetalleScreen',
+        'event_category': 'news',
+        'event_label': _sanitize(slug),
       },
     );
   }
