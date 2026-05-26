@@ -76,15 +76,19 @@ class AnalyticsService {
   static Future<void> logNewsScreen({
     required String slug,
     required String title,
+    required String path,
     required List<int> categoryIds,
   }) async {
     try {
+      final screenName = _sanitize(title);
       final normalizedSlug = _sanitize(slug);
-      final fallbackTitle = _sanitize(title);
-      final screenName = normalizedSlug.isEmpty ? fallbackTitle : normalizedSlug;
+      final fallbackName = normalizedSlug.isEmpty ? 'noticia_detalle' : normalizedSlug;
+      final resolvedScreenName = screenName.isEmpty ? fallbackName : screenName;
+      final normalizedPath = _sanitize(path);
+      final screenClass = normalizedPath.isEmpty ? 'NoticiaDetalleScreen' : normalizedPath;
       await _analytics.logScreenView(
-        screenName: screenName,
-        screenClass: 'NoticiaDetalleScreen',
+        screenName: resolvedScreenName,
+        screenClass: screenClass,
       );
     } catch (error) {
       if (kDebugMode) {

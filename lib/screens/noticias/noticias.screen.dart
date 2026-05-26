@@ -555,15 +555,21 @@ Future<void> _abrirDetalle(BuildContext context, NoticiaModel noticia, {bool hid
     title: noticia.title,
     categoryIds: noticia.categories,
   );
+  final screenPath = _analyticsPathFromNews(noticia);
+
   await AnalyticsService.logNewsScreen(
     slug: noticia.slug,
     title: noticia.title,
+    path: screenPath,
     categoryIds: noticia.categories,
   );
 
   Navigator.push(
     context,
-    MaterialPageRoute(builder: (_) => _NoticiaDetalleScreen(noticia: noticia, hideAds: hideAds)),
+    MaterialPageRoute(
+      settings: RouteSettings(name: screenPath),
+      builder: (_) => _NoticiaDetalleScreen(noticia: noticia, hideAds: hideAds),
+    ),
   );
 
   if (!hideAds) return;
@@ -574,6 +580,19 @@ Future<void> _abrirDetalle(BuildContext context, NoticiaModel noticia, {bool hid
     final saved = await NoticiasService().obtenerNoticiasOffline();
     provider.setNoticiasOffline(saved);
   });
+}
+
+
+String _analyticsPathFromNews(NoticiaModel noticia) {
+  final rawLink = noticia.link.trim();
+  if (rawLink.isNotEmpty) {
+    final uri = Uri.tryParse(rawLink);
+    final path = uri?.path.trim() ?? '';
+    if (path.isNotEmpty && path != '/') return path;
+    if (rawLink.startsWith('/')) return rawLink;
+  }
+
+  return '/noticias/${noticia.slug}';
 }
 
 String _heroTagForNewsImage(NoticiaModel noticia) {
@@ -587,9 +606,12 @@ void _abrirCategoria(BuildContext context, CategoriaNoticiaModel categoria) {
     categoryName: categoria.name,
   );
 
+  final categoryPath = '/categoria/${categoria.id}';
+
   Navigator.push(
     context,
     MaterialPageRoute(
+      settings: RouteSettings(name: categoryPath),
       builder: (_) => _CategoriaNoticiasScreen(categoria: categoria),
     ),
   );
