@@ -35,6 +35,68 @@ class AnalyticsService {
         'item_variant': _sanitize(slug),
         'source': source,
         'content_type': 'article',
+        'event_category': categoryPath,
+        'event_label': _sanitize(slug),
+      },
+    );
+  }
+
+  static Future<void> logNewsSearch({
+    required String query,
+  }) async {
+    final trimmedQuery = query.trim();
+    if (trimmedQuery.isEmpty) return;
+
+    await _logEvent(
+      name: 'search',
+      parameters: {
+        'search_term': _sanitize(trimmedQuery),
+        'event_category': 'news_search',
+        'event_label': _sanitize(trimmedQuery),
+      },
+    );
+  }
+
+  static Future<void> logCategorySearch({
+    required int categoryId,
+    required String categoryName,
+  }) async {
+    await _logEvent(
+      name: 'select_content',
+      parameters: {
+        'content_type': 'category',
+        'item_id': categoryId.toString(),
+        'item_name': _sanitize(categoryName),
+        'event_category': 'category_search',
+        'event_label': _sanitize(categoryName),
+      },
+    );
+  }
+
+  static Future<void> logNewsScreen({
+    required String slug,
+    required String title,
+    required List<int> categoryIds,
+  }) async {
+    try {
+      final normalizedSlug = _sanitize(slug);
+      final fallbackTitle = _sanitize(title);
+      final screenName = normalizedSlug.isEmpty ? 'news:$fallbackTitle' : 'news:$normalizedSlug';
+      await _analytics.logScreenView(
+        screenName: screenName,
+        screenClass: 'NoticiaDetalleScreen',
+      );
+    } catch (error) {
+      if (kDebugMode) {
+        debugPrint('No se pudo registrar screen_view de noticia: $error');
+      }
+    }
+
+    await _logEvent(
+      name: 'news_screen_view',
+      parameters: {
+        'event_category': categoryIds.join(','),
+        'event_label': _sanitize(slug),
       },
     );
   }
