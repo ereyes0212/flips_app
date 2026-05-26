@@ -81,7 +81,7 @@ class AnalyticsService {
     try {
       final normalizedSlug = _sanitize(slug);
       final fallbackTitle = _sanitize(title);
-      final screenName = normalizedSlug.isEmpty ? 'news:$fallbackTitle' : 'news:$normalizedSlug';
+      final screenName = normalizedSlug.isEmpty ? fallbackTitle : normalizedSlug;
       await _analytics.logScreenView(
         screenName: screenName,
         screenClass: 'NoticiaDetalleScreen',
