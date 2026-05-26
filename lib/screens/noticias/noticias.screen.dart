@@ -608,7 +608,8 @@ void _abrirCategoria(BuildContext context, CategoriaNoticiaModel categoria) {
     categoryName: categoria.name,
   );
 
-  final categoryPath = '/categoria/${categoria.id}';
+  final categorySlug = categoria.slug.trim();
+  final categoryPath = categorySlug.isEmpty ? '/categoria/${categoria.id}' : '/$categorySlug';
 
   Navigator.push(
     context,
