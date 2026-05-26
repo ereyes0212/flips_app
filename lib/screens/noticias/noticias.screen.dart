@@ -181,12 +181,14 @@ class _NoticiasScreenState extends State<NoticiasScreen> {
   void _buscar(String value) {
     _debounce?.cancel();
     _debounce = Timer(const Duration(milliseconds: 450), () {
+      final query = value.trim();
       _controller.cargarNoticias(
         context,
-        busqueda: value.trim(),
+        busqueda: query,
         fechaDesde: _filtroFecha?.start,
         fechaHasta: _filtroFecha?.end.add(const Duration(days: 1)),
       );
+      AnalyticsService.logNewsSearch(query: query);
     });
   }
 
@@ -252,12 +254,16 @@ class _NoticiasScreenState extends State<NoticiasScreen> {
                   controller: _searchController,
                   loading: provider.loading,
                   onChanged: _buscar,
-                  onSubmitted: (value) => _controller.cargarNoticias(
-                    context,
-                    busqueda: value.trim(),
-                    fechaDesde: _filtroFecha?.start,
-                    fechaHasta: _filtroFecha?.end.add(const Duration(days: 1)),
-                  ),
+                  onSubmitted: (value) {
+                    final query = value.trim();
+                    _controller.cargarNoticias(
+                      context,
+                      busqueda: query,
+                      fechaDesde: _filtroFecha?.start,
+                      fechaHasta: _filtroFecha?.end.add(const Duration(days: 1)),
+                    );
+                    AnalyticsService.logNewsSearch(query: query);
+                  },
                   onClear: () {
                     _searchController.clear();
                     _controller.cargarNoticias(
@@ -549,6 +555,10 @@ Future<void> _abrirDetalle(BuildContext context, NoticiaModel noticia, {bool hid
     title: noticia.title,
     categoryIds: noticia.categories,
   );
+  await AnalyticsService.logNewsScreen(
+    slug: noticia.slug,
+    title: noticia.title,
+  );
 
   Navigator.push(
     context,
@@ -571,6 +581,11 @@ String _heroTagForNewsImage(NoticiaModel noticia) {
 }
 
 void _abrirCategoria(BuildContext context, CategoriaNoticiaModel categoria) {
+  AnalyticsService.logCategorySearch(
+    categoryId: categoria.id,
+    categoryName: categoria.name,
+  );
+
   Navigator.push(
     context,
     MaterialPageRoute(
