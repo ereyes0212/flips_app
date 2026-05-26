@@ -40,6 +40,10 @@
             android:value="high_importance_channel" />
 
         <meta-data
+            android:name="google_analytics_automatic_screen_reporting_enabled"
+            android:value="false" />
+
+        <meta-data
             android:name="flutterEmbedding"
             android:value="2" />
 
