@@ -561,9 +561,14 @@ Future<void> _abrirDetalle(BuildContext context, NoticiaModel noticia, {bool hid
     categoryIds: noticia.categories,
   );
 
+  final screenPath = '/noticias/${noticia.date.toString().split('T').first}/${noticia.slug}';
+
   Navigator.push(
     context,
-    MaterialPageRoute(builder: (_) => _NoticiaDetalleScreen(noticia: noticia, hideAds: hideAds)),
+    MaterialPageRoute(
+      settings: RouteSettings(name: screenPath),
+      builder: (_) => _NoticiaDetalleScreen(noticia: noticia, hideAds: hideAds),
+    ),
   );
 
   if (!hideAds) return;
@@ -587,9 +592,12 @@ void _abrirCategoria(BuildContext context, CategoriaNoticiaModel categoria) {
     categoryName: categoria.name,
   );
 
+  final categoryPath = '/categoria/${categoria.id}';
+
   Navigator.push(
     context,
     MaterialPageRoute(
+      settings: RouteSettings(name: categoryPath),
       builder: (_) => _CategoriaNoticiasScreen(categoria: categoria),
     ),
   );
