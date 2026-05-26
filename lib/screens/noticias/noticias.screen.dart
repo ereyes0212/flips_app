@@ -564,6 +564,7 @@ Future<void> _abrirDetalle(BuildContext context, NoticiaModel noticia, {bool hid
     categoryIds: noticia.categories,
   );
 
+
   Navigator.push(
     context,
     MaterialPageRoute(
