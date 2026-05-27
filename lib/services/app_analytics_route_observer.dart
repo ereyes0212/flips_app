@@ -73,10 +73,7 @@ class AppAnalyticsRouteObserver extends NavigatorObserver {
   }) {
     if (name.startsWith('/')) return name;
 
-    final routeType = route.runtimeType.toString();
-    if (routeType.isEmpty) return null;
-
-    return '/screen/$routeType';
+    return null;
   }
 
   void _debugLog(
