@@ -117,11 +117,15 @@ class AnalyticsService {
 
 
 
-  static Future<void> logRouteScreen({
+  static Future<bool> logRouteScreen({
     required String path,
   }) async {
     final normalizedPath = _sanitize(path);
-    if (normalizedPath.isEmpty) return;
+    if (normalizedPath.isEmpty) return false;
+
+    if (kDebugMode) {
+      debugPrint('[AnalyticsService][send] screen_view AppRoute path=$normalizedPath');
+    }
 
     try {
       await _analytics.logScreenView(
@@ -137,10 +141,16 @@ class AnalyticsService {
           'page_location': normalizedPath,
         },
       );
+
+      if (kDebugMode) {
+        debugPrint('[AnalyticsService][ok] page_view path=$normalizedPath');
+      }
+      return true;
     } catch (error) {
       if (kDebugMode) {
-        debugPrint('No se pudo registrar screen_view de ruta: $error');
+        debugPrint('[AnalyticsService][error] screen_view/page_view path=$normalizedPath error=$error');
       }
+      return false;
     }
   }
 
