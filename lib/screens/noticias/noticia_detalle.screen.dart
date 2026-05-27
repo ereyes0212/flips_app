@@ -1,13 +1,47 @@
 part of 'noticias.screen.dart';
 
-class _NoticiaDetalleScreen extends StatelessWidget {
+class _NoticiaDetalleScreen extends StatefulWidget {
   const _NoticiaDetalleScreen({required this.noticia, this.hideAds = false});
 
   final NoticiaModel noticia;
   final bool hideAds;
 
   @override
+  State<_NoticiaDetalleScreen> createState() => _NoticiaDetalleScreenState();
+}
+
+class _NoticiaDetalleScreenState extends State<_NoticiaDetalleScreen> {
+  bool _tracked = false;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (_tracked) return;
+    _tracked = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      unawaited(_trackNewsView());
+    });
+  }
+
+  Future<void> _trackNewsView() async {
+    final noticia = widget.noticia;
+    await AnalyticsService.logNoteView(
+      noteId: noticia.id,
+      slug: noticia.slug,
+      title: noticia.title,
+      categoryIds: noticia.categories,
+    );
+    await AnalyticsService.logNewsScreen(
+      slug: noticia.slug,
+      title: noticia.title,
+    );
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final noticia = widget.noticia;
+    final hideAds = widget.hideAds;
     final theme = Theme.of(context);
     final categoriasPorId = context.watch<NoticiasProvider>().categoriasPorId;
 

@@ -549,21 +549,7 @@ Future<void> _compartirNoticia(BuildContext context, NoticiaModel noticia) async
 }
 
 Future<void> _abrirDetalle(BuildContext context, NoticiaModel noticia, {bool hideAds = false}) async {
-  await AnalyticsService.logNoteView(
-    noteId: noticia.id,
-    slug: noticia.slug,
-    title: noticia.title,
-    categoryIds: noticia.categories,
-  );
   final screenPath = _analyticsPathFromNews(noticia);
-
-  await AnalyticsService.logNewsScreen(
-    slug: noticia.slug,
-    title: noticia.title,
-    path: screenPath,
-    categoryIds: noticia.categories,
-  );
-
 
   Navigator.push(
     context,

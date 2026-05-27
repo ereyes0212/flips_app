@@ -35,8 +35,6 @@ class AnalyticsService {
         'item_variant': _sanitize(slug),
         'source': source,
         'content_type': 'article',
-        'event_category': categoryPath,
-        'event_label': _sanitize(slug),
       },
     );
   }
@@ -51,8 +49,6 @@ class AnalyticsService {
       name: 'search',
       parameters: {
         'search_term': _sanitize(trimmedQuery),
-        'event_category': 'news_search',
-        'event_label': _sanitize(trimmedQuery),
       },
     );
   }
@@ -67,8 +63,6 @@ class AnalyticsService {
         'content_type': 'category',
         'item_id': categoryId.toString(),
         'item_name': _sanitize(categoryName),
-        'event_category': 'category_search',
-        'event_label': _sanitize(categoryName),
       },
     );
   }
@@ -76,8 +70,6 @@ class AnalyticsService {
   static Future<void> logNewsScreen({
     required String slug,
     required String title,
-    required String path,
-    required List<int> categoryIds,
   }) async {
     try {
       final screenName = _sanitize(_normalizeNewsTitle(title));
@@ -95,13 +87,6 @@ class AnalyticsService {
       }
     }
 
-    await _logEvent(
-      name: 'news_screen_view',
-      parameters: {
-        'event_category': categoryIds.join(','),
-        'event_label': _sanitize(slug),
-      },
-    );
   }
 
 

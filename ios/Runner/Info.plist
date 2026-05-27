@@ -47,6 +47,8 @@
 	<true/>
 	<key>FirebaseAppDelegateProxyEnabled</key>
 	<true/>
+	<key>FirebaseAutomaticScreenReportingEnabled</key>
+	<false/>
 	<key>GADApplicationIdentifier</key>
 	<string>ca-app-pub-0351121958876929~3366731644</string>
 	<key>UIBackgroundModes</key>
