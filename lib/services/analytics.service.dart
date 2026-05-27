@@ -123,6 +123,10 @@ class AnalyticsService {
     final normalizedPath = _sanitize(path);
     if (normalizedPath.isEmpty) return;
 
+    if (kDebugMode) {
+      debugPrint('[AnalyticsService][send] screen_view AppRoute path=$normalizedPath');
+    }
+
     try {
       await _analytics.logScreenView(
         screenName: normalizedPath,
@@ -137,9 +141,13 @@ class AnalyticsService {
           'page_location': normalizedPath,
         },
       );
+
+      if (kDebugMode) {
+        debugPrint('[AnalyticsService][ok] page_view path=$normalizedPath');
+      }
     } catch (error) {
       if (kDebugMode) {
-        debugPrint('No se pudo registrar screen_view de ruta: $error');
+        debugPrint('[AnalyticsService][error] screen_view/page_view path=$normalizedPath error=$error');
       }
     }
   }
