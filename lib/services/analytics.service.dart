@@ -127,6 +127,10 @@ class AnalyticsService {
       debugPrint('[AnalyticsService][send] screen_view AppRoute path=$normalizedPath');
     }
 
+    if (kDebugMode) {
+      debugPrint('[AnalyticsService][send] screen_view AppRoute path=$normalizedPath');
+    }
+
     try {
       await _analytics.logScreenView(
         screenName: normalizedPath,
