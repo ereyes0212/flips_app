@@ -80,7 +80,7 @@ class AnalyticsService {
     required List<int> categoryIds,
   }) async {
     try {
-      final screenName = _sanitize(title);
+      final screenName = _sanitize(_normalizeNewsTitle(title));
       final normalizedSlug = _sanitize(slug);
       final fallbackName = normalizedSlug.isEmpty ? 'noticia_detalle' : normalizedSlug;
       final resolvedScreenName = screenName.isEmpty ? fallbackName : screenName;
@@ -89,17 +89,6 @@ class AnalyticsService {
         screenClass: 'NoticiaDetalleScreen',
       );
 
-      final normalizedPath = _sanitize(path);
-      if (normalizedPath.isNotEmpty) {
-        await _analytics.logEvent(
-          name: 'page_view',
-          parameters: {
-            'page_title': resolvedScreenName,
-            'page_path': normalizedPath,
-            'page_location': normalizedPath,
-          },
-        );
-      }
     } catch (error) {
       if (kDebugMode) {
         debugPrint('No se pudo registrar screen_view de noticia: $error');
@@ -117,11 +106,15 @@ class AnalyticsService {
 
 
 
-  static Future<void> logRouteScreen({
+  static Future<bool> logRouteScreen({
     required String path,
   }) async {
     final normalizedPath = _sanitize(path);
-    if (normalizedPath.isEmpty) return;
+    if (normalizedPath.isEmpty) return false;
+
+    if (kDebugMode) {
+      debugPrint('[AnalyticsService][send] screen_view AppRoute path=$normalizedPath');
+    }
 
     try {
       await _analytics.logScreenView(
@@ -129,18 +122,15 @@ class AnalyticsService {
         screenClass: 'AppRoute',
       );
 
-      await _analytics.logEvent(
-        name: 'page_view',
-        parameters: {
-          'page_title': normalizedPath,
-          'page_path': normalizedPath,
-          'page_location': normalizedPath,
-        },
-      );
+      if (kDebugMode) {
+        debugPrint('[AnalyticsService][ok] screen_view path=$normalizedPath');
+      }
+      return true;
     } catch (error) {
       if (kDebugMode) {
-        debugPrint('No se pudo registrar screen_view de ruta: $error');
+        debugPrint('[AnalyticsService][error] screen_view/page_view path=$normalizedPath error=$error');
       }
+      return false;
     }
   }
 
@@ -184,6 +174,25 @@ class AnalyticsService {
         debugPrint('No se pudo registrar evento de analytics ($name): $error');
       }
     }
+  }
+
+
+  static String _normalizeNewsTitle(String value) {
+    final trimmed = value.trim();
+    if (trimmed.isEmpty) return '';
+
+    const suffixes = [
+      ' l Diario Tiempo de Honduras',
+      ' | Diario Tiempo de Honduras',
+    ];
+
+    for (final suffix in suffixes) {
+      if (trimmed.endsWith(suffix)) {
+        return trimmed.substring(0, trimmed.length - suffix.length).trim();
+      }
+    }
+
+    return trimmed;
   }
 
   static String _sanitize(String value) {
