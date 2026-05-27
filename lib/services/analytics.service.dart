@@ -89,17 +89,6 @@ class AnalyticsService {
         screenClass: 'NoticiaDetalleScreen',
       );
 
-      final normalizedPath = _sanitize(path);
-      if (normalizedPath.isNotEmpty) {
-        await _analytics.logEvent(
-          name: 'page_view',
-          parameters: {
-            'page_title': resolvedScreenName,
-            'page_path': normalizedPath,
-            'page_location': normalizedPath,
-          },
-        );
-      }
     } catch (error) {
       if (kDebugMode) {
         debugPrint('No se pudo registrar screen_view de noticia: $error');
@@ -127,27 +116,14 @@ class AnalyticsService {
       debugPrint('[AnalyticsService][send] screen_view AppRoute path=$normalizedPath');
     }
 
-    if (kDebugMode) {
-      debugPrint('[AnalyticsService][send] screen_view AppRoute path=$normalizedPath');
-    }
-
     try {
       await _analytics.logScreenView(
         screenName: normalizedPath,
         screenClass: 'AppRoute',
       );
 
-      await _analytics.logEvent(
-        name: 'page_view',
-        parameters: {
-          'page_title': normalizedPath,
-          'page_path': normalizedPath,
-          'page_location': normalizedPath,
-        },
-      );
-
       if (kDebugMode) {
-        debugPrint('[AnalyticsService][ok] page_view path=$normalizedPath');
+        debugPrint('[AnalyticsService][ok] screen_view path=$normalizedPath');
       }
       return true;
     } catch (error) {

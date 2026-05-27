@@ -38,6 +38,11 @@ class AppAnalyticsRouteObserver extends NavigatorObserver {
       return;
     }
 
+    if (_shouldSkipRoutePath(resolvedPath)) {
+      _debugLog('skip', source: source, route: route, path: resolvedPath, message: 'Path omitido para evitar duplicados');
+      return;
+    }
+
     if (resolvedPath == _lastTrackedPath) {
       _debugLog('skip', source: source, route: route, path: resolvedPath, message: 'Path duplicado');
       return;
@@ -52,6 +57,14 @@ class AppAnalyticsRouteObserver extends NavigatorObserver {
     }
 
     _debugLog('error', source: source, route: route, path: resolvedPath, message: 'Fallo al enviar analytics');
+  }
+
+
+  bool _shouldSkipRoutePath(String path) {
+    if (path == '/') return true;
+
+    final isArticleLikePath = RegExp(r'^/.*/\d{4}/\d{2}/\d{2}/').hasMatch(path);
+    return isArticleLikePath;
   }
 
   String? _resolvePath({
