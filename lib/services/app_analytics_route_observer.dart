@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flips_app/services/analytics.service.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
@@ -7,14 +9,14 @@ class AppAnalyticsRouteObserver extends NavigatorObserver {
 
   @override
   void didPush(Route<dynamic> route, Route<dynamic>? previousRoute) {
-    _track(route, source: 'didPush');
+    unawaited(_track(route, source: 'didPush'));
     super.didPush(route, previousRoute);
   }
 
   @override
   void didPop(Route<dynamic> route, Route<dynamic>? previousRoute) {
     if (previousRoute != null) {
-      _track(previousRoute, source: 'didPop');
+      unawaited(_track(previousRoute, source: 'didPop'));
     }
     super.didPop(route, previousRoute);
   }
@@ -22,12 +24,12 @@ class AppAnalyticsRouteObserver extends NavigatorObserver {
   @override
   void didReplace({Route<dynamic>? newRoute, Route<dynamic>? oldRoute}) {
     if (newRoute != null) {
-      _track(newRoute, source: 'didReplace');
+      unawaited(_track(newRoute, source: 'didReplace'));
     }
     super.didReplace(newRoute: newRoute, oldRoute: oldRoute);
   }
 
-  void _track(Route<dynamic> route, {required String source}) {
+  Future<void> _track(Route<dynamic> route, {required String source}) async {
     final name = route.settings.name?.trim() ?? '';
     final resolvedPath = _resolvePath(name: name, route: route);
 
@@ -43,7 +45,8 @@ class AppAnalyticsRouteObserver extends NavigatorObserver {
 
     _lastTrackedPath = resolvedPath;
     _debugLog('send', source: source, route: route, path: resolvedPath);
-    AnalyticsService.logRouteScreen(path: resolvedPath);
+    await AnalyticsService.logRouteScreen(path: resolvedPath);
+    _debugLog('ok', source: source, route: route, path: resolvedPath, message: 'Analytics completado');
   }
 
   String? _resolvePath({
