@@ -45,8 +45,13 @@ class AppAnalyticsRouteObserver extends NavigatorObserver {
 
     _lastTrackedPath = resolvedPath;
     _debugLog('send', source: source, route: route, path: resolvedPath);
-    await AnalyticsService.logRouteScreen(path: resolvedPath);
-    _debugLog('ok', source: source, route: route, path: resolvedPath, message: 'Analytics completado');
+    final sent = await AnalyticsService.logRouteScreen(path: resolvedPath);
+    if (sent) {
+      _debugLog('ok', source: source, route: route, path: resolvedPath, message: 'Analytics completado');
+      return;
+    }
+
+    _debugLog('error', source: source, route: route, path: resolvedPath, message: 'Fallo al enviar analytics');
   }
 
   String? _resolvePath({
