@@ -61,8 +61,6 @@ class AppAnalyticsRouteObserver extends NavigatorObserver {
 
 
   bool _shouldSkipRoutePath(String path) {
-    if (path == '/') return true;
-
     final isArticleLikePath = RegExp(r'^/.*/\d{4}/\d{2}/\d{2}/').hasMatch(path);
     return isArticleLikePath;
   }
@@ -71,6 +69,10 @@ class AppAnalyticsRouteObserver extends NavigatorObserver {
     required String name,
     required Route<dynamic> route,
   }) {
+    if (name == '/') {
+      return 'Noticias de Honduras y el mundo l Diario Tiempo de Honduras';
+    }
+
     if (name.startsWith('/')) return name;
 
     return null;

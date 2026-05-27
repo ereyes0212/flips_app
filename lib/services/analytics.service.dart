@@ -80,7 +80,7 @@ class AnalyticsService {
     required List<int> categoryIds,
   }) async {
     try {
-      final screenName = _sanitize(title);
+      final screenName = _sanitize(_normalizeNewsTitle(title));
       final normalizedSlug = _sanitize(slug);
       final fallbackName = normalizedSlug.isEmpty ? 'noticia_detalle' : normalizedSlug;
       final resolvedScreenName = screenName.isEmpty ? fallbackName : screenName;
@@ -174,6 +174,25 @@ class AnalyticsService {
         debugPrint('No se pudo registrar evento de analytics ($name): $error');
       }
     }
+  }
+
+
+  static String _normalizeNewsTitle(String value) {
+    final trimmed = value.trim();
+    if (trimmed.isEmpty) return '';
+
+    const suffixes = [
+      ' l Diario Tiempo de Honduras',
+      ' | Diario Tiempo de Honduras',
+    ];
+
+    for (final suffix in suffixes) {
+      if (trimmed.endsWith(suffix)) {
+        return trimmed.substring(0, trimmed.length - suffix.length).trim();
+      }
+    }
+
+    return trimmed;
   }
 
   static String _sanitize(String value) {
