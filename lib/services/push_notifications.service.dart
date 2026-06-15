@@ -1,5 +1,6 @@
 // ignore_for_file: empty_catches
 
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
@@ -15,6 +16,7 @@ import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 @pragma('vm:entry-point')
 Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
@@ -23,19 +25,55 @@ Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
 
 class PushNotificationItem {
   PushNotificationItem({
+    required this.id,
     this.title,
     this.body,
     this.data,
     required this.receivedAt,
   });
 
+  factory PushNotificationItem.fromJson(Map<String, dynamic> json) {
+    return PushNotificationItem(
+      id: json['id']?.toString() ?? DateTime.now().microsecondsSinceEpoch.toString(),
+      title: json['title']?.toString(),
+      body: json['body']?.toString(),
+      data: json['data'] is Map
+          ? Map<String, dynamic>.from(json['data'] as Map)
+          : <String, dynamic>{},
+      receivedAt:
+          DateTime.tryParse(json['receivedAt']?.toString() ?? '') ??
+          DateTime.now().toUtc(),
+    );
+  }
+
+  final String id;
   final String? title;
   final String? body;
   final Map<String, dynamic>? data;
   final DateTime receivedAt;
+
+  Map<String, dynamic> toJson() => {
+    'id': id,
+    'title': title,
+    'body': body,
+    'data': data ?? <String, dynamic>{},
+    'receivedAt': receivedAt.toIso8601String(),
+  };
+
+  String get type => data?['type']?.toString() ?? '';
+
+  String? get imageUrl =>
+      data?['imageUrl']?.toString().trim().isNotEmpty == true
+          ? data!['imageUrl'].toString()
+          : null;
+
+  String? get url => data?['url']?.toString().trim().isNotEmpty == true
+      ? data!['url'].toString()
+      : null;
 }
 
-class PushNotificationsService {
+class PushNotificationsService extends ChangeNotifier {
+  static const _storageKey = 'push_notifications_history';
   PushNotificationsService._();
 
   static final PushNotificationsService instance = PushNotificationsService._();
@@ -53,7 +91,14 @@ class PushNotificationsService {
   bool get _firebaseReady => Firebase.apps.isNotEmpty;
 
   Future<void> init() async {
-    if (_initialized || !_firebaseReady) return;
+    if (_initialized) return;
+
+    await _loadNotifications();
+    if (!_firebaseReady) {
+      _initialized = true;
+      notifyListeners();
+      return;
+    }
 
     await _initializeLocalNotifications();
     // No solicitar ni sincronizar token automáticamente al iniciar la app.
@@ -120,6 +165,52 @@ class PushNotificationsService {
   List<PushNotificationItem> get notifications =>
       List.unmodifiable(_notifications);
 
+  PushNotificationItem? notificationById(String id) {
+    for (final item in _notifications) {
+      if (item.id == id) return item;
+    }
+    return null;
+  }
+
+  Future<void> deleteNotification(String id) async {
+    _notifications.removeWhere((item) => item.id == id);
+    await _saveNotifications();
+    notifyListeners();
+  }
+
+  Future<void> deleteNotifications(Iterable<String> ids) async {
+    final idsSet = ids.toSet();
+    if (idsSet.isEmpty) return;
+    _notifications.removeWhere((item) => idsSet.contains(item.id));
+    await _saveNotifications();
+    notifyListeners();
+  }
+
+  Future<void> _loadNotifications() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final rawItems = prefs.getStringList(_storageKey) ?? <String>[];
+      _notifications
+        ..clear()
+        ..addAll(
+          rawItems.map((raw) {
+            final json = jsonDecode(raw) as Map<String, dynamic>;
+            return PushNotificationItem.fromJson(json);
+          }),
+        );
+    } catch (_) {}
+  }
+
+  Future<void> _saveNotifications() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setStringList(
+        _storageKey,
+        _notifications.map((item) => jsonEncode(item.toJson())).toList(),
+      );
+    } catch (_) {}
+  }
+
   /// Retorna true si el permiso de notificaciones ya está habilitado
   Future<bool> isNotificationPermissionGranted() async {
     if (!_firebaseReady) return false;
@@ -177,7 +268,6 @@ class PushNotificationsService {
         >()
         ?.createNotificationChannel(channel);
   }
-
 
   Future<void> _syncCurrentToken() async {
     try {
@@ -250,6 +340,7 @@ class PushNotificationsService {
     _notifications.insert(
       0,
       PushNotificationItem(
+        id: message.messageId ?? DateTime.now().microsecondsSinceEpoch.toString(),
         title: title,
         body: body,
         data: message.data,
@@ -257,9 +348,8 @@ class PushNotificationsService {
       ),
     );
 
-    if (_notifications.length > 50) {
-      _notifications.removeRange(50, _notifications.length);
-    }
+    unawaited(_saveNotifications());
+    notifyListeners();
   }
 
   void _handleNotificationTap(RemoteMessage message) {
