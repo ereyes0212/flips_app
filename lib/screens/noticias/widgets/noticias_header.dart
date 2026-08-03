@@ -24,17 +24,17 @@ class _NoticiasAppBar extends StatelessWidget {
               ),
               const Spacer(),
               _SocialIconButton(
-                icon: FontAwesomeIcons.facebookF,
+                icon: FontAwesomeIcons.facebookF as IconData,
                 tooltip: 'Facebook',
                 onTap: () => _openSocial(context, 'Facebook', 'https://www.facebook.com/diariotiempo/'),
               ),
               _SocialIconButton(
-                icon: FontAwesomeIcons.xTwitter,
+                icon: FontAwesomeIcons.xTwitter as IconData,
                 tooltip: 'X',
                 onTap: () => _openSocial(context, 'X', 'https://x.com/TiempoHonduras'),
               ),
               _SocialIconButton(
-                icon: FontAwesomeIcons.instagram,
+                icon: FontAwesomeIcons.instagram as IconData,
                 tooltip: 'Instagram',
                 onTap: () => _openSocial(context, 'Instagram', 'https://www.instagram.com/diariotiempo/'),
               ),
@@ -220,7 +220,7 @@ class _SocialIconButton extends StatelessWidget {
       constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
       onPressed: onTap,
       tooltip: tooltip,
-      icon: FaIcon(icon, color: Colors.white, size: 19),
+      icon: FaIcon(icon as FaIconData?, color: Colors.white, size: 19),
     );
   }
 }

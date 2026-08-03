@@ -64,7 +64,10 @@ class _LoginScreenState extends State<LoginScreen> {
       body: SafeArea(
         child: Center(
           child: SingleChildScrollView(
-            padding: EdgeInsets.symmetric(horizontal: isWideLayout ? 32 : 20, vertical: 28),
+            padding: EdgeInsets.symmetric(
+              horizontal: isWideLayout ? 32 : 20,
+              vertical: 28,
+            ),
             child: ConstrainedBox(
               constraints: BoxConstraints(maxWidth: formMaxWidth),
               child: Column(
@@ -75,9 +78,20 @@ class _LoginScreenState extends State<LoginScreen> {
                     fit: BoxFit.contain,
                   ),
                   const SizedBox(height: 12),
-                  Text('Bienvenido de nuevo', style: GoogleFonts.poppins(fontSize: 28, fontWeight: FontWeight.w800)),
+                  Text(
+                    'Bienvenido de nuevo',
+                    style: GoogleFonts.poppins(
+                      fontSize: 28,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
                   const SizedBox(height: 24),
-                  TextField(controller: txtUser, decoration: const InputDecoration(labelText: 'Correo electrónico')),
+                  TextField(
+                    controller: txtUser,
+                    decoration: const InputDecoration(
+                      labelText: 'Correo electrónico',
+                    ),
+                  ),
                   const SizedBox(height: 12),
                   TextField(
                     controller: txtPass,
@@ -85,33 +99,50 @@ class _LoginScreenState extends State<LoginScreen> {
                     decoration: InputDecoration(
                       labelText: 'Contraseña',
                       suffixIcon: IconButton(
-                        onPressed: () => setState(() => verContrasena = !verContrasena),
-                        icon: Icon(verContrasena ? Icons.visibility_outlined : Icons.visibility_off_outlined),
+                        onPressed:
+                            () =>
+                                setState(() => verContrasena = !verContrasena),
+                        icon: Icon(
+                          verContrasena
+                              ? Icons.visibility_outlined
+                              : Icons.visibility_off_outlined,
+                        ),
                       ),
                     ),
                   ),
                   Align(
                     alignment: Alignment.centerRight,
-                    child: TextButton(onPressed: _openResetFlow, child: const Text('¿Olvidaste tu contraseña?')),
+                    child: TextButton(
+                      onPressed: _openResetFlow,
+                      child: const Text('¿Olvidaste tu contraseña?'),
+                    ),
                   ),
                   const SizedBox(height: 12),
                   SizedBox(
                     width: double.infinity,
                     height: 52,
                     child: ElevatedButton(
-                      onPressed: authprovider.loading
-                          ? null
-                          : () => AuthController().loginController(txtUser.text.trim(), txtPass.text.trim(), context),
-                      child: authprovider.loading
-                          ? const SizedBox(
-                              width: 22,
-                              height: 22,
-                              child: CircularProgressIndicator(
-                                strokeWidth: 2.4,
-                                valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                      onPressed:
+                          authprovider.loading
+                              ? null
+                              : () => AuthController().loginController(
+                                txtUser.text.trim(),
+                                txtPass.text.trim(),
+                                context,
                               ),
-                            )
-                          : const Text('Iniciar sesión'),
+                      child:
+                          authprovider.loading
+                              ? const SizedBox(
+                                width: 22,
+                                height: 22,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2.4,
+                                  valueColor: AlwaysStoppedAnimation<Color>(
+                                    Colors.white,
+                                  ),
+                                ),
+                              )
+                              : const Text('Iniciar sesión'),
                     ),
                   ),
                   const SizedBox(height: 12),
@@ -130,10 +161,15 @@ class _LoginScreenState extends State<LoginScreen> {
                     width: double.infinity,
                     height: 52,
                     child: OutlinedButton.icon(
-                      onPressed: authprovider.loading
-                          ? null
-                          : () => AuthController().loginWithGoogleController(context),
-                      icon: const Icon(FontAwesomeIcons.google, size: 28,),
+                      onPressed:
+                          authprovider.loading
+                              ? null
+                              : () => AuthController()
+                                  .loginWithGoogleController(context),
+                      icon: Icon(
+                        FontAwesomeIcons.google as IconData?,
+                        size: 28,
+                      ),
                       label: const Text('Continuar con Google'),
                     ),
                   ),
@@ -180,7 +216,10 @@ class _EmailRegisterFlowState extends State<_EmailRegisterFlow> {
     super.dispose();
   }
 
-  Future<void> _run(Future<AuthActionResult> Function() action, {VoidCallback? onOk}) async {
+  Future<void> _run(
+    Future<AuthActionResult> Function() action, {
+    VoidCallback? onOk,
+  }) async {
     setState(() => _loading = true);
     final response = await action();
     if (!mounted) return;
@@ -194,16 +233,29 @@ class _EmailRegisterFlowState extends State<_EmailRegisterFlow> {
     return AuthFlowSheet(
       title: 'Registro por correo',
       children: [
-        if (_step >= 1) TextField(controller: _email, decoration: const InputDecoration(labelText: 'Correo')),
+        if (_step >= 1)
+          TextField(
+            controller: _email,
+            decoration: const InputDecoration(labelText: 'Correo'),
+          ),
         if (_step >= 2) ...[
           const SizedBox(height: 8),
-          TextField(controller: _otp, decoration: const InputDecoration(labelText: 'OTP (6 dígitos)')),
+          TextField(
+            controller: _otp,
+            decoration: const InputDecoration(labelText: 'OTP (6 dígitos)'),
+          ),
         ],
         if (_step >= 3) ...[
           const SizedBox(height: 8),
-          TextField(controller: _nombre, decoration: const InputDecoration(labelText: 'Nombre')),
+          TextField(
+            controller: _nombre,
+            decoration: const InputDecoration(labelText: 'Nombre'),
+          ),
           const SizedBox(height: 8),
-          TextField(controller: _apellido, decoration: const InputDecoration(labelText: 'Apellido')),
+          TextField(
+            controller: _apellido,
+            decoration: const InputDecoration(labelText: 'Apellido'),
+          ),
           const SizedBox(height: 8),
           TextField(
             controller: _pass,
@@ -215,32 +267,44 @@ class _EmailRegisterFlowState extends State<_EmailRegisterFlow> {
         SizedBox(
           width: double.infinity,
           child: ElevatedButton(
-            onPressed: _loading
-                ? null
-                : () {
-                    if (_step == 1) {
-                      _run(
-                        () => _controller.requestRegisterOtp(_email.text.trim()),
-                        onOk: () => setState(() => _step = 2),
-                      );
-                    } else if (_step == 2) {
-                      _run(
-                        () => _controller.verifyRegisterOtp(_email.text.trim(), _otp.text.trim()),
-                        onOk: () => setState(() => _step = 3),
-                      );
-                    } else {
-                      _run(
-                        () => _controller.completeRegister(
-                          email: _email.text.trim(),
-                          contrasena: _pass.text.trim(),
-                          nombre: _nombre.text.trim(),
-                          apellido: _apellido.text.trim(),
-                        ),
-                        onOk: () => Navigator.pop(context),
-                      );
-                    }
-                  },
-            child: Text(_step == 1 ? 'Enviar OTP' : _step == 2 ? 'Verificar OTP' : 'Completar registro'),
+            onPressed:
+                _loading
+                    ? null
+                    : () {
+                      if (_step == 1) {
+                        _run(
+                          () => _controller.requestRegisterOtp(
+                            _email.text.trim(),
+                          ),
+                          onOk: () => setState(() => _step = 2),
+                        );
+                      } else if (_step == 2) {
+                        _run(
+                          () => _controller.verifyRegisterOtp(
+                            _email.text.trim(),
+                            _otp.text.trim(),
+                          ),
+                          onOk: () => setState(() => _step = 3),
+                        );
+                      } else {
+                        _run(
+                          () => _controller.completeRegister(
+                            email: _email.text.trim(),
+                            contrasena: _pass.text.trim(),
+                            nombre: _nombre.text.trim(),
+                            apellido: _apellido.text.trim(),
+                          ),
+                          onOk: () => Navigator.pop(context),
+                        );
+                      }
+                    },
+            child: Text(
+              _step == 1
+                  ? 'Enviar OTP'
+                  : _step == 2
+                  ? 'Verificar OTP'
+                  : 'Completar registro',
+            ),
           ),
         ),
       ],
@@ -298,10 +362,16 @@ class _ResetPasswordFlowState extends State<_ResetPasswordFlow> {
     return AuthFlowSheet(
       title: 'Recuperar contraseña',
       children: [
-        TextField(controller: _email, decoration: const InputDecoration(labelText: 'Correo')),
+        TextField(
+          controller: _email,
+          decoration: const InputDecoration(labelText: 'Correo'),
+        ),
         if (_showConfirm) ...[
           const SizedBox(height: 8),
-          TextField(controller: _otp, decoration: const InputDecoration(labelText: 'OTP')),
+          TextField(
+            controller: _otp,
+            decoration: const InputDecoration(labelText: 'OTP'),
+          ),
           const SizedBox(height: 8),
           TextField(
             controller: _pass,
@@ -313,7 +383,8 @@ class _ResetPasswordFlowState extends State<_ResetPasswordFlow> {
         SizedBox(
           width: double.infinity,
           child: ElevatedButton(
-            onPressed: _loading ? null : (_showConfirm ? _confirmReset : _requestOtp),
+            onPressed:
+                _loading ? null : (_showConfirm ? _confirmReset : _requestOtp),
             child: Text(_showConfirm ? 'Confirmar cambio' : 'Enviar OTP'),
           ),
         ),
