@@ -130,6 +130,7 @@ class AuthController {
     return 'No se pudo iniciar sesión con Google. Verifica la configuración OAuth en Google Cloud Console: Web Client ID, package name y huellas SHA-1/SHA-256. Detalle: $detalle';
   }
 
+
   Future<void> _guardarSesion(
     LoginResponseModel response,
     AuthProvider authprovider,

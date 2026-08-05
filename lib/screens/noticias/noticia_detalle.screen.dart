@@ -338,7 +338,7 @@ class _ArticleTextBlockState extends State<_ArticleTextBlock> {
   final _service = NoticiasService();
   bool _openingLink = false;
 
-  String _cleanHtml(String value, {bool preserveParagraphs = false}) {
+  String cleanHtml(String value, {bool preserveParagraphs = false}) {
     var text = value
         .replaceAll(RegExp(r'<\s*br\s*/?\s*>', caseSensitive: false), '\n')
         .replaceAll(

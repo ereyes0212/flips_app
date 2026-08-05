@@ -166,10 +166,7 @@ class _LoginScreenState extends State<LoginScreen> {
                               ? null
                               : () => AuthController()
                                   .loginWithGoogleController(context),
-                      icon: Icon(
-                        FontAwesomeIcons.google as IconData?,
-                        size: 28,
-                      ),
+                      icon: FaIcon(FontAwesomeIcons.google, size: 28),
                       label: const Text('Continuar con Google'),
                     ),
                   ),

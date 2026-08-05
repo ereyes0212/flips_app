@@ -24,17 +24,17 @@ class _NoticiasAppBar extends StatelessWidget {
               ),
               const Spacer(),
               _SocialIconButton(
-                icon: FontAwesomeIcons.facebookF as IconData,
+                icon: FontAwesomeIcons.facebookF,
                 tooltip: 'Facebook',
                 onTap: () => _openSocial(context, 'Facebook', 'https://www.facebook.com/diariotiempo/'),
               ),
               _SocialIconButton(
-                icon: FontAwesomeIcons.xTwitter as IconData,
+                icon: FontAwesomeIcons.xTwitter,
                 tooltip: 'X',
                 onTap: () => _openSocial(context, 'X', 'https://x.com/TiempoHonduras'),
               ),
               _SocialIconButton(
-                icon: FontAwesomeIcons.instagram as IconData,
+                icon: FontAwesomeIcons.instagram,
                 tooltip: 'Instagram',
                 onTap: () => _openSocial(context, 'Instagram', 'https://www.instagram.com/diariotiempo/'),
               ),
@@ -209,7 +209,7 @@ Future<void> _openSocial(BuildContext context, String title, String url) async {
 class _SocialIconButton extends StatelessWidget {
   const _SocialIconButton({required this.icon, required this.tooltip, required this.onTap});
 
-  final IconData icon;
+  final FaIconData icon;
   final String tooltip;
   final VoidCallback onTap;
 
@@ -220,7 +220,7 @@ class _SocialIconButton extends StatelessWidget {
       constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
       onPressed: onTap,
       tooltip: tooltip,
-      icon: FaIcon(icon as FaIconData?, color: Colors.white, size: 19),
+      icon: FaIcon(icon, color: Colors.white, size: 19),
     );
   }
 }
