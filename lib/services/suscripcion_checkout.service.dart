@@ -14,6 +14,25 @@ class ApiHttpException implements Exception {
 class SuscripcionCheckoutService {
   final HttpService _httpService = HttpService(timeout: const Duration(seconds: 30));
 
+  Future<WebCheckoutSessionResponse> crearSesionWebCheckout({
+    String redirect = '/checkout',
+  }) async {
+    final uri = Uri.parse('${apiUrl}mobile/web-session').replace(
+      queryParameters: {'redirect': redirect},
+    );
+    final response = await _httpService.post(uri.toString());
+    final body = _safeJson(response.body);
+
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      throw ApiHttpException(
+        response.statusCode,
+        _httpMessage(response.statusCode, body['message']?.toString()),
+      );
+    }
+
+    return WebCheckoutSessionResponse.fromJson(body);
+  }
+
   Future<ContratarSuscripcionResponse> iniciarCheckout({
     String? planId,
     String? planKey,

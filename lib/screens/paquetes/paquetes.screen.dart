@@ -1,28 +1,19 @@
 import 'dart:async';
 import 'dart:io';
-import 'dart:math';
 
-import 'package:flips_app/controllers/paquetes.controller.dart';
-import 'package:flips_app/models/paquetes.model.dart';
-import 'package:flips_app/models/suscripcion_checkout.model.dart';
-import 'package:flips_app/providers/paquetes.provider.dart';
 import 'package:flips_app/screens/shared/section_card.widget.dart';
 import 'package:flips_app/services/suscripcion_checkout.service.dart';
 import 'package:flutter/material.dart';
-import 'package:intl/intl.dart';
-import 'package:provider/provider.dart';
-import 'package:webview_flutter/webview_flutter.dart';
+import 'package:url_launcher/url_launcher.dart';
 
-class PixelPayCheckoutException implements Exception {
-  PixelPayCheckoutException(this.message);
+class WebSessionException implements Exception {
+  WebSessionException(this.message);
 
   final String message;
 
   @override
   String toString() => message;
 }
-
-enum _HostedCheckoutResult { completed, cancelled, closed }
 
 class PaquetesScreen extends StatefulWidget {
   const PaquetesScreen({super.key});
@@ -32,118 +23,37 @@ class PaquetesScreen extends StatefulWidget {
 }
 
 class _PaquetesScreenState extends State<PaquetesScreen> {
-  final _controller = PaquetesController();
   final _checkoutService = SuscripcionCheckoutService();
-  bool _paying = false;
+  bool _openingCheckout = false;
 
-  @override
-  void initState() {
-    super.initState();
-    Future.microtask(() => _controller.cargarPaquetes(context));
-  }
+  Future<void> _abrirCheckoutWeb() async {
+    if (_openingCheckout) return;
 
-  String _currency(String divisa, int centavos) =>
-      '$divisa ${NumberFormat('#,##0.00', 'es_HN').format(centavos / 100)}';
-
-  String _intervalLabel(PaqueteModel item) {
-    return item.intervalCount > 1
-        ? 'Cada ${item.intervalCount} ${item.interval}'
-        : 'Cada ${item.interval}';
-  }
-
-  Future<void> _pagarSuscripcion(PaqueteModel plan) async {
-    if (_paying) return;
-
-    setState(() => _paying = true);
+    setState(() => _openingCheckout = true);
 
     try {
-      final idempotencyKey = _generateUuidV4();
-      final checkout = await _checkoutService.iniciarCheckout(
-        planId: plan.id,
-        idempotencyKey: idempotencyKey,
+      final session = await _checkoutService.crearSesionWebCheckout();
+      final checkoutUrl = session.url.trim();
+
+      if (!session.ok || checkoutUrl.isEmpty) {
+        throw WebSessionException(
+          session.message ?? 'No pudimos crear el acceso seguro al sitio web.',
+        );
+      }
+
+      final checkoutUri = Uri.tryParse(checkoutUrl);
+      if (checkoutUri == null || !checkoutUri.hasScheme) {
+        throw WebSessionException('La URL para gestionar tu cuenta no es válida.');
+      }
+
+      final launched = await launchUrl(
+        checkoutUri,
+        mode: LaunchMode.externalApplication,
       );
 
-      final pagoId = checkout.pagoId?.trim() ?? '';
-      final paymentUrl = checkout.paymentUrl?.trim() ?? '';
-      if (!checkout.ok || pagoId.isEmpty || paymentUrl.isEmpty) {
-        throw PixelPayCheckoutException(
-          checkout.message ?? 'No se pudo crear el checkout seguro de PixelPay.',
-        );
-      }
-
-      final paymentUri = Uri.tryParse(paymentUrl);
-      if (paymentUri == null || !paymentUri.hasScheme) {
-        throw PixelPayCheckoutException('La URL segura de PixelPay no es válida.');
-      }
-
-      if (!mounted) return;
-      setState(() => _paying = false);
-
-      final checkoutResult = await Navigator.of(context).push<_HostedCheckoutResult>(
-        MaterialPageRoute(
-          builder: (_) => _PixelPayHostedCheckoutScreen(
-            paymentUrl: paymentUrl,
-            completeUrl: checkout.completeUrl,
-            cancelUrl: checkout.cancelUrl,
-          ),
-        ),
-      );
-
-      if (!mounted) return;
-      setState(() => _paying = true);
-
-      final shouldMarkFailed = checkoutResult == _HostedCheckoutResult.closed ||
-          checkoutResult == _HostedCheckoutResult.cancelled;
-      var manualCloseStatusUpdated = false;
-
-      if (shouldMarkFailed) {
-        manualCloseStatusUpdated = await _checkoutService.actualizarEstadoPago(
-          pagoId: pagoId,
-          estado: 'CANCELADO',
-        );
-      }
-
-      if (checkoutResult == _HostedCheckoutResult.completed) {
-        if (!mounted) return;
-        _showSnack('Pago realizado correctamente.');
-        await _controller.cargarPaquetes(context);
-        return;
-      }
-
-      final estado = await _consultarEstadoConfirmado(
-        pagoId,
-        checkoutResult: checkoutResult,
-      );
-      if (!mounted) return;
-
-      if (estado.pagoExitoso) {
-        _showSnack('Pago realizado correctamente.');
-        await _controller.cargarPaquetes(context);
-      } else if (checkoutResult == _HostedCheckoutResult.cancelled) {
-        _showSnack(
-          manualCloseStatusUpdated
-              ? 'Cancelaste la orden. Marcamos el pago como fallido.'
-              : (estado.message ?? 'Cancelaste la orden. Estamos validando el estado final del pago.'),
-          error: true,
-        );
-      } else if (checkoutResult == _HostedCheckoutResult.closed) {
-        _showSnack(
-          manualCloseStatusUpdated
-              ? 'Cerraste el checkout. Marcamos el pago como fallido.'
-              : 'Cerraste el checkout. Estamos validando el estado final del pago.',
-          error: true,
-        );
-      } else if (checkoutResult == _HostedCheckoutResult.closed) {
-        _showSnack(
-          manualCloseStatusUpdated
-              ? 'Cerraste el checkout. Marcamos el pago como fallido.'
-              : 'Cerraste el checkout. Estamos validando el estado final del pago.',
-          error: true,
-        );
-      } else {
-        _showSnack(
-          'No pudimos confirmar el pago. Si ya fue debitado, revisa tus pagos en unos minutos.',
-          error: true,
+      if (!launched) {
+        throw WebSessionException(
+          'No pudimos abrir el navegador. Intenta nuevamente.',
         );
       }
     } on SocketException {
@@ -152,54 +62,20 @@ class _PaquetesScreenState extends State<PaquetesScreen> {
       _showSnack('Tiempo de espera agotado. Intenta nuevamente.', error: true);
     } on ApiHttpException catch (e) {
       _showSnack(e.message, error: true);
-    } on PixelPayCheckoutException catch (e) {
+    } on WebSessionException catch (e) {
       _showSnack(e.message, error: true);
     } catch (_) {
-      _showSnack('No se pudo procesar el pago. Intenta nuevamente.', error: true);
+      _showSnack(
+        'No pudimos abrir la gestión de cuenta. Intenta nuevamente.',
+        error: true,
+      );
     } finally {
-      if (mounted) setState(() => _paying = false);
+      if (mounted) setState(() => _openingCheckout = false);
     }
-  }
-
-  Future<ConfirmarPagoResponse> _consultarEstadoConfirmado(
-    String pagoId, {
-    required _HostedCheckoutResult? checkoutResult,
-  }) async {
-    ConfirmarPagoResponse estado = await _checkoutService.consultarEstado(
-      pagoId: pagoId,
-    );
-
-    final shouldRetry = checkoutResult == null;
-
-    if (!shouldRetry) return estado;
-
-    for (var intento = 0; intento < 2 && _debeReintentarEstado(estado); intento++) {
-      await Future<void>.delayed(Duration(seconds: intento + 1));
-      estado = await _checkoutService.consultarEstado(pagoId: pagoId);
-    }
-
-    return estado;
-  }
-
-  bool _debeReintentarEstado(ConfirmarPagoResponse estado) {
-    if (estado.pagoExitoso) return false;
-    final normalizado = estado.estado?.trim().toUpperCase() ?? '';
-    return normalizado.isEmpty ||
-        normalizado == 'PENDIENTE' ||
-        normalizado == 'PROCESANDO';
-  }
-
-  String _generateUuidV4() {
-    final random = Random.secure();
-    final bytes = List<int>.generate(16, (_) => random.nextInt(256));
-    bytes[6] = (bytes[6] & 0x0f) | 0x40;
-    bytes[8] = (bytes[8] & 0x3f) | 0x80;
-    final hex = bytes.map((byte) => byte.toRadixString(16).padLeft(2, '0')).join();
-    return '${hex.substring(0, 8)}-${hex.substring(8, 12)}-'
-        '${hex.substring(12, 16)}-${hex.substring(16, 20)}-${hex.substring(20)}';
   }
 
   void _showSnack(String message, {bool error = false}) {
+    if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         backgroundColor: error ? Colors.red : Colors.green,
@@ -208,188 +84,48 @@ class _PaquetesScreenState extends State<PaquetesScreen> {
     );
   }
 
-
   @override
   Widget build(BuildContext context) {
-    final provider = context.watch<PaquetesProvider>();
+    final theme = Theme.of(context);
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Paquetes')),
+      appBar: AppBar(title: const Text('Suscripción')),
       body: Stack(
         children: [
-          RefreshIndicator(
-            onRefresh: () => _controller.cargarPaquetes(context),
-            child: ListView.builder(
-              padding: const EdgeInsets.all(16),
-              itemCount: provider.loading ? 1 : provider.paquetes.length + 1,
-              itemBuilder: (context, index) {
-                if (index == 0) {
-                  if (provider.loading) {
-                    return const Center(
-                      child: Padding(
-                        padding: EdgeInsets.only(top: 40),
-                        child: CircularProgressIndicator(),
-                      ),
-                    );
-                  }
-                  if (provider.errorMessage.isNotEmpty) return Text(provider.errorMessage);
-                  if (provider.paquetes.isEmpty) return const Text('No hay paquetes para mostrar.');
-                  return const SizedBox.shrink();
-                }
-
-                final item = provider.paquetes[index - 1];
-
-                return AppInfoCard(
-                  icon: Icons.inventory_2_rounded,
-                  title: item.name,
-                  subtitle: item.description,
-                  badge: Chip(
-                    label: Text(item.active ? 'Activo' : 'Inactivo'),
-                    visualDensity: VisualDensity.compact,
-                  ),
-                  children: [
-                    AppInfoRow(
-                      icon: Icons.schedule_rounded,
-                      label: 'Intervalo',
-                      value: _intervalLabel(item),
-                    ),
-                    AppInfoRow(
-                      icon: Icons.payments_rounded,
-                      label: 'Precio',
-                      value: _currency(item.currency, item.priceCents),
-                      showDivider: false,
-                    ),
-                  ],
-                  action: SizedBox(
-                    width: double.infinity,
-                    child: ElevatedButton.icon(
-                      onPressed: _paying ? null : () => _pagarSuscripcion(item),
-                      icon: const Icon(Icons.lock_outline_rounded),
-                      label: const Text('Pagar ahora'),
+          ListView(
+            padding: const EdgeInsets.all(16),
+            children: [
+              AppInfoCard(
+                icon: Icons.workspace_premium_rounded,
+                title: 'Tu cuenta no tiene una suscripción activa.',
+                subtitle: 'Puedes gestionar tu cuenta desde nuestro sitio web.',
+                children: [
+                  Text(
+                    'Por políticas de las tiendas digitales, la contratación y '
+                    'administración de suscripciones se realiza en nuestro sitio '
+                    'web seguro.',
+                    style: theme.textTheme.bodyMedium?.copyWith(
+                      color: theme.colorScheme.onSurfaceVariant,
                     ),
                   ),
-                );
-              },
-            ),
+                ],
+                action: SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton.icon(
+                    onPressed: _openingCheckout ? null : _abrirCheckoutWeb,
+                    icon: const Icon(Icons.open_in_browser_rounded),
+                    label: const Text('Gestionar cuenta en el sitio web'),
+                  ),
+                ),
+              ),
+            ],
           ),
-          if (_paying)
+          if (_openingCheckout)
             const ColoredBox(
               color: Color(0x66000000),
               child: Center(child: CircularProgressIndicator()),
             ),
         ],
-      ),
-    );
-  }
-}
-
-class _PixelPayHostedCheckoutScreen extends StatefulWidget {
-  const _PixelPayHostedCheckoutScreen({
-    required this.paymentUrl,
-    this.completeUrl,
-    this.cancelUrl,
-  });
-
-  final String paymentUrl;
-  final String? completeUrl;
-  final String? cancelUrl;
-
-  @override
-  State<_PixelPayHostedCheckoutScreen> createState() =>
-      _PixelPayHostedCheckoutScreenState();
-}
-
-class _PixelPayHostedCheckoutScreenState extends State<_PixelPayHostedCheckoutScreen> {
-  late final WebViewController _webViewController;
-  bool _loading = true;
-  bool _closing = false;
-
-  @override
-  void initState() {
-    super.initState();
-    _webViewController = WebViewController()
-      ..setJavaScriptMode(JavaScriptMode.unrestricted)
-      ..setNavigationDelegate(
-        NavigationDelegate(
-          onPageStarted: (_) => setState(() => _loading = true),
-          onPageFinished: (_) => setState(() => _loading = false),
-          onUrlChange: (change) => _handleUrl(change.url),
-          onNavigationRequest: (request) {
-            final result = _resultForUrl(request.url);
-            if (result != null) {
-              _close(result);
-              return NavigationDecision.prevent;
-            }
-            return NavigationDecision.navigate;
-          },
-        ),
-      )
-      ..loadRequest(Uri.parse(widget.paymentUrl));
-  }
-
-  void _handleUrl(String? url) {
-    final result = _resultForUrl(url);
-    if (result != null) _close(result);
-  }
-
-  _HostedCheckoutResult? _resultForUrl(String? rawUrl) {
-    if (rawUrl == null || rawUrl.isEmpty) return null;
-    final uri = Uri.tryParse(rawUrl);
-    final completeUri = Uri.tryParse(widget.completeUrl ?? '');
-    final cancelUri = Uri.tryParse(widget.cancelUrl ?? '');
-
-    if (_matchesRedirect(uri, completeUri, '/mobile/pixelpay/hosted/complete')) {
-      return _HostedCheckoutResult.completed;
-    }
-    if (_matchesRedirect(uri, cancelUri, '/mobile/pixelpay/hosted/cancel')) {
-      return _HostedCheckoutResult.cancelled;
-    }
-    return null;
-  }
-
-  bool _matchesRedirect(Uri? current, Uri? expected, String pathSuffix) {
-    if (current == null) return false;
-    if (expected != null && expected.hasScheme) {
-      final sameBase = current.scheme == expected.scheme &&
-          current.host == expected.host &&
-          current.path == expected.path;
-      if (sameBase) return true;
-    }
-    return current.path.endsWith(pathSuffix);
-  }
-
-  void _close(_HostedCheckoutResult result) {
-    if (_closing || !mounted) return;
-    _closing = true;
-    Navigator.of(context).pop(result);
-  }
-
-  Future<bool> _onWillPop() async {
-    Navigator.of(context).pop(_HostedCheckoutResult.closed);
-    return false;
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return PopScope(
-      canPop: false,
-      onPopInvokedWithResult: (didPop, _) {
-        if (!didPop) _onWillPop();
-      },
-      child: Scaffold(
-        appBar: AppBar(
-          title: const Text('Pago seguro'),
-          leading: IconButton(
-            icon: const Icon(Icons.close),
-            onPressed: () => Navigator.of(context).pop(_HostedCheckoutResult.closed),
-          ),
-        ),
-        body: Stack(
-          children: [
-            WebViewWidget(controller: _webViewController),
-            if (_loading) const Center(child: CircularProgressIndicator()),
-          ],
-        ),
       ),
     );
   }
