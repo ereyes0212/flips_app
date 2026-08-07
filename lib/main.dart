@@ -115,8 +115,9 @@ class MyApp extends StatelessWidget {
             elevation: 0,
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(18),
-              side: BorderSide(color: colorScheme.outlineVariant.withOpacity(0.3)),
+              side: BorderSide(color: colorScheme.outlineVariant.withOpacity(0.35)),
             ),
+            margin: EdgeInsets.zero,
           ),
           elevatedButtonTheme: ElevatedButtonThemeData(
             style: ElevatedButton.styleFrom(
@@ -154,10 +155,15 @@ class MyApp extends StatelessWidget {
             ),
           ),
           textTheme: TextTheme(
-            titleLarge: TextStyle(color: colorScheme.onSurface, fontWeight: FontWeight.w700),
+            headlineSmall: TextStyle(color: colorScheme.onSurface, fontWeight: FontWeight.w800),
+            titleLarge: TextStyle(color: colorScheme.onSurface, fontWeight: FontWeight.w800),
+            titleMedium: TextStyle(color: colorScheme.onSurface, fontWeight: FontWeight.w700),
+            titleSmall: TextStyle(color: colorScheme.onSurface, fontWeight: FontWeight.w700),
+            labelLarge: TextStyle(color: colorScheme.onSurface, fontWeight: FontWeight.w700),
+            labelMedium: TextStyle(color: colorScheme.onSurfaceVariant, fontWeight: FontWeight.w600),
             bodyLarge: TextStyle(color: colorScheme.onSurface),
-            bodyMedium: TextStyle(color: colorScheme.onSurface.withOpacity(0.9)),
-            bodySmall: TextStyle(color: colorScheme.onSurface.withOpacity(0.7)),
+            bodyMedium: TextStyle(color: colorScheme.onSurface.withOpacity(0.88)),
+            bodySmall: TextStyle(color: colorScheme.onSurface.withOpacity(0.68)),
           ),
         ),
         title: 'Diario Tiempo HN',

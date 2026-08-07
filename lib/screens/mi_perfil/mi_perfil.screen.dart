@@ -1,6 +1,7 @@
 import 'package:flips_app/controllers/mi_perfil.controller.dart';
 import 'package:flips_app/models/mi_perfil.model.dart';
 import 'package:flips_app/providers/mi_perfil.provider.dart';
+import 'package:flips_app/screens/paquetes/paquetes.screen.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -29,7 +30,7 @@ class _MiPerfilScreenState extends State<MiPerfilScreen> {
       body: RefreshIndicator(
         onRefresh: () => _controller.cargarPerfil(context),
         child: ListView(
-          padding: const EdgeInsets.all(16),
+          padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
           children: [
             if (provider.loading)
               const Padding(
@@ -62,132 +63,159 @@ class _PerfilData extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    final plan = perfil.suscripcionActiva?.plan ?? 'Sin plan activo';
+    final hasPlan = perfil.suscripcionActiva != null;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
+        _ProfileHero(perfil: perfil),
+        const SizedBox(height: 16),
         Card(
-          elevation: 0,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-          child: Container(
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(20),
-              gradient: LinearGradient(
-                colors: [
-                  colorScheme.primaryContainer.withValues(alpha: 0.32),
-                  colorScheme.surface,
-                ],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-              ),
-            ),
-            padding: const EdgeInsets.all(20),
+          child: Padding(
+            padding: const EdgeInsets.all(16),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Row(
-                  children: [
-                    CircleAvatar(
-                      radius: 32,
-                      backgroundColor: colorScheme.primaryContainer,
-                      child: Text(
-                        perfil.nombre.isEmpty
-                            ? '?'
-                            : perfil.nombre[0].toUpperCase(),
-                        style: TextStyle(
-                          fontSize: 24,
-                          fontWeight: FontWeight.bold,
-                          color: colorScheme.onPrimaryContainer,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            perfil.nombre.isEmpty ? 'Sin nombre' : perfil.nombre,
-                            style: const TextStyle(
-                              fontSize: 20,
-                              fontWeight: FontWeight.w700,
-                            ),
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            perfil.email.isEmpty ? '-' : perfil.email,
-                            style: TextStyle(color: colorScheme.onSurfaceVariant),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
+                Text(
+                  hasPlan ? 'Tu suscripción' : 'Compra tu suscripción',
+                  style: theme.textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.w800,
+                  ),
                 ),
-                const SizedBox(height: 20),
-                const Text(
-                  'Información personal',
-                  style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
+                const SizedBox(height: 8),
+                Text(
+                  hasPlan
+                      ? 'Plan activo: $plan. Mantén tus beneficios al día.'
+                      : 'Activa un plan para leer sin interrupciones y acceder a beneficios exclusivos.',
+                  style: theme.textTheme.bodyMedium,
                 ),
-                const SizedBox(height: 12),
-                _DataTile(
-                  label: 'Usuario',
-                  value: perfil.usuario,
-                  icon: Icons.person_outline_rounded,
-                ),
-                _DataTile(
-                  label: 'Teléfono',
-                  value: perfil.telefono,
-                  icon: Icons.call_outlined,
-                ),
-                _DataTile(
-                  label: 'Dirección',
-                  value: perfil.direccion,
-                  icon: Icons.home_outlined,
-                ),
-                _DataTile(
-                  label: 'Ciudad',
-                  value: perfil.ciudad,
-                  icon: Icons.location_city_outlined,
-                ),
-                const SizedBox(height: 16),
-                const Text(
-                  'Suscripción',
-                  style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
-                ),
-                const SizedBox(height: 12),
-                _DataTile(
-                  label: 'Plan activo',
-                  value: perfil.suscripcionActiva?.plan ?? 'Sin plan activo',
-                  icon: Icons.workspace_premium_outlined,
-                ),
-                _DataTile(
-                  label: 'Estado suscripción',
-                  value: perfil.suscripcionActiva?.estado ?? 'N/A',
-                  icon: Icons.verified_user_outlined,
-                ),
-                _DataTile(
-                  label: 'Intervalo',
-                  value: perfil.suscripcionActiva?.intervalo ?? 'N/A',
-                  icon: Icons.date_range_outlined,
-                  showDivider: false,
+                const SizedBox(height: 14),
+                FilledButton.icon(
+                  onPressed: () => Navigator.of(context).push(
+                    MaterialPageRoute(builder: (_) => const PaquetesScreen()),
+                  ),
+                  icon: Icon(hasPlan ? Icons.workspace_premium : Icons.lock_open_rounded),
+                  label: Text(hasPlan ? 'Administrar suscripción' : 'Comprar suscripción'),
                 ),
               ],
             ),
           ),
+        ),
+        const SizedBox(height: 14),
+        _ProfileSectionCard(
+          title: 'Información personal',
+          children: [
+            _DataTile(label: 'Usuario', value: perfil.usuario, icon: Icons.person_outline_rounded),
+            _DataTile(label: 'Teléfono', value: perfil.telefono, icon: Icons.call_outlined),
+            _DataTile(label: 'Dirección', value: perfil.direccion, icon: Icons.home_outlined),
+            _DataTile(
+              label: 'Ciudad',
+              value: perfil.ciudad,
+              icon: Icons.location_city_outlined,
+              showDivider: false,
+            ),
+          ],
+        ),
+        const SizedBox(height: 14),
+        _ProfileSectionCard(
+          title: 'Información de suscripción',
+          children: [
+            _DataTile(label: 'Plan activo', value: plan, icon: Icons.workspace_premium_outlined),
+            _DataTile(
+              label: 'Estado suscripción',
+              value: perfil.suscripcionActiva?.estado ?? 'N/A',
+              icon: Icons.verified_user_outlined,
+            ),
+            _DataTile(
+              label: 'Intervalo',
+              value: perfil.suscripcionActiva?.intervalo ?? 'N/A',
+              icon: Icons.date_range_outlined,
+              showDivider: false,
+            ),
+          ],
         ),
       ],
     );
   }
 }
 
+class _ProfileHero extends StatelessWidget {
+  const _ProfileHero({required this.perfil});
+
+  final MiPerfilModel perfil;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
+        child: Column(
+          children: [
+            CircleAvatar(
+              radius: 42,
+              backgroundColor: colorScheme.primaryContainer,
+              child: Text(
+                perfil.nombre.isEmpty ? '?' : perfil.nombre[0].toUpperCase(),
+                style: theme.textTheme.headlineMedium?.copyWith(
+                  fontWeight: FontWeight.w800,
+                  color: colorScheme.onPrimaryContainer,
+                ),
+              ),
+            ),
+            const SizedBox(height: 12),
+            Text(
+              perfil.nombre.isEmpty ? 'Sin nombre' : perfil.nombre,
+              textAlign: TextAlign.center,
+              style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              perfil.email.isEmpty ? '-' : perfil.email,
+              textAlign: TextAlign.center,
+              style: theme.textTheme.bodyMedium?.copyWith(color: colorScheme.onSurfaceVariant),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _ProfileSectionCard extends StatelessWidget {
+  const _ProfileSectionCard({required this.title, required this.children});
+
+  final String title;
+  final List<Widget> children;
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 16, 16, 6),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              title,
+              style: Theme.of(context).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w800),
+            ),
+            const SizedBox(height: 8),
+            ...children,
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 class _DataTile extends StatelessWidget {
-  const _DataTile({
-    required this.label,
-    required this.value,
-    required this.icon,
-    this.showDivider = true,
-  });
+  const _DataTile({required this.label, required this.value, required this.icon, this.showDivider = true});
 
   final String label;
   final String value;
@@ -201,14 +229,12 @@ class _DataTile extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(vertical: 10),
       decoration: BoxDecoration(
-        border: showDivider
-            ? Border(bottom: BorderSide(color: colorScheme.outlineVariant))
-            : null,
+        border: showDivider ? Border(bottom: BorderSide(color: colorScheme.outlineVariant)) : null,
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(icon, color: colorScheme.primary),
+          Icon(icon, color: colorScheme.primary, size: 21),
           const SizedBox(width: 10),
           Expanded(
             child: Column(
@@ -216,18 +242,12 @@ class _DataTile extends StatelessWidget {
               children: [
                 Text(
                   label,
-                  style: TextStyle(
-                    fontSize: 13,
-                    color: colorScheme.onSurfaceVariant,
-                  ),
+                  style: Theme.of(context).textTheme.labelMedium?.copyWith(color: colorScheme.onSurfaceVariant),
                 ),
                 const SizedBox(height: 2),
                 Text(
                   value.isEmpty ? '-' : value,
-                  style: const TextStyle(
-                    fontSize: 15,
-                    fontWeight: FontWeight.w500,
-                  ),
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w600),
                 ),
               ],
             ),
