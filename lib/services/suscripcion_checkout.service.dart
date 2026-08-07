@@ -48,25 +48,6 @@ class SuscripcionCheckoutService {
     return WebCheckoutSessionResponse.fromJson(body);
   }
 
-  Future<WebCheckoutSessionResponse> crearSesionWebCheckout({
-    String redirect = '/checkout',
-  }) async {
-    final uri = Uri.parse('${apiUrl}mobile/web-session').replace(
-      queryParameters: {'redirect': redirect},
-    );
-    final response = await _httpService.post(uri.toString());
-    final body = _safeJson(response.body);
-
-    if (response.statusCode < 200 || response.statusCode >= 300) {
-      throw ApiHttpException(
-        response.statusCode,
-        _httpMessage(response.statusCode, body['message']?.toString()),
-      );
-    }
-
-    return WebCheckoutSessionResponse.fromJson(body);
-  }
-
   Future<ContratarSuscripcionResponse> iniciarCheckout({
     String? planId,
     String? planKey,
@@ -111,7 +92,6 @@ class SuscripcionCheckoutService {
 
     return ConfirmarPagoResponse.fromJson(body);
   }
-
 
   Future<bool> actualizarEstadoPago({
     required String pagoId,
