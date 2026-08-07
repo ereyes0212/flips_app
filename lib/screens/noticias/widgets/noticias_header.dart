@@ -9,42 +9,11 @@ class _NoticiasAppBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return SliverAppBar(
-      pinned: false,
-      expandedHeight: 150,
-      title: LayoutBuilder(
-        builder: (context, constraints) {
-          final screenWidth = MediaQuery.sizeOf(context).width;
-          final logoHeight = screenWidth < 360 ? 34.0 : 50.0;
-          return Row(
-            children: [
-              Image.asset(
-                'assets/images/logo.png',
-                height: logoHeight,
-                fit: BoxFit.contain,
-              ),
-              const Spacer(),
-              _SocialIconButton(
-                icon: FontAwesomeIcons.facebookF,
-                tooltip: 'Facebook',
-                onTap: () => _openSocial(context, 'Facebook', 'https://www.facebook.com/diariotiempo/'),
-              ),
-              _SocialIconButton(
-                icon: FontAwesomeIcons.xTwitter,
-                tooltip: 'X',
-                onTap: () => _openSocial(context, 'X', 'https://x.com/TiempoHonduras'),
-              ),
-              _SocialIconButton(
-                icon: FontAwesomeIcons.instagram,
-                tooltip: 'Instagram',
-                onTap: () => _openSocial(context, 'Instagram', 'https://www.instagram.com/diariotiempo/'),
-              ),
-            ],
-          );
-        },
-      ),
-      flexibleSpace: FlexibleSpaceBar(
-        background: _NoticiasHeader(total: total, usingCache: usingCache),
-      ),
+      pinned: true,
+      toolbarHeight: 76,
+      expandedHeight: 76,
+      titleSpacing: 0,
+      flexibleSpace: _NoticiasHeader(total: total, usingCache: usingCache),
     );
   }
 }
@@ -58,58 +27,73 @@ class _NoticiasHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
-    final screenWidth = MediaQuery.sizeOf(context).width;
-    final isSmallPhone = screenWidth < 360;
 
     return Container(
       decoration: BoxDecoration(
         gradient: LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
-          colors: [ colorScheme.secondary, colorScheme.primary],
+          colors: [colorScheme.primary, const Color(0xFF062B66)],
         ),
       ),
       child: SafeArea(
         bottom: false,
         child: Padding(
-          padding: const EdgeInsets.fromLTRB(16, 56, 16, 18),
+          padding: const EdgeInsets.fromLTRB(16, 6, 10, 8),
           child: Row(
-            crossAxisAlignment: CrossAxisAlignment.end,
             children: [
+              DecoratedBox(
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                  child: Image.asset(
+                    'assets/images/logo.png',
+                    height: 34,
+                    fit: BoxFit.contain,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 10),
               Expanded(
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      
                       'Diario Tiempo HN',
-                      style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                            color: Colors.white.withOpacity(0.92),
-                            fontWeight: FontWeight.bold,
-                            fontSize: 30
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                            color: Colors.white,
+                            fontWeight: FontWeight.w800,
                           ),
                     ),
-                    const SizedBox(height: 6),
                     Text(
-                      'Por saber la verdad nos leen más.',
-                      maxLines: 2,
+                      usingCache ? 'Modo sin conexión' : '$total noticias disponibles',
+                      maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                            color: Colors.white,
-                            fontWeight: FontWeight.w900,
-                            height: 1.1,
-                            fontSize: isSmallPhone ? 28 : null,
+                      style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                            color: Colors.white.withOpacity(0.78),
+                            fontWeight: FontWeight.w600,
                           ),
                     ),
                   ],
                 ),
               ),
-              _HeaderChip(
-                icon: usingCache
-                    ? Icons.offline_bolt_outlined
-                    : Icons.article_outlined,
-                label: usingCache ? 'Caché' : '$total notas',
+              IconButton.filledTonal(
+                visualDensity: VisualDensity.compact,
+                tooltip: 'Notificaciones',
+                onPressed: () => Navigator.of(context).push(
+                  MaterialPageRoute(builder: (_) => const NotificacionesScreen()),
+                ),
+                icon: const Icon(Icons.notifications_none_rounded),
+                style: IconButton.styleFrom(
+                  backgroundColor: Colors.white.withOpacity(0.16),
+                  foregroundColor: Colors.white,
+                ),
               ),
             ],
           ),
@@ -158,69 +142,6 @@ class _CategoryAppBar extends StatelessWidget {
           ),
         ),
       ),
-    );
-  }
-}
-
-class _HeaderChip extends StatelessWidget {
-  const _HeaderChip({required this.icon, required this.label});
-
-  final IconData icon;
-  final String label;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
-      decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.18),
-        borderRadius: BorderRadius.circular(999),
-        border: Border.all(color: Colors.white.withOpacity(0.35)),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, color: Colors.white, size: 18),
-          const SizedBox(width: 6),
-          Text(
-            label,
-            style: const TextStyle(
-              color: Colors.white,
-              fontWeight: FontWeight.w800,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-
-Future<void> _openSocial(BuildContext context, String title, String url) async {
-  final uri = Uri.parse(url);
-  final opened = await launchUrl(uri, mode: LaunchMode.externalApplication);
-  if (!opened && context.mounted) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('No se pudo abrir $title.')),
-    );
-  }
-}
-
-class _SocialIconButton extends StatelessWidget {
-  const _SocialIconButton({required this.icon, required this.tooltip, required this.onTap});
-
-  final FaIconData icon;
-  final String tooltip;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return IconButton(
-      visualDensity: VisualDensity.compact,
-      constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
-      onPressed: onTap,
-      tooltip: tooltip,
-      icon: FaIcon(icon, color: Colors.white, size: 19),
     );
   }
 }

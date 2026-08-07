@@ -120,72 +120,68 @@ class _NoticiaCard extends StatelessWidget {
     final colorScheme = theme.colorScheme;
     final disableAnimations = MediaQuery.maybeOf(context)?.disableAnimations ?? false;
 
-    final cardChild = Card(
-      margin: EdgeInsets.zero,
+    final cardChild = Material(
+      color: Colors.transparent,
       child: InkWell(
-        borderRadius: BorderRadius.circular(18),
+        borderRadius: BorderRadius.circular(16),
         onTap: onTapOverride ?? () => _abrirDetalle(context, noticia),
         child: Padding(
-          padding: const EdgeInsets.all(12),
+          padding: const EdgeInsets.symmetric(vertical: 10),
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-                _NewsImage(
-                  url: noticia.imageUrl,
-                  size: 112,
-                  heroTag: enableHero ? _heroTagForNewsImage(noticia) : null,
-                ),
+              _NewsImage(
+                url: noticia.imageUrl,
+                size: 92,
+                heroTag: enableHero ? _heroTagForNewsImage(noticia) : null,
+              ),
               const SizedBox(width: 14),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
+                    Text(
+                      noticia.title,
+                      style: theme.textTheme.titleSmall?.copyWith(
+                        color: colorScheme.onSurface,
+                        fontWeight: FontWeight.w800,
+                        height: 1.18,
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      noticia.excerpt,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: theme.textTheme.bodySmall?.copyWith(height: 1.25),
+                    ),
+                    const SizedBox(height: 8),
                     Row(
                       children: [
-                        _DateLabel(date: noticia.date),
+                        _DateLabel(date: noticia.date, color: colorScheme.onSurfaceVariant),
                         if (isDownloaded) ...[
                           const SizedBox(width: 8),
                           Icon(
                             Icons.download_done_rounded,
-                            size: 16,
+                            size: 15,
                             color: Colors.green.shade700,
+                          ),
+                          const SizedBox(width: 4),
+                          Text(
+                            'Offline',
+                            style: theme.textTheme.labelSmall?.copyWith(
+                              color: Colors.green.shade700,
+                              fontWeight: FontWeight.w700,
+                            ),
                           ),
                         ],
                         const Spacer(),
                         Icon(
                           Icons.arrow_forward_ios_rounded,
-                          size: 14,
-                          color: colorScheme.primary,
+                          size: 13,
+                          color: colorScheme.onSurfaceVariant,
                         ),
                       ],
-                    ),
-                    const SizedBox(height: 8),
-                    if (isDownloaded)
-                      Padding(
-                        padding: const EdgeInsets.only(bottom: 6),
-                        child: Text(
-                          'Descargada para sin conexión',
-                          style: theme.textTheme.labelMedium?.copyWith(
-                            color: Colors.green.shade700,
-                            fontWeight: FontWeight.w700,
-                          ),
-                        ),
-                      ),
-                    Text(
-                      noticia.title,
-                      maxLines: 3,
-                      overflow: TextOverflow.ellipsis,
-                      style: theme.textTheme.titleMedium?.copyWith(
-                        fontWeight: FontWeight.w800,
-                        height: 1.14,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      noticia.excerpt,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: theme.textTheme.bodySmall,
                     ),
                   ],
                 ),

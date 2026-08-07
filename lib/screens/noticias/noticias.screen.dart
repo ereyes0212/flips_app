@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:flips_app/controllers/noticias.controller.dart';
 import 'package:flips_app/models/noticias.model.dart';
 import 'package:flips_app/providers/noticias.provider.dart';
+import 'package:flips_app/screens/notificaciones/notificaciones.screen.dart';
 import 'package:flips_app/services/noticias.service.dart';
 import 'package:flips_app/services/analytics.service.dart';
 import 'package:flips_app/services/mi_perfil.service.dart';
@@ -17,7 +18,6 @@ import 'package:provider/provider.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
-import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 
 part 'categoria_noticias.screen.dart';
 part 'noticia_detalle.screen.dart';
@@ -42,7 +42,6 @@ class _NoticiasScreenState extends State<NoticiasScreen> {
 
   final _controller = NoticiasController();
   final _searchController = TextEditingController();
-  Timer? _debounce;
   Timer? _retryInterstitialTimer;
   int _openedNewsCount = 0;
   int _nextInterstitialAt = _interstitialFrequency;
@@ -72,7 +71,6 @@ class _NoticiasScreenState extends State<NoticiasScreen> {
 
   @override
   void dispose() {
-    _debounce?.cancel();
     _retryInterstitialTimer?.cancel();
     _interstitialAd?.dispose();
     _searchController.dispose();
@@ -178,19 +176,6 @@ class _NoticiasScreenState extends State<NoticiasScreen> {
     ad.show();
   }
 
-  void _buscar(String value) {
-    _debounce?.cancel();
-    _debounce = Timer(const Duration(milliseconds: 450), () {
-      final query = value.trim();
-      _controller.cargarNoticias(
-        context,
-        busqueda: query,
-        fechaDesde: _filtroFecha?.start,
-        fechaHasta: _filtroFecha?.end.add(const Duration(days: 1)),
-      );
-      AnalyticsService.logNewsSearch(query: query);
-    });
-  }
 
   Future<void> _seleccionarFiltroFecha() async {
     final now = DateTime.now();
@@ -222,6 +207,31 @@ class _NoticiasScreenState extends State<NoticiasScreen> {
     );
   }
 
+  Future<void> _mostrarFiltrosBusqueda() async {
+    final result = await showModalBottomSheet<_NewsFilterResult>(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      builder: (context) => _NewsFilterSheet(
+        controller: _searchController,
+        filtroFecha: _filtroFecha,
+        onSelectDate: _seleccionarFiltroFecha,
+        onClearDate: _limpiarFiltroFecha,
+      ),
+    );
+
+    if (!mounted || result == null) return;
+    if (result.clearSearch) {
+      _searchController.clear();
+    }
+    await _controller.cargarNoticias(
+      context,
+      busqueda: _searchController.text.trim(),
+      fechaDesde: _filtroFecha?.start,
+      fechaHasta: _filtroFecha?.end.add(const Duration(days: 1)),
+    );
+  }
+
   Future<void> _refrescar() async {
     await _controller.cargarNoticias(
       context,
@@ -248,63 +258,14 @@ class _NoticiasScreenState extends State<NoticiasScreen> {
               usingCache: provider.usingCache,
             ),
             SliverToBoxAdapter(
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-                child: _NoticiasSearchBar(
-                  controller: _searchController,
-                  loading: provider.loading,
-                  onChanged: _buscar,
-                  onSubmitted: (value) {
-                    final query = value.trim();
-                    _controller.cargarNoticias(
-                      context,
-                      busqueda: query,
-                      fechaDesde: _filtroFecha?.start,
-                      fechaHasta: _filtroFecha?.end.add(const Duration(days: 1)),
-                    );
-                    AnalyticsService.logNewsSearch(query: query);
-                  },
-                  onClear: () {
-                    _searchController.clear();
-                    _controller.cargarNoticias(
-                      context,
-                      fechaDesde: _filtroFecha?.start,
-                      fechaHasta: _filtroFecha?.end.add(const Duration(days: 1)),
-                    );
-                  },
-                ),
-              ),
-            ),
-            SliverToBoxAdapter(
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
-                child: Wrap(
-                  spacing: 8,
-                  children: [
-                    ActionChip(
-                      avatar: const Icon(Icons.date_range_rounded, size: 18),
-                      label: Text(
-                        _filtroFecha == null
-                            ? 'Buscar por fecha'
-                            : '${DateFormat('dd/MM/yyyy').format(_filtroFecha!.start)} - ${DateFormat('dd/MM/yyyy').format(_filtroFecha!.end)}',
-                      ),
-                      onPressed: _seleccionarFiltroFecha,
-                    ),
-                    if (_filtroFecha != null)
-                      ActionChip(
-                        avatar: const Icon(Icons.close_rounded, size: 18),
-                        label: const Text('Limpiar fecha'),
-                        onPressed: _limpiarFiltroFecha,
-                      ),
-                  ],
-                ),
-              ),
-            ),
-            SliverToBoxAdapter(
-              child: _CategoryQuickAccess(
+              child: _NewsDiscoveryRail(
                 categorias: provider.categorias,
-                loading: provider.loadingCategorias,
-                onTap: (categoria) => _abrirCategoria(context, categoria),
+                loadingCategorias: provider.loadingCategorias,
+                hasQuery: _searchController.text.trim().isNotEmpty,
+                filtroFecha: _filtroFecha,
+                onOpenFilters: _mostrarFiltrosBusqueda,
+                onClearDate: _limpiarFiltroFecha,
+                onTapCategoria: (categoria) => _abrirCategoria(context, categoria),
               ),
             ),
             _NoticiasContentSlivers(
@@ -405,8 +366,9 @@ class _NoticiasContentSlivers extends StatelessWidget {
               children: [
                 Text(
                   'Últimas noticias',
-                  style: theme.textTheme.titleLarge?.copyWith(
-                    fontWeight: FontWeight.w800,
+                  style: theme.textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: -0.1,
                   ),
                 ),
                 const Spacer(),
@@ -466,7 +428,12 @@ class _NoticiasList extends StatelessWidget {
         );
       }
       if (i != noticias.length - 1) {
-        children.add(const SizedBox(height: 14));
+        children.add(
+          Divider(
+            height: 1,
+            color: Theme.of(context).colorScheme.outlineVariant.withOpacity(0.55),
+          ),
+        );
       }
     }
 
