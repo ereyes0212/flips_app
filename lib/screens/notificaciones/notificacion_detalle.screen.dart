@@ -44,7 +44,6 @@ class NotificacionDetalleScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final data = notification.data ?? <String, dynamic>{};
     final imageUrl = notification.imageUrl;
     final url = notification.url;
     final date = DateFormat('dd/MM/yyyy HH:mm').format(notification.receivedAt.toLocal());
@@ -106,24 +105,6 @@ class NotificacionDetalleScreen extends StatelessWidget {
               onPressed: () => _openUrl(context, url),
               icon: const Icon(Icons.open_in_new_rounded),
               label: const Text('Abrir enlace'),
-            ),
-          ],
-          if (data.isNotEmpty) ...[
-            const SizedBox(height: 18),
-            Text(
-              'Datos de la notificación',
-              style: theme.textTheme.titleMedium?.copyWith(
-                fontWeight: FontWeight.w800,
-              ),
-            ),
-            const SizedBox(height: 10),
-            ...data.entries.map(
-              (entry) => Card(
-                child: ListTile(
-                  title: Text(entry.key),
-                  subtitle: Text(entry.value?.toString() ?? ''),
-                ),
-              ),
             ),
           ],
         ],
