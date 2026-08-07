@@ -12,16 +12,7 @@
           "package_name": "com.diariotiempohn.app"
         }
       },
-      "oauth_client": [
-        {
-          "client_id": "374905649903-b9qjlfqc1eb4h910olqld2508ps7gkso.apps.googleusercontent.com",
-          "client_type": 1,
-          "android_info": {
-            "package_name": "com.diariotiempohn.app",
-            "certificate_hash": "0674f60079a75f37bec2adcf26037cc86e865e0d"
-          }
-        }
-      ],
+      "oauth_client": [],
       "api_key": [
         {
           "current_key": "AIzaSyAgfA1pS9Nyq_YolTU0sGJuxSmh47ygt0A"
