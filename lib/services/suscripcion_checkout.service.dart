@@ -4,6 +4,7 @@ import 'package:flips_app/constants.dart';
 import 'package:flips_app/models/suscripcion_checkout.model.dart';
 import 'package:flips_app/services/http.service.dart';
 import 'package:flips_app/services/session.service.dart';
+import 'package:http/http.dart' as http;
 
 class ApiHttpException implements Exception {
   ApiHttpException(this.statusCode, this.message);
@@ -31,33 +32,25 @@ class SuscripcionCheckoutService {
     final uri = Uri.parse('${apiUrl}mobile/web-session').replace(
       queryParameters: {'redirect': redirect},
     );
-    final response = await _httpService.post(
-      uri.toString(),
-      headers: {'Authorization': 'Bearer $token'},
-      body: const <String, dynamic>{},
-    );
+    final response = await http
+        .post(
+          uri,
+          headers: {
+            'Accept': 'application/json',
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer $token',
+          },
+          body: jsonEncode(const <String, dynamic>{}),
+        )
+        .timeout(_httpService.timeout);
     final body = _safeJson(response.body);
 
     if (response.statusCode < 200 || response.statusCode >= 300) {
-      throw ApiHttpException(
-        response.statusCode,
-        _httpMessage(response.statusCode, body['message']?.toString()),
-      );
-    }
-
-    return WebCheckoutSessionResponse.fromJson(body);
-  }
-
-  Future<WebCheckoutSessionResponse> crearSesionWebCheckout({
-    String redirect = '/checkout',
-  }) async {
-    final uri = Uri.parse('${apiUrl}mobile/web-session').replace(
-      queryParameters: {'redirect': redirect},
-    );
-    final response = await _httpService.post(uri.toString());
-    final body = _safeJson(response.body);
-
-    if (response.statusCode < 200 || response.statusCode >= 300) {
+      if (response.statusCode == 401) {
+        await SessionService.expireAndRedirect(
+          message: 'Tu sesión expiró. Inicia sesión nuevamente.',
+        );
+      }
       throw ApiHttpException(
         response.statusCode,
         _httpMessage(response.statusCode, body['message']?.toString()),
@@ -111,7 +104,6 @@ class SuscripcionCheckoutService {
 
     return ConfirmarPagoResponse.fromJson(body);
   }
-
 
   Future<bool> actualizarEstadoPago({
     required String pagoId,
