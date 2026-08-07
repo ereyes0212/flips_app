@@ -1,3 +1,39 @@
+class WebCheckoutSessionResponse {
+  WebCheckoutSessionResponse({
+    required this.ok,
+    required this.url,
+    required this.expiresInSeconds,
+    this.message,
+  });
+
+  final bool ok;
+  final String url;
+  final int expiresInSeconds;
+  final String? message;
+
+  factory WebCheckoutSessionResponse.fromJson(Map<String, dynamic> json) {
+    final body = _payload(json);
+
+    return WebCheckoutSessionResponse(
+      ok: _readBool(
+        body,
+        ['ok', 'success', 'successful'],
+        fallback: json['ok'] == true,
+      ),
+      url: _readString(
+        body,
+        ['url', 'webUrl', 'web_url', 'checkoutUrl', 'checkout_url'],
+      ),
+      expiresInSeconds: _readInt(
+        body,
+        ['expiresInSeconds', 'expires_in_seconds', 'ttl', 'expires'],
+      ),
+      message: _readNullableString(body, ['message', 'mensaje']) ??
+          _readNullableString(json, ['message', 'mensaje']),
+    );
+  }
+}
+
 class ContratarSuscripcionResponse {
   ContratarSuscripcionResponse({
     required this.ok,
@@ -69,6 +105,21 @@ String _readString(
 String? _readNullableString(Map<String, dynamic> json, List<String> keys) {
   final value = _readString(json, keys);
   return value.isEmpty ? null : value;
+}
+
+int _readInt(
+  Map<String, dynamic> json,
+  List<String> keys, {
+  int fallback = 0,
+}) {
+  for (final key in keys) {
+    final value = json[key];
+    if (value is int) return value;
+    if (value is num) return value.toInt();
+    final parsed = int.tryParse(value?.toString().trim() ?? '');
+    if (parsed != null) return parsed;
+  }
+  return fallback;
 }
 
 bool _readBool(
