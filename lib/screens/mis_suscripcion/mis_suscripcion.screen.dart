@@ -1,6 +1,7 @@
 import 'package:flips_app/controllers/mis_suscripcion.controller.dart';
 import 'package:flips_app/providers/mis_suscripcion.provider.dart';
 import 'package:flips_app/screens/shared/async_list_state.widget.dart';
+import 'package:flips_app/screens/shared/section_card.widget.dart';
 import 'package:flips_app/utils/formatters.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -45,32 +46,33 @@ class _MisSuscripcionScreenState extends State<MisSuscripcionScreen> {
             final item = provider.suscripciones[index - 1];
             final nombrePlan = item.plan?.name.trim().isNotEmpty == true ? item.plan!.name : 'Suscripción';
 
-            return Card(
-              elevation: 0,
-              margin: const EdgeInsets.only(bottom: 12),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
-              child: Container(
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(18),
-                  gradient: LinearGradient(
-                    colors: [
-                      Theme.of(context).colorScheme.primaryContainer.withValues(alpha: 0.3),
-                      Theme.of(context).colorScheme.surface,
-                    ],
-                  ),
+            return AppInfoCard(
+              icon: Icons.workspace_premium_rounded,
+              title: nombrePlan,
+              badge: Chip(label: Text(item.estado), visualDensity: VisualDensity.compact),
+              children: [
+                AppInfoRow(
+                  icon: Icons.payments_rounded,
+                  label: 'Precio',
+                  value: AppFormatters.moneyFromCentavos(item.precioCentavos),
                 ),
-                child: ListTile(
-                  contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-                  title: Text(nombrePlan, style: const TextStyle(fontWeight: FontWeight.bold)),
-                  subtitle: Text(
-                    'Estado: ${item.estado}\n'
-                    'Precio: ${AppFormatters.moneyFromCentavos(item.precioCentavos)}\n'
-                    'Intervalo: ${item.intervalo} (${item.cantidadIntervalos})\n'
-                    'Inicio: ${AppFormatters.dateFromIso(item.inicioPeriodoActual)}\n'
-                    'Fin: ${AppFormatters.dateFromIso(item.finPeriodoActual)}',
-                  ),
+                AppInfoRow(
+                  icon: Icons.date_range_rounded,
+                  label: 'Intervalo',
+                  value: '${item.intervalo} (${item.cantidadIntervalos})',
                 ),
-              ),
+                AppInfoRow(
+                  icon: Icons.play_circle_outline_rounded,
+                  label: 'Inicio',
+                  value: AppFormatters.dateFromIso(item.inicioPeriodoActual),
+                ),
+                AppInfoRow(
+                  icon: Icons.event_available_rounded,
+                  label: 'Fin',
+                  value: AppFormatters.dateFromIso(item.finPeriodoActual),
+                  showDivider: false,
+                ),
+              ],
             );
           },
         ),

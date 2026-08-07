@@ -271,137 +271,166 @@ class _MasOpcionesScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final tema = Theme.of(context).colorScheme;
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
     final nombre = context.watch<AuthProvider>().nombreUsuario;
     final offlineCount = context.watch<NoticiasProvider>().noticiasOffline.length;
 
     return SafeArea(
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'Más opciones',
-              style: GoogleFonts.poppins(
-                fontSize: 20,
-                fontWeight: FontWeight.w700,
-                color: tema.primary,
-              ),
-            ),
-            const SizedBox(height: 4),
-            TextParrafo(
-              texto:
-                  nombre.isEmpty ? 'Selecciona una opción.' : 'Hola, $nombre.',
-              colorTexto: tema.secondary,
-            ),
-            const SizedBox(height: 12),
-            Expanded(
-              child: ListView(
+      child: ListView(
+        padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
+        children: [
+          Card(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  GridItem(
-                    icono: Icons.download_for_offline_outlined,
-                    funcion: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (_) => const NoticiasOfflineScreen(),
-                        ),
-                      );
-                    },
-                    texto: 'Noticias sin conexión',
-                    subtitulo: offlineCount > 0 ? '$offlineCount guardadas' : 'Sin noticias guardadas',
-                    trailing: offlineCount > 0
-                        ? const Icon(Icons.download_done_rounded, color: Colors.green)
-                        : null,
+                  CircleAvatar(
+                    radius: 30,
+                    backgroundColor: colorScheme.primaryContainer,
+                    child: Icon(Icons.more_horiz_rounded, color: colorScheme.onPrimaryContainer),
                   ),
-                  const SizedBox(height: 7),
-                  GridItem(
-                    icono: Icons.public,
-                    funcion: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (_) => const SitioWebScreen(),
-                        ),
-                      );
-                    },
-                    texto: 'Sitio web',
+                  const SizedBox(height: 12),
+                  Text(
+                    'Más opciones',
+                    style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800),
                   ),
-                  const SizedBox(height: 7),
-                  GridItem(
-                    icono: Icons.notifications_outlined,
-                    funcion: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (_) => const NotificacionesScreen(),
-                        ),
-                      );
-                    },
-                    texto: 'Notificaciones',
-                  ),
-                  const SizedBox(height: 7),
-                  GridItem(
-                    icono: Icons.inventory_2_outlined,
-                    funcion: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (_) => const PaquetesScreen(),
-                        ),
-                      );
-                    },
-                    texto: 'Paquetes',
-                  ),
-                  const SizedBox(height: 7),
-                  GridItem(
-                    icono: Icons.payments_outlined,
-                    funcion: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (_) => const MisPagosScreen(),
-                        ),
-                      );
-                    },
-                    texto: 'Mis pagos',
-                  ),
-                  const SizedBox(height: 7),
-                  GridItem(
-                    icono: Icons.workspace_premium_outlined,
-                    funcion: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (_) => const MisSuscripcionScreen(),
-                        ),
-                      );
-                    },
-                    texto: 'Mi suscripción',
-                  ),
-                  const SizedBox(height: 7),
-                  GridItem(
-                    icono: Icons.receipt_long_outlined,
-                    funcion: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (_) => const MisFacturasScreen(),
-                        ),
-                      );
-                    },
-                    texto: 'Mis facturas',
-                  ),
-                  const SizedBox(height: 7),
-                  GridItem(
-                    icono: Icons.logout_rounded,
-                    funcion: onCerrarSesion,
-                    texto: 'Cerrar sesión',
+                  const SizedBox(height: 4),
+                  Text(
+                    nombre.isEmpty ? 'Selecciona una opción.' : 'Hola, $nombre.',
+                    style: theme.textTheme.bodyMedium?.copyWith(color: colorScheme.onSurfaceVariant),
                   ),
                 ],
               ),
             ),
+          ),
+          const SizedBox(height: 14),
+          _OptionsSectionCard(
+            title: 'Contenido',
+            children: [
+              GridItem(
+                icono: Icons.download_for_offline_outlined,
+                funcion: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => const NoticiasOfflineScreen()),
+                  );
+                },
+                texto: 'Noticias sin conexión',
+                subtitulo: offlineCount > 0 ? '$offlineCount guardadas' : 'Sin noticias guardadas',
+                trailing: offlineCount > 0
+                    ? Icon(Icons.download_done_rounded, color: colorScheme.primary)
+                    : null,
+              ),
+              GridItem(
+                icono: Icons.public,
+                funcion: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => const SitioWebScreen()),
+                  );
+                },
+                texto: 'Sitio web',
+              ),
+              GridItem(
+                icono: Icons.notifications_outlined,
+                funcion: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => const NotificacionesScreen()),
+                  );
+                },
+                texto: 'Notificaciones',
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          _OptionsSectionCard(
+            title: 'Cuenta y servicios',
+            children: [
+              GridItem(
+                icono: Icons.inventory_2_outlined,
+                funcion: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => const PaquetesScreen()),
+                  );
+                },
+                texto: 'Paquetes',
+              ),
+              GridItem(
+                icono: Icons.payments_outlined,
+                funcion: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => const MisPagosScreen()),
+                  );
+                },
+                texto: 'Mis pagos',
+              ),
+              GridItem(
+                icono: Icons.workspace_premium_outlined,
+                funcion: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => const MisSuscripcionScreen()),
+                  );
+                },
+                texto: 'Mi suscripción',
+              ),
+              GridItem(
+                icono: Icons.receipt_long_outlined,
+                funcion: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => const MisFacturasScreen()),
+                  );
+                },
+                texto: 'Mis facturas',
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          _OptionsSectionCard(
+            title: 'Sesión',
+            children: [
+              GridItem(
+                icono: Icons.logout_rounded,
+                funcion: onCerrarSesion,
+                texto: 'Cerrar sesión',
+                color: colorScheme.error,
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _OptionsSectionCard extends StatelessWidget {
+  const _OptionsSectionCard({required this.title, required this.children});
+
+  final String title;
+  final List<Widget> children;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 16, 16, 6),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              title,
+              style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w800),
+            ),
+            const SizedBox(height: 8),
+            ...children,
           ],
         ),
       ),

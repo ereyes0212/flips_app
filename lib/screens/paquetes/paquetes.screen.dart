@@ -6,6 +6,7 @@ import 'package:flips_app/controllers/paquetes.controller.dart';
 import 'package:flips_app/models/paquetes.model.dart';
 import 'package:flips_app/models/suscripcion_checkout.model.dart';
 import 'package:flips_app/providers/paquetes.provider.dart';
+import 'package:flips_app/screens/shared/section_card.widget.dart';
 import 'package:flips_app/services/suscripcion_checkout.service.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
@@ -207,23 +208,6 @@ class _PaquetesScreenState extends State<PaquetesScreen> {
     );
   }
 
-  Widget _metaPill(BuildContext context, IconData icon, String text) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-      decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.surfaceContainerHighest.withValues(alpha: 0.65),
-        borderRadius: BorderRadius.circular(999),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, size: 16),
-          const SizedBox(width: 6),
-          Text(text, style: const TextStyle(fontWeight: FontWeight.w600)),
-        ],
-      ),
-    );
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -255,79 +239,33 @@ class _PaquetesScreenState extends State<PaquetesScreen> {
 
                 final item = provider.paquetes[index - 1];
 
-                return Card(
-                  elevation: 0,
-                  margin: const EdgeInsets.only(bottom: 14),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-                  child: Container(
-                    padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(20),
-                      gradient: LinearGradient(
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                        colors: [
-                          Theme.of(context).colorScheme.primaryContainer.withValues(alpha: 0.35),
-                          Theme.of(context).colorScheme.surface,
-                        ],
-                      ),
-                      border: Border.all(
-                        color: Theme.of(context).colorScheme.outlineVariant,
-                      ),
+                return AppInfoCard(
+                  icon: Icons.inventory_2_rounded,
+                  title: item.name,
+                  subtitle: item.description,
+                  badge: Chip(
+                    label: Text(item.active ? 'Activo' : 'Inactivo'),
+                    visualDensity: VisualDensity.compact,
+                  ),
+                  children: [
+                    AppInfoRow(
+                      icon: Icons.schedule_rounded,
+                      label: 'Intervalo',
+                      value: _intervalLabel(item),
                     ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          children: [
-                            Expanded(
-                              child: Text(
-                                item.name,
-                                style: const TextStyle(
-                                  fontWeight: FontWeight.w700,
-                                  fontSize: 18,
-                                ),
-                              ),
-                            ),
-                            Chip(
-                              label: Text(item.active ? 'Activo' : 'Inactivo'),
-                              visualDensity: VisualDensity.compact,
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 8),
-                        Text(
-                          item.description,
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                        const SizedBox(height: 12),
-                        Wrap(
-                          spacing: 8,
-                          runSpacing: 8,
-                          children: [
-                            _metaPill(
-                              context,
-                              Icons.schedule_rounded,
-                              _intervalLabel(item),
-                            ),
-                            _metaPill(
-                              context,
-                              Icons.payments_rounded,
-                              _currency(item.currency, item.priceCents),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 14),
-                        SizedBox(
-                          width: double.infinity,
-                          child: ElevatedButton.icon(
-                            onPressed: _paying ? null : () => _pagarSuscripcion(item),
-                            icon: const Icon(Icons.lock_outline_rounded),
-                            label: const Text('Pagar ahora'),
-                          ),
-                        ),
-                      ],
+                    AppInfoRow(
+                      icon: Icons.payments_rounded,
+                      label: 'Precio',
+                      value: _currency(item.currency, item.priceCents),
+                      showDivider: false,
+                    ),
+                  ],
+                  action: SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton.icon(
+                      onPressed: _paying ? null : () => _pagarSuscripcion(item),
+                      icon: const Icon(Icons.lock_outline_rounded),
+                      label: const Text('Pagar ahora'),
                     ),
                   ),
                 );

@@ -1,4 +1,5 @@
 import 'package:flips_app/screens/notificaciones/notificacion_detalle.screen.dart';
+import 'package:flips_app/screens/shared/section_card.widget.dart';
 import 'package:flips_app/services/push_notifications.service.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -191,52 +192,38 @@ class _NotificationCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final date = DateFormat('dd/MM/yyyy HH:mm').format(item.receivedAt.toLocal());
-    return Card(
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      elevation: 2,
-      child: ListTile(
-        contentPadding: const EdgeInsets.all(16),
-        onTap: () {
-          if (selectionMode) {
-            onToggleSelection();
-            return;
-          }
-          Navigator.push(
-            context,
-            MaterialPageRoute(builder: (_) => NotificacionDetalleScreen(notification: item)),
-          );
-        },
-        onLongPress: onToggleSelection,
-        leading: selectionMode
-            ? Checkbox(value: selected, onChanged: (_) => onToggleSelection())
-            : _NotificationIcon(type: item.type),
-        title: Text(
-          item.title ?? 'Notificación',
-          maxLines: 2,
-          overflow: TextOverflow.ellipsis,
-          style: GoogleFonts.poppins(fontSize: 16, fontWeight: FontWeight.w700),
+    return AppInfoCard(
+      icon: Icons.notifications_outlined,
+      title: item.title ?? 'Notificación',
+      subtitle: item.body ?? 'Sin descripción disponible.',
+      selected: selected,
+      leading: selectionMode
+          ? Checkbox(value: selected, onChanged: (_) => onToggleSelection())
+          : _NotificationIcon(type: item.type),
+      badge: selectionMode ? null : const Icon(Icons.chevron_right_rounded),
+      onLongPress: onToggleSelection,
+      onTap: () {
+        if (selectionMode) {
+          onToggleSelection();
+          return;
+        }
+        Navigator.push(
+          context,
+          MaterialPageRoute(builder: (_) => NotificacionDetalleScreen(notification: item)),
+        );
+      },
+      children: [
+        AppInfoRow(
+          icon: Icons.schedule_rounded,
+          label: 'Recibida',
+          value: date,
+          showDivider: false,
         ),
-        subtitle: Padding(
-          padding: const EdgeInsets.only(top: 8),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                item.body ?? 'Sin descripción disponible.',
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-                style: GoogleFonts.poppins(fontSize: 14, color: Colors.black87),
-              ),
-              const SizedBox(height: 8),
-              Text(date, style: GoogleFonts.poppins(fontSize: 12, color: Colors.grey)),
-            ],
-          ),
-        ),
-        trailing: selectionMode ? null : const Icon(Icons.chevron_right_rounded),
-      ),
+      ],
     );
   }
 }
+
 
 class _NotificationIcon extends StatelessWidget {
   const _NotificationIcon({required this.type});
