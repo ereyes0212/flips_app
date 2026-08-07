@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:flips_app/constants.dart';
 import 'package:flips_app/models/suscripcion_checkout.model.dart';
 import 'package:flips_app/services/http.service.dart';
+import 'package:flips_app/services/session.service.dart';
 
 class ApiHttpException implements Exception {
   ApiHttpException(this.statusCode, this.message);
@@ -12,7 +13,40 @@ class ApiHttpException implements Exception {
 }
 
 class SuscripcionCheckoutService {
-  final HttpService _httpService = HttpService(timeout: const Duration(seconds: 30));
+  final HttpService _httpService = HttpService(
+    timeout: const Duration(seconds: 30),
+  );
+
+  Future<WebCheckoutSessionResponse> crearSesionWebCheckout({
+    String redirect = '/checkout',
+  }) async {
+    final token = await SessionService.getValidToken() ?? '';
+    if (token.isEmpty) {
+      await SessionService.expireAndRedirect(
+        message: 'Tu sesión expiró. Inicia sesión nuevamente.',
+      );
+      throw ApiHttpException(401, 'Tu sesión expiró. Inicia sesión nuevamente.');
+    }
+
+    final uri = Uri.parse('${apiUrl}mobile/web-session').replace(
+      queryParameters: {'redirect': redirect},
+    );
+    final response = await _httpService.post(
+      uri.toString(),
+      headers: {'Authorization': 'Bearer $token'},
+      body: const <String, dynamic>{},
+    );
+    final body = _safeJson(response.body);
+
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      throw ApiHttpException(
+        response.statusCode,
+        _httpMessage(response.statusCode, body['message']?.toString()),
+      );
+    }
+
+    return WebCheckoutSessionResponse.fromJson(body);
+  }
 
   Future<ContratarSuscripcionResponse> iniciarCheckout({
     String? planId,
