@@ -4,15 +4,35 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 class NoticiasController {
+  static const _minimumRefreshInterval = Duration(seconds: 45);
   final NoticiasService _service = NoticiasService();
+  DateTime? _lastLoadedAt;
+  String _lastRequestKey = '';
 
   Future<void> cargarNoticias(
     BuildContext context, {
     String? busqueda,
     DateTime? fechaDesde,
     DateTime? fechaHasta,
+    bool forceRefresh = false,
   }) async {
     final provider = Provider.of<NoticiasProvider>(context, listen: false);
+    final requestKey = _requestKey(
+      busqueda: busqueda,
+      fechaDesde: fechaDesde,
+      fechaHasta: fechaHasta,
+    );
+    final canUseFreshInMemoryData =
+        !provider.usingCache && provider.errorMessage.isEmpty;
+    if (!forceRefresh &&
+        canUseFreshInMemoryData &&
+        provider.noticias.isNotEmpty &&
+        requestKey == _lastRequestKey &&
+        _lastLoadedAt != null &&
+        DateTime.now().difference(_lastLoadedAt!) < _minimumRefreshInterval) {
+      return;
+    }
+
     provider.loading = true;
     provider.setError('');
     provider.setUsingCache(false);
@@ -29,6 +49,10 @@ class NoticiasController {
     provider.setUsingCache(result.fromCache);
     provider.setNoticias(result.items);
     provider.setPagination(page: 1, hasMore: result.hasMore);
+    if (result.success && !result.fromCache) {
+      _lastLoadedAt = DateTime.now();
+      _lastRequestKey = requestKey;
+    }
     provider.loading = false;
   }
 
@@ -68,4 +92,17 @@ class NoticiasController {
     }
     provider.loadingCategorias = false;
   }
+}
+
+
+String _requestKey({
+  String? busqueda,
+  DateTime? fechaDesde,
+  DateTime? fechaHasta,
+}) {
+  return [
+    busqueda?.trim() ?? '',
+    fechaDesde?.toUtc().toIso8601String() ?? '',
+    fechaHasta?.toUtc().toIso8601String() ?? '',
+  ].join('|');
 }

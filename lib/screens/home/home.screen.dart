@@ -333,15 +333,25 @@ class _MasOpcionesScreen extends StatelessWidget {
                 },
                 texto: 'Sitio web',
               ),
-              GridItem(
-                icono: Icons.notifications_outlined,
-                funcion: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(builder: (_) => const NotificacionesScreen()),
+              AnimatedBuilder(
+                animation: PushNotificationsService.instance,
+                builder: (context, _) {
+                  final unread = PushNotificationsService.instance.unreadCount;
+                  return GridItem(
+                    icono: Icons.notifications_outlined,
+                    funcion: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (_) => const NotificacionesScreen()),
+                      );
+                    },
+                    texto: 'Notificaciones',
+                    subtitulo: unread > 0 ? '$unread nuevas' : null,
+                    trailing: unread > 0
+                        ? _NotificationUnreadBadge(count: unread)
+                        : null,
                   );
                 },
-                texto: 'Notificaciones',
               ),
             ],
           ),
@@ -432,6 +442,36 @@ class _OptionsSectionCard extends StatelessWidget {
             const SizedBox(height: 8),
             ...children,
           ],
+        ),
+      ),
+    );
+  }
+}
+
+
+class _NotificationUnreadBadge extends StatelessWidget {
+  const _NotificationUnreadBadge({required this.count});
+
+  final int count;
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final label = count > 99 ? '99+' : '$count';
+    return Container(
+      constraints: const BoxConstraints(minWidth: 26, minHeight: 26),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: colorScheme.error,
+        borderRadius: BorderRadius.circular(999),
+      ),
+      alignment: Alignment.center,
+      child: Text(
+        label,
+        style: TextStyle(
+          color: colorScheme.onError,
+          fontSize: 12,
+          fontWeight: FontWeight.w800,
         ),
       ),
     );
