@@ -50,19 +50,6 @@ class _MisFacturasScreenState extends State<MisFacturasScreen> {
               icon: Icons.receipt_long_rounded,
               title: 'Factura ${item.id}',
               badge: Chip(label: Text(item.estado), visualDensity: VisualDensity.compact),
-              children: [
-                AppInfoRow(
-                  icon: Icons.payments_rounded,
-                  label: 'Total',
-                  value: AppFormatters.moneyFromCentavos(item.totalCentavos),
-                ),
-                AppInfoRow(
-                  icon: Icons.schedule_rounded,
-                  label: 'Emitida',
-                  value: AppFormatters.dateFromIso(item.emitidaEn),
-                  showDivider: false,
-                ),
-              ],
               action: hasPdf
                   ? Align(
                       alignment: Alignment.centerRight,
@@ -77,6 +64,19 @@ class _MisFacturasScreenState extends State<MisFacturasScreen> {
                       ),
                     )
                   : null,
+              children: [
+                AppInfoRow(
+                  icon: Icons.payments_rounded,
+                  label: 'Total',
+                  value: AppFormatters.moneyFromCentavos(item.totalCentavos),
+                ),
+                AppInfoRow(
+                  icon: Icons.schedule_rounded,
+                  label: 'Emitida',
+                  value: AppFormatters.dateFromIso(item.emitidaEn),
+                  showDivider: false,
+                ),
+              ],
             );
           },
         ),

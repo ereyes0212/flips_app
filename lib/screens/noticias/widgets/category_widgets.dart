@@ -1,3 +1,5 @@
+// ignore_for_file: unused_element
+
 part of '../noticias.screen.dart';
 
 class _CategoryQuickAccess extends StatelessWidget {

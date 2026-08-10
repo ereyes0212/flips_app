@@ -43,7 +43,9 @@ class _PaquetesScreenState extends State<PaquetesScreen> {
 
       final checkoutUri = Uri.tryParse(checkoutUrl);
       if (checkoutUri == null || !checkoutUri.hasScheme) {
-        throw WebSessionException('La URL para gestionar tu cuenta no es válida.');
+        throw WebSessionException(
+          'La URL para gestionar tu cuenta no es válida.',
+        );
       }
 
       final launched = await launchUrl(
@@ -86,7 +88,7 @@ class _PaquetesScreenState extends State<PaquetesScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
+    Theme.of(context);
 
     return Scaffold(
       appBar: AppBar(title: const Text('Suscripción')),
@@ -99,16 +101,6 @@ class _PaquetesScreenState extends State<PaquetesScreen> {
                 icon: Icons.workspace_premium_rounded,
                 title: 'Tu cuenta no tiene una suscripción activa.',
                 subtitle: 'Puedes gestionar tu cuenta desde nuestro sitio web.',
-                children: [
-                  Text(
-                    'Por políticas de las tiendas digitales, la contratación y '
-                    'administración de suscripciones se realiza en nuestro sitio '
-                    'web seguro.',
-                    style: theme.textTheme.bodyMedium?.copyWith(
-                      color: theme.colorScheme.onSurfaceVariant,
-                    ),
-                  ),
-                ],
                 action: SizedBox(
                   width: double.infinity,
                   child: ElevatedButton.icon(
@@ -117,6 +109,7 @@ class _PaquetesScreenState extends State<PaquetesScreen> {
                     label: const Text('Gestionar cuenta en el sitio web'),
                   ),
                 ),
+                children: [],
               ),
             ],
           ),

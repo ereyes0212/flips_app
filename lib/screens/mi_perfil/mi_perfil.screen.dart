@@ -64,7 +64,6 @@ class _PerfilData extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final colorScheme = theme.colorScheme;
     final plan = perfil.suscripcionActiva?.plan ?? 'Sin plan activo';
     final hasPlan = perfil.suscripcionActiva != null;
 
