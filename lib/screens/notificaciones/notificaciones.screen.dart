@@ -19,7 +19,10 @@ class _NotificacionesScreenState extends State<NotificacionesScreen> {
   @override
   void initState() {
     super.initState();
-    Future.microtask(_validarPermisosNotificaciones);
+    Future.microtask(() async {
+      await PushNotificationsService.instance.markAllAsRead();
+      await _validarPermisosNotificaciones();
+    });
   }
 
   Future<void> _validarPermisosNotificaciones() async {
