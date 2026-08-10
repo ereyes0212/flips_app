@@ -150,6 +150,14 @@ class _ProfileHero extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
+    final fotoUrl = perfil.fotoUrl?.trim() ?? '';
+    final inicial = Text(
+      perfil.nombre.isEmpty ? '?' : perfil.nombre[0].toUpperCase(),
+      style: theme.textTheme.headlineMedium?.copyWith(
+        fontWeight: FontWeight.w800,
+        color: colorScheme.onPrimaryContainer,
+      ),
+    );
 
     return Card(
       child: Padding(
@@ -159,13 +167,21 @@ class _ProfileHero extends StatelessWidget {
             CircleAvatar(
               radius: 42,
               backgroundColor: colorScheme.primaryContainer,
-              child: Text(
-                perfil.nombre.isEmpty ? '?' : perfil.nombre[0].toUpperCase(),
-                style: theme.textTheme.headlineMedium?.copyWith(
-                  fontWeight: FontWeight.w800,
-                  color: colorScheme.onPrimaryContainer,
-                ),
-              ),
+              child: fotoUrl.isEmpty
+                  ? inicial
+                  : ClipOval(
+                      child: Image.network(
+                        fotoUrl,
+                        width: 84,
+                        height: 84,
+                        fit: BoxFit.cover,
+                        errorBuilder: (_, __, ___) => inicial,
+                        loadingBuilder: (context, child, progress) {
+                          if (progress == null) return child;
+                          return inicial;
+                        },
+                      ),
+                    ),
             ),
             const SizedBox(height: 12),
             Text(

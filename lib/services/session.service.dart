@@ -22,6 +22,7 @@ class SessionService {
     'user',
     'idUser',
     'nombre',
+    'fotoUrl',
     'sessionExpiresAt',
   ];
   static bool _redirecting = false;
@@ -201,15 +202,54 @@ class SessionService {
     return isExpired(expiresAt);
   }
 
-  static DateTime? jwtExpiresAt(String token) {
-    final parts = token.split('.');
+  static Map<String, dynamic>? decodeJwtPayload(String? token) {
+    final normalized = normalizeToken(token);
+    if (normalized == null) return null;
+
+    final parts = normalized.split('.');
     if (parts.length != 3) return null;
 
     try {
       final payload = utf8.decode(
         base64Url.decode(base64Url.normalize(parts[1])),
       );
-      final json = jsonDecode(payload) as Map<String, dynamic>;
+      final decoded = jsonDecode(payload);
+      if (decoded is Map<String, dynamic>) return decoded;
+    } catch (_) {
+      return null;
+    }
+
+    return null;
+  }
+
+  /// Lee la foto de perfil (Google) que viene dentro del JWT.
+  static String? fotoUrlFromToken(String? token) {
+    final payload = decodeJwtPayload(token);
+    if (payload == null) return null;
+
+    final foto = payload['FotoUrl'] ?? payload['fotoUrl'] ?? payload['picture'];
+    final value = foto?.toString().trim() ?? '';
+    return value.isEmpty ? null : value;
+  }
+
+  /// Foto de perfil guardada en la sesión; si no está, la extrae del token.
+  static Future<String?> getFotoUrl() async {
+    final prefs = await SharedPreferences.getInstance();
+    final stored = prefs.getString('fotoUrl')?.trim() ?? '';
+    if (stored.isNotEmpty) return stored;
+
+    final fromToken = fotoUrlFromToken(prefs.getString('token'));
+    if (fromToken != null) {
+      await prefs.setString('fotoUrl', fromToken);
+    }
+    return fromToken;
+  }
+
+  static DateTime? jwtExpiresAt(String token) {
+    final json = decodeJwtPayload(token);
+    if (json == null) return null;
+
+    try {
       final exp = json['exp'];
 
       if (exp is int) {

@@ -37,6 +37,19 @@ class MiPerfilModel {
         ? null
         : SuscripcionActivaModel.fromJson(json['suscripcionActiva']),
   );
+
+  MiPerfilModel copyWith({String? fotoUrl}) => MiPerfilModel(
+    id: id,
+    usuario: usuario,
+    nombre: nombre,
+    fotoUrl: fotoUrl ?? this.fotoUrl,
+    email: email,
+    direccion: direccion,
+    ciudad: ciudad,
+    telefono: telefono,
+    rol: rol,
+    suscripcionActiva: suscripcionActiva,
+  );
 }
 
 class RolModel {

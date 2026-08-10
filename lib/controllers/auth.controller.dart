@@ -95,7 +95,6 @@ class AuthController {
       }
 
       final result = await service.loginWithGoogle(idToken: idToken);
-
       if (result.ok && result.response != null) {
         await _guardarSesion(result.response!, authprovider);
         _irAlHome(context);
@@ -156,6 +155,13 @@ class AuthController {
     await prefs.setString('user', response.data.user);
     await prefs.setString('idUser', response.data.idUser);
     await prefs.setString('nombre', response.data.nombre);
+
+    final fotoUrl = SessionService.fotoUrlFromToken(token);
+    if (fotoUrl != null) {
+      await prefs.setString('fotoUrl', fotoUrl);
+    } else {
+      await prefs.remove('fotoUrl');
+    }
 
     authprovider.nombreUsuario = response.data.nombre;
     authprovider.user = response.data.user;
