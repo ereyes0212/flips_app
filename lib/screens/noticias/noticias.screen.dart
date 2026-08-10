@@ -39,6 +39,7 @@ class _NoticiasScreenState extends State<NoticiasScreen> {
   static const int _interstitialFrequency = 5;
   static const int _preloadBeforeNewsCount = 2;
   static const Duration _retryLoadDelay = Duration(seconds: 8);
+  static const Duration _manualRefreshCooldown = Duration(seconds: 45);
 
   final _controller = NoticiasController();
   final _searchController = TextEditingController();
@@ -50,6 +51,7 @@ class _NoticiasScreenState extends State<NoticiasScreen> {
   bool _isInterstitialLoading = false;
   bool _hideAds = false;
   DateTimeRange? _filtroFecha;
+  DateTime? _lastManualRefreshAt;
   final _noticiasService = NoticiasService();
 
   @override
@@ -229,15 +231,35 @@ class _NoticiasScreenState extends State<NoticiasScreen> {
       busqueda: _searchController.text.trim(),
       fechaDesde: _filtroFecha?.start,
       fechaHasta: _filtroFecha?.end.add(const Duration(days: 1)),
+      forceRefresh: true,
     );
   }
 
   Future<void> _refrescar() async {
+    final provider = context.read<NoticiasProvider>();
+    final now = DateTime.now();
+    final lastRefresh = _lastManualRefreshAt;
+    if (lastRefresh != null &&
+        provider.noticias.isNotEmpty &&
+        now.difference(lastRefresh) < _manualRefreshCooldown) {
+      final remaining = _manualRefreshCooldown - now.difference(lastRefresh);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Espera ${remaining.inSeconds + 1}s antes de refrescar nuevamente.',
+          ),
+        ),
+      );
+      return;
+    }
+
+    _lastManualRefreshAt = now;
     await _controller.cargarNoticias(
       context,
       busqueda: _searchController.text.trim(),
       fechaDesde: _filtroFecha?.start,
       fechaHasta: _filtroFecha?.end.add(const Duration(days: 1)),
+      forceRefresh: provider.usingCache || provider.errorMessage.isNotEmpty,
     );
     if (!mounted) return;
     await _controller.cargarCategorias(context);
@@ -314,12 +336,18 @@ class _NoticiasContentSlivers extends StatelessWidget {
     }
 
     if (provider.errorMessage.isNotEmpty && provider.noticias.isEmpty) {
+      final isOfflineError =
+          provider.errorMessage.toLowerCase().contains('sin conexión');
       return SliverFillRemaining(
         hasScrollBody: false,
         child: _EmptyState(
-          icon: Icons.cloud_off_outlined,
-          title: 'Sin conexión a internet',
-          message: 'Verifica tu conexión e intenta nuevamente.',
+          icon: isOfflineError
+              ? Icons.cloud_off_outlined
+              : Icons.error_outline_rounded,
+          title: isOfflineError
+              ? 'Sin conexión a internet'
+              : 'No pudimos cargar noticias',
+          message: provider.errorMessage,
           actionLabel: 'Reintentar',
           onAction: onRetry,
         ),
@@ -344,9 +372,9 @@ class _NoticiasContentSlivers extends StatelessWidget {
             child: Padding(
               padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
               child: _StatusBanner(
-                text: provider.usingCache
-                    ? 'Mostrando noticias guardadas mientras vuelve la conexión.'
-                    : provider.errorMessage,
+                text: provider.errorMessage.isNotEmpty
+                    ? provider.errorMessage
+                    : 'Mostrando noticias guardadas.',
               ),
             ),
           ),

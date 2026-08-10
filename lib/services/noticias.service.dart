@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
@@ -76,7 +77,7 @@ class NoticiasService {
     final uri = Uri.parse('$_baseUrl/posts').replace(queryParameters: query);
 
     try {
-      final response = await http.get(uri, headers: _headers);
+      final response = await http.get(uri, headers: _headers).timeout(const Duration(seconds: 12));
       if (response.statusCode == 200) {
         final body = jsonDecode(response.body) as List<dynamic>;
         final parsed = body
@@ -101,10 +102,20 @@ class NoticiasService {
       }
 
       return await _desdeCache(
-        'Error ${response.statusCode} al cargar noticias.',
+        'No pudimos actualizar las noticias (error ${response.statusCode}). '
+        'Mostrando la última versión guardada.',
+      );
+    } on SocketException {
+      return await _desdeCache('Sin conexión a internet. Mostrando noticias guardadas.');
+    } on TimeoutException {
+      return await _desdeCache(
+        'La conexión tardó demasiado. Mostrando noticias guardadas.',
       );
     } catch (_) {
-      return await _desdeCache('Sin conexión y sin datos en caché.');
+      return await _desdeCache(
+        'No pudimos actualizar las noticias. '
+        'Mostrando la última versión guardada.',
+      );
     }
   }
 
@@ -121,7 +132,7 @@ class NoticiasService {
     final uri = Uri.parse('$_baseUrl/posts').replace(queryParameters: query);
 
     try {
-      final response = await http.get(uri, headers: _headers);
+      final response = await http.get(uri, headers: _headers).timeout(const Duration(seconds: 12));
       if (response.statusCode != 200) return null;
 
       final body = jsonDecode(response.body) as List<dynamic>;
@@ -145,7 +156,7 @@ class NoticiasService {
       queryParameters: query,
     );
     try {
-      final response = await http.get(uri, headers: _headers);
+      final response = await http.get(uri, headers: _headers).timeout(const Duration(seconds: 12));
       if (response.statusCode == 200) {
         final body = jsonDecode(response.body) as List<dynamic>;
         final parsed = body
@@ -292,7 +303,7 @@ class NoticiasService {
     try {
       final uri = Uri.tryParse(imageUrl.trim());
       if (uri == null) return '';
-      final response = await http.get(uri);
+      final response = await http.get(uri).timeout(const Duration(seconds: 12));
       if (response.statusCode != 200 || response.bodyBytes.isEmpty) return '';
       final directory = await getApplicationDocumentsDirectory();
       final file = File('${directory.path}/offline_news_image_$noticiaId.jpg');
