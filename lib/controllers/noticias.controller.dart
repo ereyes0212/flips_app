@@ -22,7 +22,10 @@ class NoticiasController {
       fechaDesde: fechaDesde,
       fechaHasta: fechaHasta,
     );
+    final canUseFreshInMemoryData =
+        !provider.usingCache && provider.errorMessage.isEmpty;
     if (!forceRefresh &&
+        canUseFreshInMemoryData &&
         provider.noticias.isNotEmpty &&
         requestKey == _lastRequestKey &&
         _lastLoadedAt != null &&
