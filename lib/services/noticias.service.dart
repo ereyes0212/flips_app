@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
@@ -101,10 +102,20 @@ class NoticiasService {
       }
 
       return await _desdeCache(
-        'Error ${response.statusCode} al cargar noticias.',
+        'No pudimos actualizar las noticias (error ${response.statusCode}). '
+        'Mostrando la última versión guardada.',
+      );
+    } on SocketException {
+      return await _desdeCache('Sin conexión a internet. Mostrando noticias guardadas.');
+    } on TimeoutException {
+      return await _desdeCache(
+        'La conexión tardó demasiado. Mostrando noticias guardadas.',
       );
     } catch (_) {
-      return await _desdeCache('Sin conexión a internet. Mostrando noticias guardadas.');
+      return await _desdeCache(
+        'No pudimos actualizar las noticias. '
+        'Mostrando la última versión guardada.',
+      );
     }
   }
 
