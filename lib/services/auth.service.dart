@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
@@ -5,6 +6,7 @@ import 'package:flips_app/constants.dart';
 import 'package:flips_app/models/login_response.model.dart';
 import 'package:flips_app/services/http.service.dart';
 import 'package:flips_app/services/session.service.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class GoogleLoginResult {
   const GoogleLoginResult({this.response, this.message = ''});
@@ -32,6 +34,7 @@ class SuscripcionActivaResult {
 }
 
 class AuthService {
+  static const _cachedActiveSubscriptionKey = 'cached_active_subscription_v1';
   final HttpService _httpService = HttpService();
 
   Future<LoginResponseModel?> login(String email, String password) async {
@@ -139,16 +142,41 @@ class AuthService {
         final body = _decodeBody(response.body);
         final data = body['data'];
         if (data is Map<String, dynamic>) {
+          final suscripcionActiva = data['suscripcionActiva'] == true;
+          await _cacheSuscripcionActiva(suscripcionActiva);
           return SuscripcionActivaResult(
             autenticado: true,
-            suscripcionActiva: data['suscripcionActiva'] == true,
+            suscripcionActiva: suscripcionActiva,
           );
         }
       }
+      await _cacheSuscripcionActiva(false);
       return const SuscripcionActivaResult(autenticado: true, suscripcionActiva: false);
     } on SessionExpiredException {
+      await _cacheSuscripcionActiva(false);
       return const SuscripcionActivaResult(autenticado: false, suscripcionActiva: false);
+    } on SocketException {
+      return _cachedSubscriptionResult();
+    } on TimeoutException {
+      return _cachedSubscriptionResult();
     }
+  }
+
+  Future<SuscripcionActivaResult> _cachedSubscriptionResult() async {
+    return SuscripcionActivaResult(
+      autenticado: await SessionService.hasStoredSession(),
+      suscripcionActiva: await _cachedSuscripcionActiva(),
+    );
+  }
+
+  Future<void> _cacheSuscripcionActiva(bool value) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_cachedActiveSubscriptionKey, value);
+  }
+
+  Future<bool> _cachedSuscripcionActiva() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getBool(_cachedActiveSubscriptionKey) ?? false;
   }
 
   Future<GoogleLoginResult> loginWithGoogle({required String idToken}) async {

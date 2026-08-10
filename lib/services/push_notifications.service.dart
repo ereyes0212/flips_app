@@ -29,6 +29,7 @@ class PushNotificationItem {
     this.body,
     this.data,
     required this.receivedAt,
+    this.read = false,
   });
 
   factory PushNotificationItem.fromJson(Map<String, dynamic> json) {
@@ -42,6 +43,7 @@ class PushNotificationItem {
       receivedAt:
           DateTime.tryParse(json['receivedAt']?.toString() ?? '') ??
           DateTime.now().toUtc(),
+      read: json['read'] == true,
     );
   }
 
@@ -50,6 +52,7 @@ class PushNotificationItem {
   final String? body;
   final Map<String, dynamic>? data;
   final DateTime receivedAt;
+  final bool read;
 
   Map<String, dynamic> toJson() => {
     'id': id,
@@ -57,6 +60,7 @@ class PushNotificationItem {
     'body': body,
     'data': data ?? <String, dynamic>{},
     'receivedAt': receivedAt.toIso8601String(),
+    'read': read,
   };
 
   String get type => data?['type']?.toString() ?? '';
@@ -164,11 +168,33 @@ class PushNotificationsService extends ChangeNotifier {
   List<PushNotificationItem> get notifications =>
       List.unmodifiable(_notifications);
 
+  int get unreadCount => _notifications.where((item) => !item.read).length;
+
   PushNotificationItem? notificationById(String id) {
     for (final item in _notifications) {
       if (item.id == id) return item;
     }
     return null;
+  }
+
+  Future<void> markAllAsRead() async {
+    var changed = false;
+    for (var i = 0; i < _notifications.length; i++) {
+      final item = _notifications[i];
+      if (item.read) continue;
+      _notifications[i] = PushNotificationItem(
+        id: item.id,
+        title: item.title,
+        body: item.body,
+        data: item.data,
+        receivedAt: item.receivedAt,
+        read: true,
+      );
+      changed = true;
+    }
+    if (!changed) return;
+    await _saveNotifications();
+    notifyListeners();
   }
 
   Future<void> deleteNotification(String id) async {

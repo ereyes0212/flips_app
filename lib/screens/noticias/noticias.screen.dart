@@ -229,6 +229,7 @@ class _NoticiasScreenState extends State<NoticiasScreen> {
       busqueda: _searchController.text.trim(),
       fechaDesde: _filtroFecha?.start,
       fechaHasta: _filtroFecha?.end.add(const Duration(days: 1)),
+      forceRefresh: true,
     );
   }
 
