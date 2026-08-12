@@ -196,7 +196,7 @@ class _NoticiasScreenState extends State<NoticiasScreen> {
       context,
       busqueda: _searchController.text.trim(),
       fechaDesde: picked.start,
-      fechaHasta: picked.end.add(const Duration(days: 1)),
+      fechaHasta: picked.end,
     );
   }
 
@@ -230,7 +230,7 @@ class _NoticiasScreenState extends State<NoticiasScreen> {
       context,
       busqueda: _searchController.text.trim(),
       fechaDesde: _filtroFecha?.start,
-      fechaHasta: _filtroFecha?.end.add(const Duration(days: 1)),
+      fechaHasta: _filtroFecha?.end,
       forceRefresh: true,
     );
   }
@@ -258,7 +258,7 @@ class _NoticiasScreenState extends State<NoticiasScreen> {
       context,
       busqueda: _searchController.text.trim(),
       fechaDesde: _filtroFecha?.start,
-      fechaHasta: _filtroFecha?.end.add(const Duration(days: 1)),
+      fechaHasta: _filtroFecha?.end,
       forceRefresh: provider.usingCache || provider.errorMessage.isNotEmpty,
     );
     if (!mounted) return;
@@ -297,7 +297,7 @@ class _NoticiasScreenState extends State<NoticiasScreen> {
                 context,
                 busqueda: _searchController.text.trim(),
                 fechaDesde: _filtroFecha?.start,
-                fechaHasta: _filtroFecha?.end.add(const Duration(days: 1)),
+                fechaHasta: _filtroFecha?.end,
               ),
               onTapNoticia: _abrirDetalleConInterstitial,
               hideAds: _hideAds,
@@ -543,7 +543,9 @@ Future<void> _compartirNoticia(BuildContext context, NoticiaModel noticia) async
   );
 }
 
-Future<void> _abrirDetalle(BuildContext context, NoticiaModel noticia, {bool hideAds = false}) async {
+// La nota completa (y su guardado offline) se resuelve dentro del detalle,
+// porque el listado solo trae los datos de la tarjeta.
+void _abrirDetalle(BuildContext context, NoticiaModel noticia, {bool hideAds = false}) {
   final screenPath = _analyticsPathFromNews(noticia);
 
   Navigator.push(
@@ -553,15 +555,6 @@ Future<void> _abrirDetalle(BuildContext context, NoticiaModel noticia, {bool hid
       builder: (_) => _NoticiaDetalleScreen(noticia: noticia, hideAds: hideAds),
     ),
   );
-
-  if (!hideAds) return;
-
-  final provider = context.read<NoticiasProvider>();
-  Future<void>(() async {
-    await NoticiasService().guardarNoticiaOffline(noticia);
-    final saved = await NoticiasService().obtenerNoticiasOffline();
-    provider.setNoticiasOffline(saved);
-  });
 }
 
 
@@ -612,23 +605,9 @@ class NoticiaDetalleScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final noticiaParaDetalle =
-        noticia.localImagePath.isEmpty
-            ? noticia
-            : NoticiaModel(
-                id: noticia.id,
-                link: noticia.link,
-                slug: noticia.slug,
-                date: noticia.date,
-                title: noticia.title,
-                excerpt: noticia.excerpt,
-                content: noticia.content,
-                contentBlocks: noticia.contentBlocks,
-                imageUrl: noticia.localImagePath,
-                imageAlt: noticia.imageAlt,
-                localImagePath: noticia.localImagePath,
-                categories: noticia.categories,
-              );
+    final noticiaParaDetalle = noticia.localImagePath.isEmpty
+        ? noticia
+        : noticia.copyWith(imageUrl: noticia.localImagePath);
     return _NoticiaDetalleScreen(noticia: noticiaParaDetalle, hideAds: hideAds);
   }
 }

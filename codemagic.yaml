@@ -1,0 +1,53 @@
+workflows:
+  ios-release:
+    name: iOS release (TestFlight / App Store)
+    instance_type: mac_mini_m2
+    max_build_duration: 60
+
+    environment:
+      flutter: 3.35.5
+      xcode: latest
+      cocoapods: default
+
+      # Grupo de variables definido en Codemagic > Environment variables.
+      # Debe contener GOOGLE_IOS_CLIENT_ID y GOOGLE_WEB_CLIENT_ID.
+      groups:
+        - google_signin
+
+      ios_signing:
+        distribution_type: app_store
+        bundle_identifier: com.diariotiempohn.app
+
+    # Nombre de la API key de App Store Connect cargada en
+    # Codemagic > Teams > Integrations > App Store Connect.
+    integrations:
+      app_store_connect: DiarioTiempo_ASC_Key
+
+    scripts:
+      - name: Flutter packages
+        script: flutter pub get
+
+      - name: Instalar pods
+        script: find . -name "Podfile" -execdir pod install \;
+
+      - name: Configurar firma en el proyecto Xcode
+        script: xcode-project use-profiles
+
+      - name: Build IPA
+        script: |
+          flutter build ipa --release \
+            --build-number=$BUILD_NUMBER \
+            --dart-define=GOOGLE_IOS_CLIENT_ID=$GOOGLE_IOS_CLIENT_ID \
+            --dart-define=GOOGLE_WEB_CLIENT_ID=$GOOGLE_WEB_CLIENT_ID \
+            --export-options-plist=/Users/builder/export_options.plist
+
+    artifacts:
+      - build/ios/ipa/*.ipa
+      - /tmp/xcodebuild_logs/*.log
+
+    publishing:
+      app_store_connect:
+        auth: integration
+        submit_to_testflight: true
+        # Cambia a true cuando quieras que pase a revision automaticamente.
+        submit_to_app_store: false

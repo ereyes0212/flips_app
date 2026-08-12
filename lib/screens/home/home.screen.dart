@@ -118,7 +118,7 @@ class _HomeScreenState extends State<HomeScreen> {
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(22)),
         title: const Text('Activa tu suscripción premium'),
         content: const Text(
-          '''Accede a diarios digitales del 2008 al 2016, elimina anuncios y disfruta una experiencia completa.
+          '''Accede a anuarios del 2008 al a la fecha actual, elimina anuncios y disfruta una experiencia completa.
 
 Contrata hoy para desbloquear todo el contenido exclusivo.''',
         ),

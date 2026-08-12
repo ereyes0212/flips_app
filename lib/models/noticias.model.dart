@@ -13,7 +13,7 @@ class CategoriaNoticiaModel {
 
   factory CategoriaNoticiaModel.fromJson(Map<String, dynamic> json) {
     return CategoriaNoticiaModel(
-      id: json['id'] ?? 0,
+      id: int.tryParse(json['id']?.toString() ?? '') ?? 0,
       name: _cleanHtml(json['name']?.toString() ?? ''),
       slug: json['slug']?.toString() ?? '',
       count: int.tryParse(json['count']?.toString() ?? '') ?? 0,
@@ -181,6 +181,58 @@ class NoticiaModel {
 
   bool get hasImage => imageUrl.isNotEmpty;
 
+  /// El listado (`/api/noticias`) solo trae los datos de la tarjeta; el
+  /// contenido llega al abrir la nota (`/api/noticias/by-link`).
+  bool get tieneContenido => content.isNotEmpty || contentBlocks.isNotEmpty;
+
+  NoticiaModel copyWith({
+    int? id,
+    String? link,
+    String? slug,
+    DateTime? date,
+    String? title,
+    String? excerpt,
+    String? content,
+    List<NoticiaContentBlock>? contentBlocks,
+    String? imageUrl,
+    String? imageAlt,
+    String? localImagePath,
+    List<int>? categories,
+  }) {
+    return NoticiaModel(
+      id: id ?? this.id,
+      link: link ?? this.link,
+      slug: slug ?? this.slug,
+      date: date ?? this.date,
+      title: title ?? this.title,
+      excerpt: excerpt ?? this.excerpt,
+      content: content ?? this.content,
+      contentBlocks: contentBlocks ?? this.contentBlocks,
+      imageUrl: imageUrl ?? this.imageUrl,
+      imageAlt: imageAlt ?? this.imageAlt,
+      localImagePath: localImagePath ?? this.localImagePath,
+      categories: categories ?? this.categories,
+    );
+  }
+
+  /// Completa la tarjeta con los datos de la nota completa sin perder lo que
+  /// solo existe en local (por ejemplo la imagen descargada para offline).
+  NoticiaModel mergeDetalle(NoticiaModel detalle) {
+    return copyWith(
+      id: detalle.id > 0 ? detalle.id : id,
+      link: detalle.link.isNotEmpty ? detalle.link : link,
+      slug: detalle.slug.isNotEmpty ? detalle.slug : slug,
+      date: detalle.date ?? date,
+      title: detalle.title.isNotEmpty ? detalle.title : title,
+      excerpt: detalle.excerpt.isNotEmpty ? detalle.excerpt : excerpt,
+      content: detalle.content,
+      contentBlocks: detalle.contentBlocks,
+      imageUrl: detalle.imageUrl.isNotEmpty ? detalle.imageUrl : imageUrl,
+      imageAlt: detalle.imageAlt.isNotEmpty ? detalle.imageAlt : imageAlt,
+      categories: detalle.categories.isNotEmpty ? detalle.categories : categories,
+    );
+  }
+
   Map<String, dynamic> toStorageJson() {
     return {
       'id': id,
@@ -221,42 +273,104 @@ class NoticiaModel {
     );
   }
 
+  /// Parsea la respuesta de la API de noticias. El listado trae solo los campos
+  /// de la tarjeta (`titulo`, `resumen`, `imagen`, …) y `by-link` agrega
+  /// `contenido` en HTML. Se aceptan también las llaves del formato anterior de
+  /// WordPress (`title.rendered`, `date`, `_embedded`…) para que la app no se
+  /// quede sin datos si el backend todavía responde con ese formato.
   factory NoticiaModel.fromJson(Map<String, dynamic> json) {
-    final embedded = json['_embedded'] as Map<String, dynamic>?;
-    final featuredMedia = (embedded?['wp:featuredmedia'] as List<dynamic>?);
-    final media =
-        featuredMedia != null && featuredMedia.isNotEmpty
-            ? featuredMedia.first as Map<String, dynamic>
-            : null;
-    final yoast = json['yoast_head_json'] as Map<String, dynamic>?;
-    final ogImages = yoast?['og_image'] as List<dynamic>?;
-    final ogImage =
-        ogImages != null && ogImages.isNotEmpty
-            ? ogImages.first as Map<String, dynamic>
-            : null;
-    final embeddedImage = (media?['source_url'] ?? '').toString();
-    final metadataImage = (ogImage?['url'] ?? '').toString();
-
-    final rawContent = (json['content']?['rendered'] ?? '').toString();
+    final rawContent = _campoTexto(json, const ['contenido', 'content']);
 
     return NoticiaModel(
-      id: json['id'] ?? 0,
-      link: json['link']?.toString() ?? '',
-      slug: json['slug']?.toString() ?? '',
-      date: DateTime.tryParse(json['date']?.toString() ?? ''),
-      title: _cleanHtml((json['title']?['rendered'] ?? '').toString()),
-      excerpt: _cleanHtml((json['excerpt']?['rendered'] ?? '').toString()),
+      id: int.tryParse(_campoTexto(json, const ['id'])) ?? 0,
+      link: _campoTexto(json, const ['link', 'url']),
+      slug: _campoTexto(json, const ['slug']),
+      date: DateTime.tryParse(
+        _campoTexto(json, const ['fecha', 'date', 'date_gmt', 'publishedAt']),
+      ),
+      title: _cleanHtml(_campoTexto(json, const ['titulo', 'title'])),
+      excerpt: _cleanHtml(
+        _campoTexto(json, const ['resumen', 'excerpt', 'extracto']),
+      ),
       content: _cleanHtml(rawContent, preserveParagraphs: true),
       contentBlocks: _parseContentBlocks(rawContent),
-      imageUrl: embeddedImage.isNotEmpty ? embeddedImage : metadataImage,
-      imageAlt: _cleanHtml((media?['alt_text'] ?? '').toString()),
+      imageUrl: _imagenUrl(json),
+      imageAlt: _cleanHtml(_imagenAlt(json)),
       localImagePath: '',
-      categories:
-          (json['categories'] as List<dynamic>? ?? [])
-              .map((e) => int.tryParse(e.toString()) ?? 0)
-              .where((e) => e > 0)
-              .toList(),
+      categories: _categorias(json),
     );
+  }
+
+  /// Devuelve la primera llave con valor. Soporta el envoltorio `{rendered: …}`
+  /// que usa WordPress.
+  static String _campoTexto(Map<String, dynamic> json, List<String> claves) {
+    for (final clave in claves) {
+      final value = json[clave];
+      if (value == null) continue;
+      if (value is Map) {
+        final rendered = value['rendered']?.toString() ?? '';
+        if (rendered.isNotEmpty) return rendered;
+        continue;
+      }
+      if (value is List) continue;
+      final text = value.toString().trim();
+      if (text.isNotEmpty) return text;
+    }
+    return '';
+  }
+
+  static Map<String, dynamic>? _imagen(Map<String, dynamic> json) {
+    final imagen = json['imagen'] ?? json['image'];
+    if (imagen is Map) return imagen.cast<String, dynamic>();
+
+    final embedded = json['_embedded'] as Map<String, dynamic>?;
+    final featuredMedia = embedded?['wp:featuredmedia'] as List<dynamic>?;
+    if (featuredMedia != null && featuredMedia.isNotEmpty) {
+      final media = featuredMedia.first;
+      if (media is Map) return media.cast<String, dynamic>();
+    }
+    return null;
+  }
+
+  static String _imagenUrl(Map<String, dynamic> json) {
+    final imagen = _imagen(json);
+    if (imagen != null) {
+      final url = _campoTexto(imagen, const ['url', 'source_url', 'src', 'link']);
+      if (url.isNotEmpty) return url;
+    }
+
+    final directa = _campoTexto(json, const ['imagen', 'image', 'imagenUrl', 'imagen_url']);
+    if (directa.isNotEmpty) return directa;
+
+    final yoast = json['yoast_head_json'] as Map<String, dynamic>?;
+    final ogImages = yoast?['og_image'] as List<dynamic>?;
+    if (ogImages != null && ogImages.isNotEmpty) {
+      final ogImage = ogImages.first;
+      if (ogImage is Map) {
+        return _campoTexto(ogImage.cast<String, dynamic>(), const ['url']);
+      }
+    }
+    return '';
+  }
+
+  static String _imagenAlt(Map<String, dynamic> json) {
+    final imagen = _imagen(json);
+    if (imagen == null) return '';
+    return _campoTexto(imagen, const ['alt', 'alt_text', 'descripcion']);
+  }
+
+  /// Acepta `[16, 33]` y también `[{"id": 16, …}]`.
+  static List<int> _categorias(Map<String, dynamic> json) {
+    final raw = json['categorias'] ?? json['categories'];
+    if (raw is! List) return const [];
+
+    return raw
+        .map((e) {
+          if (e is Map) return int.tryParse(e['id']?.toString() ?? '') ?? 0;
+          return int.tryParse(e.toString()) ?? 0;
+        })
+        .where((id) => id > 0)
+        .toList();
   }
 
   static List<NoticiaContentBlock> _parseContentBlocks(String html) {

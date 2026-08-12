@@ -11,7 +11,20 @@ class _NoticiaDetalleScreen extends StatefulWidget {
 }
 
 class _NoticiaDetalleScreenState extends State<_NoticiaDetalleScreen> {
+  final _service = NoticiasService();
+  late NoticiaModel _noticia = widget.noticia;
   bool _tracked = false;
+  bool _cargandoContenido = false;
+  String _errorContenido = '';
+
+  @override
+  void initState() {
+    super.initState();
+    // El listado solo trae la tarjeta: el contenido se pide al abrir la nota.
+    if (!_noticia.tieneContenido) {
+      Future.microtask(_cargarContenido);
+    }
+  }
 
   @override
   void didChangeDependencies() {
@@ -24,8 +37,40 @@ class _NoticiaDetalleScreenState extends State<_NoticiaDetalleScreen> {
     });
   }
 
+  Future<void> _cargarContenido() async {
+    setState(() {
+      _cargandoContenido = true;
+      _errorContenido = '';
+    });
+
+    final completa = await _service.obtenerNoticiaCompleta(_noticia);
+    if (!mounted) return;
+
+    setState(() {
+      _cargandoContenido = false;
+      if (completa == null) {
+        _errorContenido =
+            'No pudimos cargar el contenido completo de esta noticia.';
+      } else {
+        _noticia = completa;
+      }
+    });
+
+    if (completa != null) unawaited(_guardarOffline(completa));
+  }
+
+  /// Los suscriptores guardan la nota completa para leerla sin conexión.
+  Future<void> _guardarOffline(NoticiaModel noticia) async {
+    if (!widget.hideAds) return;
+
+    await _service.guardarNoticiaOffline(noticia);
+    final guardadas = await _service.obtenerNoticiasOffline();
+    if (!mounted) return;
+    context.read<NoticiasProvider>().setNoticiasOffline(guardadas);
+  }
+
   Future<void> _trackNewsView() async {
-    final noticia = widget.noticia;
+    final noticia = _noticia;
     await AnalyticsService.logNoteView(
       noteId: noticia.id,
       slug: noticia.slug,
@@ -40,7 +85,7 @@ class _NoticiaDetalleScreenState extends State<_NoticiaDetalleScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final noticia = widget.noticia;
+    final noticia = _noticia;
     final hideAds = widget.hideAds;
     final theme = Theme.of(context);
     final categoriasPorId = context.watch<NoticiasProvider>().categoriasPorId;
@@ -131,7 +176,16 @@ class _NoticiaDetalleScreenState extends State<_NoticiaDetalleScreen> {
                     onTap: (categoria) => _abrirCategoria(context, categoria),
                   ),
                   const Divider(height: 28),
-                  _ArticleContent(noticia: noticia, hideAds: hideAds),
+                  if (_cargandoContenido)
+                    _ArticleContentPlaceholder(excerpt: noticia.excerpt)
+                  else if (_errorContenido.isNotEmpty)
+                    _ArticleContentError(
+                      message: _errorContenido,
+                      excerpt: noticia.excerpt,
+                      onRetry: _cargarContenido,
+                    )
+                  else
+                    _ArticleContent(noticia: noticia, hideAds: hideAds),
                   const SizedBox(height: 28),
                   _RelatedNewsSection(noticia: noticia, hideAds: hideAds),
                 ],
@@ -155,9 +209,10 @@ class _ArticleContent extends StatelessWidget {
     final blocks = _visibleBlocks();
     final adPositionMap = _adPositionMap(blocks);
     if (blocks.isEmpty) {
+      final texto = noticia.content.isNotEmpty ? noticia.content : noticia.excerpt;
       return Text(
-        noticia.content.isNotEmpty
-            ? noticia.content
+        texto.isNotEmpty
+            ? texto
             : 'Esta noticia no incluye contenido disponible desde la API.',
         style: Theme.of(context).textTheme.bodyLarge?.copyWith(height: 1.65),
       );
@@ -223,6 +278,88 @@ class _ArticleContent extends StatelessWidget {
     final secondUri = Uri.tryParse(second);
     if (firstUri == null || secondUri == null) return first == second;
     return firstUri.host == secondUri.host && firstUri.path == secondUri.path;
+  }
+}
+
+/// Mientras se descarga la nota completa se muestra el resumen de la tarjeta
+/// y unas líneas de carga.
+class _ArticleContentPlaceholder extends StatelessWidget {
+  const _ArticleContentPlaceholder({required this.excerpt});
+
+  final String excerpt;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        if (excerpt.isNotEmpty) ...[
+          Text(
+            excerpt,
+            style: theme.textTheme.bodyLarge?.copyWith(height: 1.65),
+          ),
+          const SizedBox(height: 16),
+        ],
+        Row(
+          children: [
+            const SizedBox(
+              width: 14,
+              height: 14,
+              child: CircularProgressIndicator(strokeWidth: 2.2),
+            ),
+            const SizedBox(width: 8),
+            Text(
+              'Cargando la noticia completa...',
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: colorScheme.onSurfaceVariant,
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+}
+
+class _ArticleContentError extends StatelessWidget {
+  const _ArticleContentError({
+    required this.message,
+    required this.excerpt,
+    required this.onRetry,
+  });
+
+  final String message;
+  final String excerpt;
+  final VoidCallback onRetry;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        if (excerpt.isNotEmpty) ...[
+          Text(
+            excerpt,
+            style: theme.textTheme.bodyLarge?.copyWith(height: 1.65),
+          ),
+          const SizedBox(height: 16),
+        ],
+        _StatusBanner(text: message),
+        Align(
+          alignment: Alignment.centerLeft,
+          child: TextButton.icon(
+            onPressed: onRetry,
+            icon: const Icon(Icons.refresh_rounded, size: 18),
+            label: const Text('Reintentar'),
+          ),
+        ),
+      ],
+    );
   }
 }
 

@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!--
+	  production: es el valor correcto para builds de TestFlight y App Store,
+	  que es lo unico que se genera desde Codemagic. Si algun dia compilas
+	  con un perfil de desarrollo, cambialo a "development".
+	-->
+	<key>aps-environment</key>
+	<string>production</string>
+</dict>
+</plist>

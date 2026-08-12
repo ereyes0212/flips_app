@@ -12,7 +12,36 @@
           "package_name": "com.diariotiempohn.app"
         }
       },
-      "oauth_client": [],
+      "oauth_client": [
+        {
+          "client_id": "374905649903-3g17kg930j3mgcjst68bl2vua4gas7b5.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.diariotiempohn.app",
+            "certificate_hash": "8707323ca76f84a4e5e255f0abe29408415d0f79"
+          }
+        },
+        {
+          "client_id": "374905649903-9vb6eqfel0a5kusdjb1e6qm030t7sgts.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.diariotiempohn.app",
+            "certificate_hash": "f63dbe28c8af09ac54bbc693cfc32fe93af99af7"
+          }
+        },
+        {
+          "client_id": "374905649903-jdf7tbpp8nddu0qnc6thach6upjjrbs3.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.diariotiempohn.app",
+            "certificate_hash": "0674f60079a75f37bec2adcf26037cc86e865e0d"
+          }
+        },
+        {
+          "client_id": "374905649903-tatkk8u7keo8r0aq8580k1kqeiotvvc8.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
       "api_key": [
         {
           "current_key": "AIzaSyAgfA1pS9Nyq_YolTU0sGJuxSmh47ygt0A"
@@ -20,7 +49,19 @@
       ],
       "services": {
         "appinvite_service": {
-          "other_platform_oauth_client": []
+          "other_platform_oauth_client": [
+            {
+              "client_id": "374905649903-tatkk8u7keo8r0aq8580k1kqeiotvvc8.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "374905649903-t8toeo9bp074mlm9qv69tbc00qco5rki.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.diariotiempohn.app"
+              }
+            }
+          ]
         }
       }
     }

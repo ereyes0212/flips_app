@@ -13,14 +13,16 @@ Por políticas de las tiendas digitales, Flutter no procesa compras internas ni 
 
 Todas las llamadas al backend se hacen con `Authorization: Bearer <jwt>` y `Content-Type: application/json` cuando aplica.
 
-## Noticias de WordPress
+## Noticias
 
-La pantalla de noticias consume `https://tiempo.hn/wp-json/wp/v2/posts`. Si el sitio responde `401`, compila o ejecuta la app con credenciales de una contraseña de aplicación de WordPress mediante `--dart-define`; no guardes esa contraseña en el repositorio.
+La pantalla de noticias ya no consume WordPress directamente: usa el mismo backend que el resto de las APIs (`apiUrl` en `lib/constants.dart`), que se encarga de hablar con WordPress y devuelve las mismas respuestas.
 
-Ejemplo:
+Endpoints:
 
-```bash
-flutter run \
-  --dart-define=WORDPRESS_API_USERNAME=<usuario-o-correo-wordpress> \
-  --dart-define=WORDPRESS_API_APP_PASSWORD=<contraseña-de-aplicación>
-```
+- Listado: `/api/noticias?page=1&perPage=10`
+- Filtros opcionales: `categoria`, `busqueda`, `fechaDesde`, `fechaHasta` (fechas en ISO 8601 UTC).
+- Noticia por link: `/api/noticias/by-link?link=<url-codificada>`
+- Noticia por slug: `/api/noticias/by-link?slug=<slug>`
+- Categorías: `/api/noticias/categorias?perPage=100`
+
+Son endpoints públicos: la app no exige sesión para consultarlos, pero envía `Authorization: Bearer <jwt>` cuando ya hay una sesión válida. Ya no se necesitan las credenciales de WordPress (`--dart-define=WP_USER/WP_PASS`).
