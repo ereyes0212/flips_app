@@ -1,6 +1,11 @@
 import 'package:firebase_analytics/firebase_analytics.dart';
 import 'package:flutter/foundation.dart';
 
+/// Marca las rutas que ya reportan su propio `screen_view` (el detalle de una
+/// nota lo manda junto con el título), para que el observer global no lo
+/// duplique.
+const String kRutaConAnalyticsPropio = 'analytics_propio';
+
 class AnalyticsService {
   AnalyticsService._();
 
@@ -67,7 +72,12 @@ class AnalyticsService {
     );
   }
 
+  /// `path` viaja en `screen_class` a propósito: la dimensión "Ruta de página y
+  /// clase de pantalla" de GA4 usa la ruta en web y la clase en app, así que es
+  /// la única forma de que la misma nota sume en una sola fila desde los dos
+  /// lados.
   static Future<void> logNewsScreen({
+    required String path,
     required String slug,
     required String title,
   }) async {
@@ -76,9 +86,10 @@ class AnalyticsService {
       final normalizedSlug = _sanitize(slug);
       final fallbackName = normalizedSlug.isEmpty ? 'noticia_detalle' : normalizedSlug;
       final resolvedScreenName = screenName.isEmpty ? fallbackName : screenName;
+      final normalizedPath = _sanitize(path);
       await _analytics.logScreenView(
         screenName: resolvedScreenName,
-        screenClass: 'NoticiaDetalleScreen',
+        screenClass: normalizedPath.isEmpty ? 'NoticiaDetalleScreen' : normalizedPath,
       );
 
     } catch (error) {
@@ -91,20 +102,27 @@ class AnalyticsService {
 
 
 
+  /// Igual que [logNewsScreen]: la ruta va en `screen_class` para que la
+  /// pantalla sume con su equivalente del sitio. `title` es el `page_title` que
+  /// manda la web para esa misma ruta, cuando lo conocemos.
   static Future<bool> logRouteScreen({
     required String path,
+    String? title,
   }) async {
     final normalizedPath = _sanitize(path);
     if (normalizedPath.isEmpty) return false;
 
+    final normalizedTitle = _sanitize(title ?? '');
+    final screenName = normalizedTitle.isEmpty ? normalizedPath : normalizedTitle;
+
     if (kDebugMode) {
-      debugPrint('[AnalyticsService][send] screen_view AppRoute path=$normalizedPath');
+      debugPrint('[AnalyticsService][send] screen_view path=$normalizedPath name=$screenName');
     }
 
     try {
       await _analytics.logScreenView(
-        screenName: normalizedPath,
-        screenClass: 'AppRoute',
+        screenName: screenName,
+        screenClass: normalizedPath,
       );
 
       if (kDebugMode) {

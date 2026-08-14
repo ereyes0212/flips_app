@@ -5,21 +5,121 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:flips_app/constants.dart';
-import 'package:flips_app/screens/home/home.screen.dart';
 import 'package:flips_app/screens/mis_facturas/mis_facturas.screen.dart';
 import 'package:flips_app/screens/mis_pagos/mis_pagos.screen.dart';
 import 'package:flips_app/screens/mis_suscripcion/mis_suscripcion.screen.dart';
+import 'package:flips_app/screens/noticias/noticias.screen.dart';
 import 'package:flips_app/screens/paquetes/paquetes.screen.dart';
 import 'package:flips_app/services/http.service.dart';
+import 'package:flips_app/services/session.service.dart';
+import 'package:flips_app/utils/noticia_link.util.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:url_launcher/url_launcher.dart';
+
+const String _kStorageKey = 'push_notifications_history';
+const String _kNewsAlertsKey = 'push_news_alerts_enabled';
+const String _kPendingAlertsSyncKey = 'push_alerts_pending_sync';
+const int _kMaxStoredNotifications = 100;
 
 @pragma('vm:entry-point')
 Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
   await Firebase.initializeApp();
+  // Con la app cerrada o en segundo plano este es el único punto donde el
+  // aviso pasa por nuestro código: si no lo guardamos aquí, nunca aparece en
+  // la pantalla de Notificaciones.
+  await _persistMessageToStorage(message);
+}
+
+PushNotificationItem _itemFromMessage(RemoteMessage message) {
+  final notification = message.notification;
+  return PushNotificationItem(
+    id:
+        message.messageId ??
+        DateTime.now().microsecondsSinceEpoch.toString(),
+    title:
+        notification?.title ??
+        message.data['title']?.toString() ??
+        'Notificación',
+    body:
+        notification?.body ??
+        message.data['body']?.toString() ??
+        'Toque para ver detalles.',
+    data: message.data,
+    receivedAt: DateTime.now().toUtc(),
+  );
+}
+
+/// Guarda un mensaje leyendo y escribiendo directamente en disco.
+///
+/// El handler de background corre en otro isolate y no puede tocar la
+/// instancia de [PushNotificationsService], así que la persistencia vive
+/// suelta para que ambos isolates compartan la misma lógica.
+Future<void> _persistMessageToStorage(RemoteMessage message) async {
+  try {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.reload();
+
+    if (!(prefs.getBool(_kNewsAlertsKey) ?? true)) return;
+
+    final item = _itemFromMessage(message);
+    final stored = prefs.getStringList(_kStorageKey) ?? <String>[];
+
+    final yaGuardado = stored.any((raw) {
+      try {
+        final json = jsonDecode(raw) as Map<String, dynamic>;
+        return json['id']?.toString() == item.id;
+      } catch (_) {
+        return false;
+      }
+    });
+    if (yaGuardado) return;
+
+    final updated = [jsonEncode(item.toJson()), ...stored];
+    if (updated.length > _kMaxStoredNotifications) {
+      updated.removeRange(_kMaxStoredNotifications, updated.length);
+    }
+    await prefs.setStringList(_kStorageKey, updated);
+  } catch (_) {}
+}
+
+bool _esTipoNoticia(String type) {
+  final normalizado = type.trim().toLowerCase();
+  return normalizado == 'noticia' || normalizado == 'noticias';
+}
+
+String _slugDeNoticia(Map<String, dynamic> data) {
+  final slug = data['slug']?.toString().trim() ?? '';
+  if (slug.isNotEmpty) return slug;
+  return NoticiaLinkUtil.slugDesdeEnlace(data['url']?.toString() ?? '');
+}
+
+/// Las notas de nuestros dominios se leen dentro de la app; las de cualquier
+/// otro sitio no las podemos renderizar y se abren en el navegador.
+bool _noticiaAbreEnLaApp(Map<String, dynamic> data) {
+  if (!_esTipoNoticia(data['type']?.toString() ?? '')) return false;
+
+  final url = data['url']?.toString().trim() ?? '';
+  if (url.isNotEmpty) return NoticiaLinkUtil.esDominioPropio(url);
+
+  // Sin enlace solo queda el slug, y ese siempre es de la API propia.
+  return _slugDeNoticia(data).isNotEmpty;
+}
+
+/// Relee el historial cuando la app vuelve al primer plano, porque lo que
+/// llegó estando cerrada lo escribió el otro isolate.
+class _LifecycleWatcher with WidgetsBindingObserver {
+  _LifecycleWatcher(this._onResume);
+
+  final Future<void> Function() _onResume;
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) unawaited(_onResume());
+  }
 }
 
 class PushNotificationItem {
@@ -73,29 +173,55 @@ class PushNotificationItem {
   String? get url => data?['url']?.toString().trim().isNotEmpty == true
       ? data!['url'].toString()
       : null;
+
+  /// Slug de la nota cuando el aviso anuncia una noticia.
+  String get slug => _slugDeNoticia(data ?? const <String, dynamic>{});
+
+  /// `true` si la nota se puede leer dentro de la app.
+  bool get abreEnLaApp => _noticiaAbreEnLaApp(data ?? const <String, dynamic>{});
 }
 
 class PushNotificationsService extends ChangeNotifier {
-  static const _storageKey = 'push_notifications_history';
+  static const _flipsTopic = 'flips';
+
   PushNotificationsService._();
 
   static final PushNotificationsService instance = PushNotificationsService._();
 
-  final FirebaseMessaging _messaging = FirebaseMessaging.instance;
+  /// Perezoso a propósito: `FirebaseMessaging.instance` lanza si Firebase no
+  /// arrancó, y como campo tumbaba la app antes de que corriera cualquier
+  /// guarda de `_firebaseReady`. Todos los usos ya están detrás de una.
+  FirebaseMessaging get _messaging => FirebaseMessaging.instance;
+
   final HttpService _httpService = HttpService();
   final FlutterLocalNotificationsPlugin _localNotificationsPlugin =
       FlutterLocalNotificationsPlugin();
 
+  late final _LifecycleWatcher _lifecycleWatcher = _LifecycleWatcher(
+    refreshFromStorage,
+  );
+
   final List<PushNotificationItem> _notifications = [];
 
   bool _initialized = false;
-  bool _notificationsPermissionShown = false;
+  bool _newsAlertsEnabled = true;
 
   bool get _firebaseReady => Firebase.apps.isNotEmpty;
+
+  /// `false` cuando Firebase no pudo inicializarse: no tiene sentido pedir
+  /// permisos que no vamos a poder usar.
+  bool get isAvailable => _firebaseReady;
+
+  /// Preferencia del usuario para recibir avisos de noticias nuevas.
+  ///
+  /// Es independiente del permiso del sistema: permite apagar los avisos desde
+  /// la app sin tener que ir a los ajustes del teléfono.
+  bool get newsAlertsEnabled => _newsAlertsEnabled;
 
   Future<void> init() async {
     if (_initialized) return;
 
+    await _loadNewsAlertsPreference();
     await _loadNotifications();
     if (!_firebaseReady) {
       _initialized = true;
@@ -106,12 +232,13 @@ class PushNotificationsService extends ChangeNotifier {
     await _initializeLocalNotifications();
     // No solicitar ni sincronizar token automáticamente al iniciar la app.
     // El token se registra después de login y permiso explícito del usuario.
-    if (!_firebaseReady) return;
+
+    WidgetsBinding.instance.addObserver(_lifecycleWatcher);
 
     FirebaseMessaging.onMessage.listen(_onForegroundMessage);
-    FirebaseMessaging.onMessageOpenedApp.listen(_handleNotificationTap);
+    FirebaseMessaging.onMessageOpenedApp.listen(_onNotificationOpened);
     _messaging.onTokenRefresh.listen((token) async {
-      await _syncTokenWithBackend(token);
+      await _syncTokenWithBackend(token, activo: _newsAlertsEnabled);
       await _subscribeToFlipsTopic();
     });
 
@@ -120,13 +247,27 @@ class PushNotificationsService extends ChangeNotifier {
       await _subscribeToFlipsTopic();
     }
 
+    // Si apagar o encender los avisos falló por red, se reintenta ahora: de lo
+    // contrario la preferencia queda guardada pero el servidor sigue enviando.
+    unawaited(_retryPendingAlertsSync());
+
     final initialMessage = await _messaging.getInitialMessage();
     if (initialMessage != null) {
-      _addNotification(initialMessage);
+      await _addNotification(initialMessage);
       _handleNotificationTap(initialMessage);
     }
 
     _initialized = true;
+  }
+
+  /// Relee el historial guardado en disco.
+  ///
+  /// Lo que llega con la app cerrada lo escribe el isolate de background, así
+  /// que esta instancia solo se entera releyendo.
+  Future<void> refreshFromStorage() async {
+    await _loadNewsAlertsPreference();
+    await _loadNotifications();
+    notifyListeners();
   }
 
   Future<void> syncTokenForLoggedInUser() async {
@@ -152,17 +293,93 @@ class PushNotificationsService extends ChangeNotifier {
         settings.authorizationStatus == AuthorizationStatus.authorized;
 
     if (isGranted) {
-      await _syncCurrentToken();
-      await _subscribeToFlipsTopic();
+      // Conceder el permiso es una aceptación explícita: reactivamos los
+      // avisos aunque el usuario los hubiera apagado antes.
+      if (!_newsAlertsEnabled) {
+        await setNewsAlertsEnabled(true);
+      } else {
+        final prefs = await SharedPreferences.getInstance();
+        await _applyAlertsPreference(prefs);
+      }
+      notifyListeners();
     }
 
     return isGranted;
   }
 
-  Future<void> _subscribeToFlipsTopic() async {
+  /// Enciende o apaga los avisos de noticias sin tocar el permiso del sistema.
+  Future<void> setNewsAlertsEnabled(bool enabled) async {
+    if (_newsAlertsEnabled == enabled) return;
+
+    _newsAlertsEnabled = enabled;
+    notifyListeners();
+
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_kNewsAlertsKey, enabled);
+
+    await _applyAlertsPreference(prefs);
+  }
+
+  /// Propaga la preferencia a FCM y al backend.
+  ///
+  /// Desuscribirse del topic no alcanza: el backend también envía a los tokens
+  /// registrados uno por uno, así que hay que marcar el token como inactivo o
+  /// los avisos siguen llegando igual.
+  Future<void> _applyAlertsPreference(SharedPreferences prefs) async {
+    final sincronizado = _newsAlertsEnabled
+        ? await _enableDelivery()
+        : await _disableDelivery();
+    // Se guarda el fallo para reintentar en el próximo arranque.
+    await prefs.setBool(_kPendingAlertsSyncKey, !sincronizado);
+  }
+
+  Future<bool> _enableDelivery() async {
+    if (!_firebaseReady) return false;
+    final suscrito = await _subscribeToFlipsTopic();
+    final registrado = await _updateTokenActivo(true);
+    return suscrito && registrado;
+  }
+
+  Future<bool> _disableDelivery() async {
+    if (!_firebaseReady) return false;
+    final desuscrito = await _unsubscribeFromFlipsTopic();
+    final desregistrado = await _updateTokenActivo(false);
+    return desuscrito && desregistrado;
+  }
+
+  Future<void> _retryPendingAlertsSync() async {
     try {
-      await FirebaseMessaging.instance.subscribeToTopic('flips');
-    } catch (error) {}
+      final prefs = await SharedPreferences.getInstance();
+      if (prefs.getBool(_kPendingAlertsSyncKey) != true) return;
+      await _applyAlertsPreference(prefs);
+    } catch (_) {}
+  }
+
+  Future<void> _loadNewsAlertsPreference() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      _newsAlertsEnabled = prefs.getBool(_kNewsAlertsKey) ?? true;
+    } catch (_) {}
+  }
+
+  Future<bool> _subscribeToFlipsTopic() async {
+    if (!_firebaseReady || !_newsAlertsEnabled) return false;
+    try {
+      await _messaging.subscribeToTopic(_flipsTopic);
+      return true;
+    } catch (error) {
+      return false;
+    }
+  }
+
+  Future<bool> _unsubscribeFromFlipsTopic() async {
+    if (!_firebaseReady) return false;
+    try {
+      await _messaging.unsubscribeFromTopic(_flipsTopic);
+      return true;
+    } catch (error) {
+      return false;
+    }
   }
 
   List<PushNotificationItem> get notifications =>
@@ -214,7 +431,10 @@ class PushNotificationsService extends ChangeNotifier {
   Future<void> _loadNotifications() async {
     try {
       final prefs = await SharedPreferences.getInstance();
-      final rawItems = prefs.getStringList(_storageKey) ?? <String>[];
+      // Sin `reload` seguiríamos viendo la copia en memoria de este isolate y
+      // nunca lo que guardó el handler de background.
+      await prefs.reload();
+      final rawItems = prefs.getStringList(_kStorageKey) ?? <String>[];
       _notifications
         ..clear()
         ..addAll(
@@ -230,7 +450,7 @@ class PushNotificationsService extends ChangeNotifier {
     try {
       final prefs = await SharedPreferences.getInstance();
       await prefs.setStringList(
-        _storageKey,
+        _kStorageKey,
         _notifications.map((item) => jsonEncode(item.toJson())).toList(),
       );
     } catch (_) {}
@@ -243,19 +463,12 @@ class PushNotificationsService extends ChangeNotifier {
     return settings.authorizationStatus == AuthorizationStatus.authorized;
   }
 
-  Future<bool> hasNotificationPermissionBeenShown() async {
-    return _notificationsPermissionShown;
-  }
-
-  void setNotificationPermissionShown() {
-    _notificationsPermissionShown = true;
-  }
-
+  /// Se llama antes de limpiar la sesión, mientras el token de auth sigue
+  /// siendo válido: si no, el backend seguiría enviando avisos a este equipo.
   Future<void> unregisterTokenOnLogout() async {
     if (!_firebaseReady) return;
-    final token = await _messaging.getToken();
-    if (token == null || token.isEmpty) return;
-    await _deleteTokenFromBackend(token);
+    await _unsubscribeFromFlipsTopic();
+    await _updateTokenActivo(false);
   }
 
   Future<void> _initializeLocalNotifications() async {
@@ -295,40 +508,52 @@ class PushNotificationsService extends ChangeNotifier {
   }
 
   Future<void> _syncCurrentToken() async {
-    try {
-      if (!_firebaseReady) return;
-      final token = await _messaging.getToken();
-      if (token == null || token.isEmpty) {
-        return;
-      }
-      await _syncTokenWithBackend(token);
-    } on FirebaseException {}
+    await _updateTokenActivo(_newsAlertsEnabled);
   }
 
-  Future<void> _syncTokenWithBackend(String token) async {
+  /// Marca este equipo como activo o inactivo en el backend.
+  Future<bool> _updateTokenActivo(bool activo) async {
+    if (!_firebaseReady) return false;
+    try {
+      final token = await _messaging.getToken();
+      if (token == null || token.isEmpty) return false;
+      return await _syncTokenWithBackend(token, activo: activo);
+    } on FirebaseException {
+      return false;
+    }
+  }
+
+  Future<bool> _syncTokenWithBackend(
+    String token, {
+    required bool activo,
+  }) async {
+    // Sin sesión válida `HttpService` fuerza el logout: no vale la pena
+    // mandar al login a alguien que solo tocó el switch de avisos.
+    if (!await SessionService.hasValidSession()) return false;
+
     try {
       final response = await _httpService.post(
         '${apiUrl}mobile/push/register-token',
         body: {
           'token': token,
           'plataforma': Platform.isIOS ? 'ios' : 'android',
-          'activo': true,
+          'activo': activo,
         },
       );
 
-      if (response.statusCode < 200 || response.statusCode >= 300) {
-      } else {}
+      return response.statusCode >= 200 && response.statusCode < 300;
     } on SocketException {
-    } catch (error) {}
-  }
-
-  Future<void> _deleteTokenFromBackend(String token) async {
-    try {
-    } catch (error) {}
+      return false;
+    } catch (error) {
+      return false;
+    }
   }
 
   Future<void> _onForegroundMessage(RemoteMessage message) async {
-    _addNotification(message);
+    // Avisos apagados: ni aviso en pantalla ni entrada en el historial.
+    if (!_newsAlertsEnabled) return;
+
+    await _addNotification(message);
     final notification = message.notification;
     if (notification == null) return;
 
@@ -351,30 +576,29 @@ class PushNotificationsService extends ChangeNotifier {
     );
   }
 
-  void _addNotification(RemoteMessage message) {
-    final notification = message.notification;
-    final title =
-        notification?.title ??
-        message.data['title']?.toString() ??
-        'Notificación';
-    final body =
-        notification?.body ??
-        message.data['body']?.toString() ??
-        'Toque para ver detalles.';
+  Future<void> _addNotification(RemoteMessage message) async {
+    final item = _itemFromMessage(message);
+    // El isolate de background pudo haberlo guardado ya: sin este control el
+    // mismo aviso aparecería dos veces al tocarlo.
+    if (_notifications.any((guardada) => guardada.id == item.id)) return;
 
-    _notifications.insert(
-      0,
-      PushNotificationItem(
-        id: message.messageId ?? DateTime.now().microsecondsSinceEpoch.toString(),
-        title: title,
-        body: body,
-        data: message.data,
-        receivedAt: DateTime.now().toUtc(),
-      ),
-    );
+    _notifications.insert(0, item);
+    if (_notifications.length > _kMaxStoredNotifications) {
+      _notifications.removeRange(
+        _kMaxStoredNotifications,
+        _notifications.length,
+      );
+    }
 
-    unawaited(_saveNotifications());
+    await _saveNotifications();
     notifyListeners();
+  }
+
+  /// En iOS el handler de background solo corre con `content-available`, así
+  /// que abrir el aviso es el único momento garantizado para guardarlo.
+  Future<void> _onNotificationOpened(RemoteMessage message) async {
+    await _addNotification(message);
+    _handleNotificationTap(message);
   }
 
   void _handleNotificationTap(RemoteMessage message) {
@@ -387,6 +611,10 @@ class PushNotificationsService extends ChangeNotifier {
     if (navigator == null) return;
 
     switch (type) {
+      case 'noticia':
+      case 'noticias':
+        _abrirNoticia(navigator, data);
+        break;
       case 'factura':
       case 'facturas':
         navigator.push(
@@ -410,7 +638,27 @@ class PushNotificationsService extends ChangeNotifier {
         );
         break;
       default:
-        navigator.push(MaterialPageRoute(builder: (_) => const HomeScreen()));
+        // Volver al Home ya montado en vez de apilar una copia encima.
+        navigator.popUntil((route) => route.isFirst);
     }
+  }
+
+  /// Las notificaciones de campaña traen la nota completa en el payload: si es
+  /// de un dominio propio se abre el detalle de la app y solo el resto se
+  /// delega al navegador.
+  void _abrirNoticia(NavigatorState navigator, Map<String, dynamic> data) {
+    if (_noticiaAbreEnLaApp(data)) {
+      navigator.push(rutaNoticiaDesdePush(data));
+      return;
+    }
+
+    final url = data['url']?.toString().trim() ?? '';
+    final uri = url.isEmpty ? null : Uri.tryParse(url);
+    if (uri == null) {
+      navigator.popUntil((route) => route.isFirst);
+      return;
+    }
+
+    unawaited(launchUrl(uri, mode: LaunchMode.externalApplication));
   }
 }

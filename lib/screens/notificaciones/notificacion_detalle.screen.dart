@@ -1,3 +1,4 @@
+import 'package:flips_app/screens/noticias/noticias.screen.dart';
 import 'package:flips_app/services/push_notifications.service.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -20,8 +21,20 @@ class NotificacionDetalleScreen extends StatelessWidget {
     }
   }
 
+  /// La nota se lee dentro de la app: el detalle de siempre descarga el
+  /// contenido a partir del slug o el enlace que trajo el aviso.
+  void _abrirNoticia(BuildContext context) {
+    Navigator.push(
+      context,
+      rutaNoticiaDesdePush(notification.data ?? const <String, dynamic>{}),
+    );
+  }
+
   String _typeLabel(String type) {
     switch (type.toLowerCase()) {
+      case 'noticia':
+      case 'noticias':
+        return 'Noticia';
       case 'new_flip':
         return 'Nuevo Flip';
       case 'campana':
@@ -99,7 +112,14 @@ class NotificacionDetalleScreen extends StatelessWidget {
               ),
             ),
           ),
-          if (url != null) ...[
+          if (notification.abreEnLaApp) ...[
+            const SizedBox(height: 14),
+            ElevatedButton.icon(
+              onPressed: () => _abrirNoticia(context),
+              icon: const Icon(Icons.article_outlined),
+              label: const Text('Leer noticia'),
+            ),
+          ] else if (url != null) ...[
             const SizedBox(height: 14),
             ElevatedButton.icon(
               onPressed: () => _openUrl(context, url),

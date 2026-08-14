@@ -78,6 +78,7 @@ class _NoticiaDetalleScreenState extends State<_NoticiaDetalleScreen> {
       categoryIds: noticia.categories,
     );
     await AnalyticsService.logNewsScreen(
+      path: _analyticsPathFromNews(noticia),
       slug: noticia.slug,
       title: noticia.title,
     );
@@ -182,6 +183,8 @@ class _NoticiaDetalleScreenState extends State<_NoticiaDetalleScreen> {
                     _ArticleContentError(
                       message: _errorContenido,
                       excerpt: noticia.excerpt,
+                      link: noticia.link,
+                      title: noticia.title,
                       onRetry: _cargarContenido,
                     )
                   else
@@ -329,15 +332,36 @@ class _ArticleContentError extends StatelessWidget {
     required this.message,
     required this.excerpt,
     required this.onRetry,
+    this.link = '',
+    this.title = '',
   });
 
   final String message;
   final String excerpt;
+  final String link;
+  final String title;
   final VoidCallback onRetry;
+
+  /// Si la API no devuelve la nota, se lee la página publicada dentro de la
+  /// app: al usuario le da igual de dónde salga el contenido, pero mandarlo al
+  /// navegador sí lo saca de la app.
+  void _abrirEnLaWeb(BuildContext context) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => SitioWebScreen(
+          url: link,
+          titulo: title.isEmpty ? 'Noticia' : title,
+        ),
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final puedeAbrirLaWeb =
+        link.trim().isNotEmpty && NoticiaLinkUtil.esDominioPropio(link);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -350,13 +374,21 @@ class _ArticleContentError extends StatelessWidget {
           const SizedBox(height: 16),
         ],
         _StatusBanner(text: message),
-        Align(
-          alignment: Alignment.centerLeft,
-          child: TextButton.icon(
-            onPressed: onRetry,
-            icon: const Icon(Icons.refresh_rounded, size: 18),
-            label: const Text('Reintentar'),
-          ),
+        Wrap(
+          spacing: 8,
+          children: [
+            TextButton.icon(
+              onPressed: onRetry,
+              icon: const Icon(Icons.refresh_rounded, size: 18),
+              label: const Text('Reintentar'),
+            ),
+            if (puedeAbrirLaWeb)
+              TextButton.icon(
+                onPressed: () => _abrirEnLaWeb(context),
+                icon: const Icon(Icons.public_rounded, size: 18),
+                label: const Text('Leer en tiempo.hn'),
+              ),
+          ],
         ),
       ],
     );

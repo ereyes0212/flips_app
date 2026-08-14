@@ -30,16 +30,16 @@ class AppAnalyticsRouteObserver extends NavigatorObserver {
   }
 
   Future<void> _track(Route<dynamic> route, {required String source}) async {
+    if (route.settings.arguments == kRutaConAnalyticsPropio) {
+      _debugLog('skip', source: source, route: route, message: 'La pantalla manda su propio screen_view');
+      return;
+    }
+
     final name = route.settings.name?.trim() ?? '';
     final resolvedPath = _resolvePath(name: name, route: route);
 
     if (resolvedPath == null) {
       _debugLog('skip', source: source, route: route, message: 'Sin path resolvible');
-      return;
-    }
-
-    if (_shouldSkipRoutePath(resolvedPath)) {
-      _debugLog('skip', source: source, route: route, path: resolvedPath, message: 'Path omitido para evitar duplicados');
       return;
     }
 
@@ -50,7 +50,10 @@ class AppAnalyticsRouteObserver extends NavigatorObserver {
 
     _lastTrackedPath = resolvedPath;
     _debugLog('send', source: source, route: route, path: resolvedPath);
-    final sent = await AnalyticsService.logRouteScreen(path: resolvedPath);
+    final sent = await AnalyticsService.logRouteScreen(
+      path: resolvedPath,
+      title: _resolveTitle(resolvedPath),
+    );
     if (sent) {
       _debugLog('ok', source: source, route: route, path: resolvedPath, message: 'Analytics completado');
       return;
@@ -60,19 +63,17 @@ class AppAnalyticsRouteObserver extends NavigatorObserver {
   }
 
 
-  bool _shouldSkipRoutePath(String path) {
-    final isArticleLikePath = RegExp(r'^/.*/\d{4}/\d{2}/\d{2}/').hasMatch(path);
-    return isArticleLikePath;
-  }
+  /// El `<title>` que manda el sitio para la portada, para que el home de la app
+  /// caiga en la misma fila que la web.
+  static const _tituloPortada =
+      'Noticias de Honduras y el mundo l Diario Tiempo de Honduras';
+
+  String? _resolveTitle(String path) => path == '/' ? _tituloPortada : null;
 
   String? _resolvePath({
     required String name,
     required Route<dynamic> route,
   }) {
-    if (name == '/') {
-      return 'Noticias de Honduras y el mundo l Diario Tiempo de Honduras';
-    }
-
     if (name.startsWith('/')) return name;
 
     return null;

@@ -137,18 +137,23 @@ class _HeaderLeadingBox extends StatelessWidget {
 /// Botón de acción del extremo derecho (blanco al 16%).
 class _HeaderAction extends StatelessWidget {
   const _HeaderAction({
+    super.key,
     required this.icon,
     required this.tooltip,
     required this.onPressed,
+    this.showUnreadBadge = false,
   });
 
   final IconData icon;
   final String tooltip;
   final VoidCallback onPressed;
 
+  /// Muestra el punto de notificaciones sin leer sobre el ícono.
+  final bool showUnreadBadge;
+
   @override
   Widget build(BuildContext context) {
-    return IconButton.filledTonal(
+    final button = IconButton.filledTonal(
       visualDensity: VisualDensity.compact,
       tooltip: tooltip,
       onPressed: onPressed,
@@ -158,6 +163,24 @@ class _HeaderAction extends StatelessWidget {
         foregroundColor: _HeaderTokens.onHeader,
       ),
     );
+
+    if (!showUnreadBadge) return button;
+
+    return AnimatedBuilder(
+      animation: PushNotificationsService.instance,
+      builder: (context, child) {
+        final unread = PushNotificationsService.instance.unreadCount;
+        if (unread == 0) return child!;
+
+        return Badge.count(
+          count: unread,
+          backgroundColor: Theme.of(context).colorScheme.error,
+          textColor: Theme.of(context).colorScheme.onError,
+          child: child,
+        );
+      },
+      child: button,
+    );
   }
 }
 
@@ -165,10 +188,15 @@ class _HeaderAction extends StatelessWidget {
 // Header de portada
 // ============================================================================
 class _NoticiasAppBar extends StatelessWidget {
-  const _NoticiasAppBar({required this.total, required this.usingCache});
+  const _NoticiasAppBar({
+    required this.total,
+    required this.usingCache,
+    this.bellKey,
+  });
 
   final int total;
   final bool usingCache;
+  final GlobalKey? bellKey;
 
   @override
   Widget build(BuildContext context) {
@@ -182,16 +210,25 @@ class _NoticiasAppBar extends StatelessWidget {
       surfaceTintColor: Colors.transparent,
       elevation: 0,
       scrolledUnderElevation: 0,
-      flexibleSpace: _NoticiasHeader(total: total, usingCache: usingCache),
+      flexibleSpace: _NoticiasHeader(
+        total: total,
+        usingCache: usingCache,
+        bellKey: bellKey,
+      ),
     );
   }
 }
 
 class _NoticiasHeader extends StatelessWidget {
-  const _NoticiasHeader({required this.total, required this.usingCache});
+  const _NoticiasHeader({
+    required this.total,
+    required this.usingCache,
+    this.bellKey,
+  });
 
   final int total;
   final bool usingCache;
+  final GlobalKey? bellKey;
 
   @override
   Widget build(BuildContext context) {
@@ -207,8 +244,10 @@ class _NoticiasHeader extends StatelessWidget {
       title: 'Diario Tiempo HN',
       subtitle: usingCache ? 'Modo sin conexión' : '$total noticias disponibles',
       action: _HeaderAction(
+        key: bellKey,
         icon: Icons.notifications_none_rounded,
         tooltip: 'Notificaciones',
+        showUnreadBadge: true,
         onPressed: () => Navigator.of(context).push(
           MaterialPageRoute(builder: (_) => const NotificacionesScreen()),
         ),

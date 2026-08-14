@@ -5,10 +5,13 @@ import 'package:flips_app/controllers/noticias.controller.dart';
 import 'package:flips_app/models/noticias.model.dart';
 import 'package:flips_app/providers/noticias.provider.dart';
 import 'package:flips_app/screens/notificaciones/notificaciones.screen.dart';
+import 'package:flips_app/screens/sitio_web/sitio_web.screen.dart';
 import 'package:flips_app/services/noticias.service.dart';
 import 'package:flips_app/services/analytics.service.dart';
 import 'package:flips_app/services/mi_perfil.service.dart';
+import 'package:flips_app/services/push_notifications.service.dart';
 import 'package:flips_app/utils/ad_visibility.util.dart';
+import 'package:flips_app/utils/noticia_link.util.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
@@ -20,6 +23,7 @@ import 'package:webview_flutter/webview_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 part 'categoria_noticias.screen.dart';
+part 'noticia_desde_push.screen.dart';
 part 'noticia_detalle.screen.dart';
 part 'widgets/category_widgets.dart';
 part 'widgets/news_cards.dart';
@@ -28,7 +32,11 @@ part 'widgets/search_bar.dart';
 part 'widgets/shared_widgets.dart';
 
 class NoticiasScreen extends StatefulWidget {
-  const NoticiasScreen({super.key});
+  const NoticiasScreen({super.key, this.notificationsButtonKey});
+
+  /// Clave del botón de notificaciones del header, usada por el tour guiado
+  /// para resaltarlo. La provee quien monta la pantalla.
+  final GlobalKey? notificationsButtonKey;
 
   @override
   State<NoticiasScreen> createState() => _NoticiasScreenState();
@@ -278,6 +286,7 @@ class _NoticiasScreenState extends State<NoticiasScreen> {
             _NoticiasAppBar(
               total: provider.noticias.length,
               usingCache: provider.usingCache,
+              bellKey: widget.notificationsButtonKey,
             ),
             SliverToBoxAdapter(
               child: _NewsDiscoveryRail(
@@ -546,17 +555,21 @@ Future<void> _compartirNoticia(BuildContext context, NoticiaModel noticia) async
 // La nota completa (y su guardado offline) se resuelve dentro del detalle,
 // porque el listado solo trae los datos de la tarjeta.
 void _abrirDetalle(BuildContext context, NoticiaModel noticia, {bool hideAds = false}) {
-  final screenPath = _analyticsPathFromNews(noticia);
-
   Navigator.push(
     context,
     MaterialPageRoute(
-      settings: RouteSettings(name: screenPath),
+      settings: analyticsRouteSettingsFromNews(noticia),
       builder: (_) => _NoticiaDetalleScreen(noticia: noticia, hideAds: hideAds),
     ),
   );
 }
 
+/// El detalle manda su propio `screen_view` (con el título de la nota), así que
+/// la ruta queda marcada para que el observer global no lo repita.
+RouteSettings analyticsRouteSettingsFromNews(NoticiaModel noticia) => RouteSettings(
+  name: _analyticsPathFromNews(noticia),
+  arguments: kRutaConAnalyticsPropio,
+);
 
 String _analyticsPathFromNews(NoticiaModel noticia) {
   final rawLink = noticia.link.trim();

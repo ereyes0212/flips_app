@@ -15,6 +15,7 @@ import 'package:flips_app/screens/mis_facturas/mis_facturas.screen.dart';
 import 'package:flips_app/screens/mis_pagos/mis_pagos.screen.dart';
 import 'package:flips_app/screens/mis_suscripcion/mis_suscripcion.screen.dart';
 import 'package:flips_app/screens/notificaciones/notificaciones.screen.dart';
+import 'package:flips_app/screens/onboarding/onboarding_flow.dart';
 import 'package:flips_app/screens/paquetes/paquetes.screen.dart';
 import 'package:flips_app/screens/sitio_web/sitio_web.screen.dart';
 import 'package:flips_app/services/auth.service.dart';
@@ -38,6 +39,11 @@ class _HomeScreenState extends State<HomeScreen> {
   static const String _adManagerBannerAdUnitIdAndroid = '/170101793/APP/320x50_fijo';
   static const String _adManagerBannerAdUnitIdIos = '/170101793/APP/320x50_fijo';
 
+  /// Objetivos del tour guiado. Son de instancia (no estáticos) para que dos
+  /// `HomeScreen` montados a la vez no colisionen con la misma `GlobalKey`.
+  final GlobalKey _bellKey = GlobalKey(debugLabel: 'onboarding_news_bell');
+  final GlobalKey _bottomNavKey = GlobalKey(debugLabel: 'onboarding_bottom_nav');
+
   int _currentIndex = 0;
   bool _dialogoSuscripcionMostrado = false;
   bool _hideAds = false;
@@ -49,10 +55,20 @@ class _HomeScreenState extends State<HomeScreen> {
   void initState() {
     super.initState();
     _loadBannerAd();
-    Future.microtask(() async {
-      await _validarSuscripcionActiva();
-      await _pedirPermisosNotificaciones();
-    });
+    Future.microtask(_iniciarBienvenida);
+  }
+
+  /// El onboarding tiene prioridad sobre el resto de avisos: si se muestra,
+  /// el diálogo de suscripción se pospone para no encadenar dos interrupciones
+  /// en el primer ingreso (el propio tour ya invita a suscribirse).
+  Future<void> _iniciarBienvenida() async {
+    final mostroOnboarding = await OnboardingFlow.runIfNeeded(
+      context,
+      bellKey: _bellKey,
+      bottomNavKey: _bottomNavKey,
+    );
+    if (!mounted || mostroOnboarding) return;
+    await _validarSuscripcionActiva();
   }
 
   @override
@@ -143,42 +159,6 @@ Contrata hoy para desbloquear todo el contenido exclusivo.''',
     );
   }
 
-  Future<void> _pedirPermisosNotificaciones() async {
-    final permissionGranted = await PushNotificationsService.instance.isNotificationPermissionGranted();
-    if (!mounted || permissionGranted) return;
-
-    final permisoMostrado = await PushNotificationsService.instance.hasNotificationPermissionBeenShown();
-    if (!mounted || permisoMostrado) return;
-
-    PushNotificationsService.instance.setNotificationPermissionShown();
-
-    await showDialog<void>(
-      context: context,
-      barrierDismissible: false,
-      builder: (dialogContext) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(22)),
-        title: const Text('Habilitar notificaciones'),
-        content: const Text(
-          'Recibe notificaciones importantes sobre tus diarios y noticias relevantes.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(dialogContext),
-            child: const Text('Ahora no'),
-          ),
-          ElevatedButton.icon(
-            onPressed: () async {
-              Navigator.pop(dialogContext);
-              await PushNotificationsService.instance.requestNotificationPermission();
-            },
-            icon: const Icon(Icons.notifications_active_outlined),
-            label: const Text('Habilitar'),
-          ),
-        ],
-      ),
-    );
-  }
-
   void _confirmarCerrarSesion() {
     showDialog(
       context: context,
@@ -218,11 +198,27 @@ Contrata hoy para desbloquear todo el contenido exclusivo.''',
 
   List<Widget> _pantallas() {
     return [
-      const NoticiasScreen(),
+      NoticiasScreen(notificationsButtonKey: _bellKey),
       const DiariosDigitalesScreen(),
       const MiPerfilScreen(),
-      _MasOpcionesScreen(onCerrarSesion: _confirmarCerrarSesion),
+      _MasOpcionesScreen(
+        onCerrarSesion: _confirmarCerrarSesion,
+        onVerTutorial: _verTutorial,
+      ),
     ];
+  }
+
+  /// Vuelve a mostrar el tour desde "Más opciones".
+  ///
+  /// Se cambia a la pestaña de Noticias porque el primer paso resalta la
+  /// campana del header de portada.
+  Future<void> _verTutorial() async {
+    setState(() => _currentIndex = 0);
+    await OnboardingFlow.replayTour(
+      context,
+      bellKey: _bellKey,
+      bottomNavKey: _bottomNavKey,
+    );
   }
 
   @override
@@ -242,6 +238,7 @@ Contrata hoy para desbloquear todo el contenido exclusivo.''',
               child: AdWidget(ad: _bannerAd!),
             ),
           AnimatedBottomNavigationBar(
+            key: _bottomNavKey,
             icons: const [
               Icons.article_outlined,
               Icons.collections_bookmark_outlined,
@@ -265,9 +262,13 @@ Contrata hoy para desbloquear todo el contenido exclusivo.''',
 }
 
 class _MasOpcionesScreen extends StatelessWidget {
-  const _MasOpcionesScreen({required this.onCerrarSesion});
+  const _MasOpcionesScreen({
+    required this.onCerrarSesion,
+    required this.onVerTutorial,
+  });
 
   final VoidCallback onCerrarSesion;
+  final VoidCallback onVerTutorial;
 
   @override
   Widget build(BuildContext context) {
@@ -333,6 +334,13 @@ class _MasOpcionesScreen extends StatelessWidget {
                 },
                 texto: 'Sitio web',
               ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          _OptionsSectionCard(
+            title: 'Notificaciones',
+            children: [
+              const _NewsAlertsSwitch(),
               AnimatedBuilder(
                 animation: PushNotificationsService.instance,
                 builder: (context, _) {
@@ -345,13 +353,19 @@ class _MasOpcionesScreen extends StatelessWidget {
                         MaterialPageRoute(builder: (_) => const NotificacionesScreen()),
                       );
                     },
-                    texto: 'Notificaciones',
-                    subtitulo: unread > 0 ? '$unread nuevas' : null,
+                    texto: 'Historial de notificaciones',
+                    subtitulo: unread > 0 ? '$unread nuevas' : 'Todo al día',
                     trailing: unread > 0
                         ? _NotificationUnreadBadge(count: unread)
                         : null,
                   );
                 },
+              ),
+              GridItem(
+                icono: Icons.school_outlined,
+                funcion: onVerTutorial,
+                texto: 'Ver tutorial de nuevo',
+                subtitulo: 'Repasa cómo funciona la app',
               ),
             ],
           ),
@@ -448,6 +462,128 @@ class _OptionsSectionCard extends StatelessWidget {
   }
 }
 
+
+/// Control único para encender o apagar los avisos de noticias.
+///
+/// Unifica dos estados que al usuario le da igual distinguir: el permiso del
+/// sistema y la preferencia guardada en la app. Solo está encendido cuando
+/// ambos lo están.
+class _NewsAlertsSwitch extends StatefulWidget {
+  const _NewsAlertsSwitch();
+
+  @override
+  State<_NewsAlertsSwitch> createState() => _NewsAlertsSwitchState();
+}
+
+class _NewsAlertsSwitchState extends State<_NewsAlertsSwitch> {
+  bool _permissionGranted = false;
+  bool _loading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _refrescarPermiso();
+  }
+
+  Future<void> _refrescarPermiso() async {
+    final granted =
+        await PushNotificationsService.instance.isNotificationPermissionGranted();
+    if (!mounted) return;
+    setState(() {
+      _permissionGranted = granted;
+      _loading = false;
+    });
+  }
+
+  Future<void> _onChanged(bool value) async {
+    if (!value) {
+      await PushNotificationsService.instance.setNewsAlertsEnabled(false);
+      return;
+    }
+
+    if (!_permissionGranted) {
+      await OnboardingFlow.askNotificationsPermission(
+        context,
+        registerAttempt: false,
+      );
+      await _refrescarPermiso();
+      return;
+    }
+
+    await PushNotificationsService.instance.setNewsAlertsEnabled(true);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colors = theme.colorScheme;
+
+    return AnimatedBuilder(
+      animation: PushNotificationsService.instance,
+      builder: (context, _) {
+        final active = _permissionGranted &&
+            PushNotificationsService.instance.newsAlertsEnabled;
+
+        return Container(
+          margin: const EdgeInsets.only(bottom: 10),
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+          decoration: BoxDecoration(
+            color: colors.surface,
+            borderRadius: BorderRadius.circular(18),
+            border: Border.all(color: colors.primary.withOpacity(0.08)),
+            boxShadow: const [
+              BoxShadow(color: Colors.black12, blurRadius: 10, spreadRadius: -6),
+            ],
+          ),
+          child: Row(
+            children: [
+              CircleAvatar(
+                radius: 22,
+                backgroundColor: (active ? colors.primary : colors.outline)
+                    .withOpacity(0.12),
+                child: Icon(
+                  active
+                      ? Icons.notifications_active_outlined
+                      : Icons.notifications_off_outlined,
+                  color: active ? colors.primary : colors.outline,
+                  size: 24,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Text(
+                      'Avisos de noticias y diario del día',
+                      style: theme.textTheme.titleSmall,
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      active
+                          ? 'Te avisamos de cada noticia y del diario del día'
+                          : 'Actívalos para no perderte nada',
+                      style: TextStyle(color: colors.secondary, fontSize: 12),
+                    ),
+                  ],
+                ),
+              ),
+              if (_loading)
+                const SizedBox(
+                  height: 20,
+                  width: 20,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
+              else
+                Switch(value: active, onChanged: _onChanged),
+            ],
+          ),
+        );
+      },
+    );
+  }
+}
 
 class _NotificationUnreadBadge extends StatelessWidget {
   const _NotificationUnreadBadge({required this.count});

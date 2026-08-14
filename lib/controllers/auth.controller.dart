@@ -8,6 +8,7 @@ import 'package:flips_app/providers/auth.provider.dart';
 import 'package:flips_app/screens/home/home.screen.dart';
 import 'package:flips_app/screens/login/login.screen.dart';
 import 'package:flips_app/services/auth.service.dart';
+import 'package:flips_app/services/onboarding.service.dart';
 import 'package:flips_app/services/push_notifications.service.dart';
 import 'package:flips_app/services/session.service.dart';
 import 'package:flutter/material.dart';
@@ -167,6 +168,10 @@ class AuthController {
     authprovider.user = response.data.user;
     authprovider.idUser = response.data.idUser;
     authprovider.token = token;
+
+    // Iniciar sesión es el momento natural para preguntar por las
+    // notificaciones: el Home lo consume al entrar.
+    await OnboardingService.markFreshLogin();
   }
 
   void _irAlHome(BuildContext context) {
