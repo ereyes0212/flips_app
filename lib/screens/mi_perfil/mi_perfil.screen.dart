@@ -79,7 +79,7 @@ class _PerfilData extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  hasPlan ? 'Tu suscripción' : 'Compra tu suscripción',
+                  hasPlan ? 'Tu suscripción' : 'Tu cuenta',
                   style: theme.textTheme.titleMedium?.copyWith(
                     fontWeight: FontWeight.w800,
                   ),
@@ -88,7 +88,7 @@ class _PerfilData extends StatelessWidget {
                 Text(
                   hasPlan
                       ? 'Plan activo: $plan. Mantén tus beneficios al día.'
-                      : 'Activa un plan para leer sin interrupciones y acceder a beneficios exclusivos.',
+                      : 'Tu cuenta no tiene una suscripción activa. Puedes revisar su estado desde el sitio web.',
                   style: theme.textTheme.bodyMedium,
                 ),
                 const SizedBox(height: 14),
@@ -96,8 +96,8 @@ class _PerfilData extends StatelessWidget {
                   onPressed: () => Navigator.of(context).push(
                     MaterialPageRoute(builder: (_) => const PaquetesScreen()),
                   ),
-                  icon: Icon(hasPlan ? Icons.workspace_premium : Icons.lock_open_rounded),
-                  label: Text(hasPlan ? 'Administrar suscripción' : 'Comprar suscripción'),
+                  icon: Icon(hasPlan ? Icons.workspace_premium : Icons.manage_accounts_rounded),
+                  label: const Text('Gestionar mi cuenta'),
                 ),
               ],
             ),

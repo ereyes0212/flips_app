@@ -130,21 +130,20 @@ class OnboardingFlow {
         icon: Icons.more_horiz_rounded,
         title: 'Todo lo demás, en "Más"',
         description:
-            'Desde aquí entras a Paquetes, Mi suscripción, tus pagos y las '
+            'Desde aquí entras a Mi cuenta, Mi suscripción, tus pagos y las '
             'noticias que guardaste para leer sin conexión.',
       ),
       CoachMarkStep(
         icon: Icons.workspace_premium_outlined,
-        title: 'Suscríbete y lee sin límites',
+        title: 'Contenido para suscriptores',
         description:
-            'Elige un paquete en "Más → Paquetes", paga en línea y tu '
-            'suscripción se activa al momento.',
+            'Las cuentas con suscripción activa acceden a más contenido. '
+            'Puedes revisar el estado de la tuya en "Más → Mi cuenta".',
         bullets: const [
           'Anuarios desde 2008 hasta hoy',
           'Navega sin anuncios',
-          'Cancela cuando quieras',
         ],
-        primaryActionLabel: 'Ver paquetes',
+        primaryActionLabel: 'Gestionar mi cuenta',
         onPrimaryAction: () => navigator.push(
           MaterialPageRoute<void>(builder: (_) => const PaquetesScreen()),
         ),

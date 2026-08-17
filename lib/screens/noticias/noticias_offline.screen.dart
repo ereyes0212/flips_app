@@ -62,7 +62,7 @@ class _NoticiasOfflineScreenState extends State<NoticiasOfflineScreen> {
         title: const Text('Modo sin conexión para suscriptores'),
         content: const Text(
           'Para guardar y leer noticias sin internet necesitas una suscripción activa. '
-          'Con el plan activo puedes acceder al modo offline y disfrutar una experiencia sin anuncios.',
+          'Puedes revisar el estado de tu cuenta desde el sitio web.',
         ),
         actions: [
           TextButton(
@@ -77,8 +77,8 @@ class _NoticiasOfflineScreenState extends State<NoticiasOfflineScreen> {
                 MaterialPageRoute(builder: (_) => const PaquetesScreen()),
               );
             },
-            icon: const Icon(Icons.workspace_premium_outlined),
-            label: const Text('Ver planes'),
+            icon: const Icon(Icons.manage_accounts_outlined),
+            label: const Text('Gestionar mi cuenta'),
           ),
         ],
       ),
@@ -271,22 +271,22 @@ class _OfflineSubscriptionPrompt extends StatelessWidget {
             ),
             const SizedBox(height: 16),
             Text(
-              'Activa tu suscripción para usar el modo offline',
+              'El modo offline es para cuentas con suscripción activa',
               textAlign: TextAlign.center,
               style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800),
             ),
             const SizedBox(height: 10),
             Text(
-              'Guarda tus noticias favoritas y léelas cuando no tengas internet. '
-              'Además, tendrás una experiencia premium sin anuncios.',
+              'Con una suscripción activa puedes guardar tus noticias favoritas, '
+              'leerlas sin internet y navegar sin anuncios.',
               textAlign: TextAlign.center,
               style: theme.textTheme.bodyMedium,
             ),
             const SizedBox(height: 18),
             ElevatedButton.icon(
               onPressed: onTapPlans,
-              icon: const Icon(Icons.workspace_premium_outlined),
-              label: const Text('Quiero suscribirme'),
+              icon: const Icon(Icons.manage_accounts_outlined),
+              label: const Text('Gestionar mi cuenta'),
             ),
           ],
         ),

@@ -561,7 +561,7 @@ class _SubscriptionUpsellCard extends StatelessWidget {
             ),
             const SizedBox(height: 10),
             Text(
-              'Para abrir estos diarios necesitas una suscripción activa. Contrata un paquete para acceder a la hemeroteca completa y disfrutar la app sin anuncios.',
+              'Para abrir estos diarios necesitas una suscripción activa. Revisa el estado de tu cuenta desde el sitio web.',
               style: theme.textTheme.bodyMedium,
             ),
             const SizedBox(height: 16),
@@ -570,7 +570,7 @@ class _SubscriptionUpsellCard extends StatelessWidget {
               child: ElevatedButton.icon(
                 onPressed: onVerPaquetes,
                 icon: const Icon(Icons.arrow_forward_rounded),
-                label: const Text('Contratar suscripción'),
+                label: const Text('Gestionar mi cuenta'),
               ),
             ),
           ],

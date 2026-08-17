@@ -1,5 +1,6 @@
 // ignore_for_file: use_build_context_synchronously
 
+import 'dart:async';
 import 'dart:io';
 
 import 'package:animated_bottom_navigation_bar/animated_bottom_navigation_bar.dart';
@@ -20,6 +21,7 @@ import 'package:flips_app/screens/paquetes/paquetes.screen.dart';
 import 'package:flips_app/screens/sitio_web/sitio_web.screen.dart';
 import 'package:flips_app/services/auth.service.dart';
 import 'package:flips_app/services/mi_perfil.service.dart';
+import 'package:flips_app/services/suscripcion_checkout.service.dart';
 import 'package:flips_app/utils/ad_visibility.util.dart';
 import 'package:flips_app/services/push_notifications.service.dart';
 import 'package:flutter/material.dart';
@@ -27,6 +29,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -132,11 +135,11 @@ class _HomeScreenState extends State<HomeScreen> {
       barrierDismissible: false,
       builder: (dialogContext) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(22)),
-        title: const Text('Activa tu suscripción premium'),
+        title: const Text('Contenido para suscriptores'),
         content: const Text(
-          '''Accede a anuarios del 2008 al a la fecha actual, elimina anuncios y disfruta una experiencia completa.
+          '''Los anuarios desde 2008 a la fecha y la lectura sin anuncios están disponibles para cuentas con suscripción activa.
 
-Contrata hoy para desbloquear todo el contenido exclusivo.''',
+Tu cuenta no tiene una suscripción activa en este momento.''',
         ),
         actions: [
           TextButton(
@@ -151,8 +154,8 @@ Contrata hoy para desbloquear todo el contenido exclusivo.''',
                 MaterialPageRoute(builder: (_) => const PaquetesScreen()),
               );
             },
-            icon: const Icon(Icons.workspace_premium_outlined),
-            label: const Text('Ver paquetes'),
+            icon: const Icon(Icons.manage_accounts_outlined),
+            label: const Text('Gestionar mi cuenta'),
           ),
         ],
       ),
@@ -374,14 +377,14 @@ class _MasOpcionesScreen extends StatelessWidget {
             title: 'Cuenta y servicios',
             children: [
               GridItem(
-                icono: Icons.inventory_2_outlined,
+                icono: Icons.manage_accounts_outlined,
                 funcion: () {
                   Navigator.push(
                     context,
                     MaterialPageRoute(builder: (_) => const PaquetesScreen()),
                   );
                 },
-                texto: 'Paquetes',
+                texto: 'Mi cuenta',
               ),
               GridItem(
                 icono: Icons.payments_outlined,
@@ -425,6 +428,7 @@ class _MasOpcionesScreen extends StatelessWidget {
                 texto: 'Cerrar sesión',
                 color: colorScheme.error,
               ),
+              const _EliminarCuentaTile(),
             ],
           ),
         ],
@@ -468,6 +472,134 @@ class _OptionsSectionCard extends StatelessWidget {
 /// Unifica dos estados que al usuario le da igual distinguir: el permiso del
 /// sistema y la preferencia guardada en la app. Solo está encendido cuando
 /// ambos lo están.
+/// Acceso a la baja de cuenta. El borrado se resuelve en el sitio web, pero
+/// Play exige que el punto de entrada viva dentro de la app, así que se abre
+/// `/profile` con la sesión ya iniciada usando el mismo handoff del checkout.
+class _EliminarCuentaTile extends StatefulWidget {
+  const _EliminarCuentaTile();
+
+  @override
+  State<_EliminarCuentaTile> createState() => _EliminarCuentaTileState();
+}
+
+class _EliminarCuentaTileState extends State<_EliminarCuentaTile> {
+  final _checkoutService = SuscripcionCheckoutService();
+  bool _abriendo = false;
+
+  Future<void> _confirmarYAbrir() async {
+    if (_abriendo) return;
+
+    final confirmado = await showDialog<bool>(
+      context: context,
+      builder:
+          (dialogContext) => AlertDialog(
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(22)),
+            title: const Text('Eliminar cuenta'),
+            content: const Text(
+              '''La eliminación se gestiona desde nuestro sitio web. Te llevaremos ahí con tu sesión ya iniciada.
+
+Al completarla se borran tu cuenta y tus datos de forma permanente, y pierdes el acceso a cualquier suscripción activa. No se puede deshacer.''',
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(dialogContext, false),
+                child: const Text('Cancelar'),
+              ),
+              TextButton(
+                onPressed: () => Navigator.pop(dialogContext, true),
+                style: TextButton.styleFrom(
+                  foregroundColor: Theme.of(dialogContext).colorScheme.error,
+                ),
+                child: const Text('Continuar'),
+              ),
+            ],
+          ),
+    );
+
+    if (confirmado != true) return;
+
+    await _abrirPerfilWeb();
+  }
+
+  Future<void> _abrirPerfilWeb() async {
+    setState(() => _abriendo = true);
+
+    try {
+      final session = await _checkoutService.crearSesionWebCheckout(
+        redirect: '/mi-perfil',
+      );
+      final perfilUrl = session.url.trim();
+
+      if (!session.ok || perfilUrl.isEmpty) {
+        throw WebSessionException(
+          session.message ?? 'No pudimos crear el acceso seguro al sitio web.',
+        );
+      }
+
+      final perfilUri = Uri.tryParse(perfilUrl);
+      if (perfilUri == null || !perfilUri.hasScheme) {
+        throw WebSessionException(
+          'La URL para gestionar tu cuenta no es válida.',
+        );
+      }
+
+      final launched = await launchUrl(
+        perfilUri,
+        mode: LaunchMode.externalApplication,
+      );
+
+      if (!launched) {
+        throw WebSessionException(
+          'No pudimos abrir el navegador. Intenta nuevamente.',
+        );
+      }
+    } on SocketException {
+      _showSnack('Sin conexión. Reintenta con internet estable.');
+    } on TimeoutException {
+      _showSnack('Tiempo de espera agotado. Intenta nuevamente.');
+    } on ApiHttpException catch (e) {
+      _showSnack(e.message);
+    } on WebSessionException catch (e) {
+      _showSnack(e.message);
+    } catch (_) {
+      _showSnack('No pudimos abrir la gestión de cuenta. Intenta nuevamente.');
+    } finally {
+      if (mounted) setState(() => _abriendo = false);
+    }
+  }
+
+  void _showSnack(String message) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(backgroundColor: Colors.red, content: Text(message)),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+
+    return GridItem(
+      icono: Icons.person_remove_outlined,
+      funcion: _confirmarYAbrir,
+      texto: 'Eliminar cuenta',
+      subtitulo:
+          _abriendo
+              ? 'Abriendo el sitio web...'
+              : 'Se gestiona en el sitio web. Es permanente.',
+      color: colorScheme.error,
+      trailing:
+          _abriendo
+              ? const SizedBox(
+                height: 18,
+                width: 18,
+                child: CircularProgressIndicator(strokeWidth: 2),
+              )
+              : null,
+    );
+  }
+}
+
 class _NewsAlertsSwitch extends StatefulWidget {
   const _NewsAlertsSwitch();
 

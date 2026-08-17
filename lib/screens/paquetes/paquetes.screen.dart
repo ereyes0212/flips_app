@@ -24,32 +24,36 @@ class PaquetesScreen extends StatefulWidget {
 
 class _PaquetesScreenState extends State<PaquetesScreen> {
   final _checkoutService = SuscripcionCheckoutService();
-  bool _openingCheckout = false;
+  bool _abriendoPerfil = false;
 
-  Future<void> _abrirCheckoutWeb() async {
-    if (_openingCheckout) return;
+  Future<void> _abrirPerfilWeb() async {
+    if (_abriendoPerfil) return;
 
-    setState(() => _openingCheckout = true);
+    setState(() => _abriendoPerfil = true);
 
     try {
-      final session = await _checkoutService.crearSesionWebCheckout();
-      final checkoutUrl = session.url.trim();
+      // Siempre a /profile: la app no lleva a un flujo de compra. La gestion
+      // de la cuenta ocurre en el sitio web, igual que la eliminacion.
+      final session = await _checkoutService.crearSesionWebCheckout(
+        redirect: '/mi-perfil',
+      );
+      final perfilUrl = session.url.trim();
 
-      if (!session.ok || checkoutUrl.isEmpty) {
+      if (!session.ok || perfilUrl.isEmpty) {
         throw WebSessionException(
           session.message ?? 'No pudimos crear el acceso seguro al sitio web.',
         );
       }
 
-      final checkoutUri = Uri.tryParse(checkoutUrl);
-      if (checkoutUri == null || !checkoutUri.hasScheme) {
+      final perfilUri = Uri.tryParse(perfilUrl);
+      if (perfilUri == null || !perfilUri.hasScheme) {
         throw WebSessionException(
           'La URL para gestionar tu cuenta no es válida.',
         );
       }
 
       final launched = await launchUrl(
-        checkoutUri,
+        perfilUri,
         mode: LaunchMode.externalApplication,
       );
 
@@ -72,7 +76,7 @@ class _PaquetesScreenState extends State<PaquetesScreen> {
         error: true,
       );
     } finally {
-      if (mounted) setState(() => _openingCheckout = false);
+      if (mounted) setState(() => _abriendoPerfil = false);
     }
   }
 
@@ -91,29 +95,31 @@ class _PaquetesScreenState extends State<PaquetesScreen> {
     Theme.of(context);
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Suscripción')),
+      appBar: AppBar(title: const Text('Mi cuenta')),
       body: Stack(
         children: [
           ListView(
             padding: const EdgeInsets.all(16),
             children: [
               AppInfoCard(
-                icon: Icons.workspace_premium_rounded,
-                title: 'Tu cuenta no tiene una suscripción activa.',
-                subtitle: 'Puedes gestionar tu cuenta desde nuestro sitio web.',
+                icon: Icons.manage_accounts_rounded,
+                title: 'Gestiona tu cuenta en el sitio web',
+                subtitle:
+                    'Desde tu perfil web puedes revisar el estado de tu cuenta, '
+                    'actualizar tus datos y consultar tu historial.',
                 action: SizedBox(
                   width: double.infinity,
                   child: ElevatedButton.icon(
-                    onPressed: _openingCheckout ? null : _abrirCheckoutWeb,
+                    onPressed: _abriendoPerfil ? null : _abrirPerfilWeb,
                     icon: const Icon(Icons.open_in_browser_rounded),
-                    label: const Text('Gestionar cuenta en el sitio web'),
+                    label: const Text('Abrir mi perfil web'),
                   ),
                 ),
-                children: [],
+                children: const [],
               ),
             ],
           ),
-          if (_openingCheckout)
+          if (_abriendoPerfil)
             const ColoredBox(
               color: Color(0x66000000),
               child: Center(child: CircularProgressIndicator()),

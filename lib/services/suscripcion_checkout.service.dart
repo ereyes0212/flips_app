@@ -19,7 +19,7 @@ class SuscripcionCheckoutService {
   );
 
   Future<WebCheckoutSessionResponse> crearSesionWebCheckout({
-    String redirect = '/checkout',
+    String redirect = '/mi-perfil',
   }) async {
     final token = await SessionService.getValidToken() ?? '';
     if (token.isEmpty) {
