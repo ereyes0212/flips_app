@@ -19,10 +19,9 @@ import 'package:flips_app/screens/notificaciones/notificaciones.screen.dart';
 import 'package:flips_app/screens/onboarding/onboarding_flow.dart';
 import 'package:flips_app/screens/paquetes/paquetes.screen.dart';
 import 'package:flips_app/screens/sitio_web/sitio_web.screen.dart';
+import 'package:flips_app/services/acceso_usuario.service.dart';
 import 'package:flips_app/services/auth.service.dart';
-import 'package:flips_app/services/mi_perfil.service.dart';
 import 'package:flips_app/services/suscripcion_checkout.service.dart';
-import 'package:flips_app/utils/ad_visibility.util.dart';
 import 'package:flips_app/services/push_notifications.service.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -39,8 +38,11 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
-  static const String _adManagerBannerAdUnitIdAndroid = '/170101793/APP/320x50_fijo';
-  static const String _adManagerBannerAdUnitIdIos = '/170101793/APP/320x50_fijo';
+  static const String _bannerAdUnitId = '/170101793/APP/320x50_fijo';
+  static const List<AdSize> _bannerSizes = [
+    AdSize(width: 300, height: 50),
+    AdSize.banner,
+  ];
 
   /// Objetivos del tour guiado. Son de instancia (no estáticos) para que dos
   /// `HomeScreen` montados a la vez no colisionen con la misma `GlobalKey`.
@@ -49,15 +51,12 @@ class _HomeScreenState extends State<HomeScreen> {
 
   int _currentIndex = 0;
   bool _dialogoSuscripcionMostrado = false;
-  bool _hideAds = false;
-  AdManagerBannerAd? _bannerAd;
-  bool _isBannerAdReady = false;
-  AdSize _bannerSize = AdSize.banner;
+  AccesoUsuario _acceso = const AccesoUsuario.sinResolver();
 
   @override
   void initState() {
     super.initState();
-    _loadBannerAd();
+    _resolverAcceso();
     Future.microtask(_iniciarBienvenida);
   }
 
@@ -74,55 +73,20 @@ class _HomeScreenState extends State<HomeScreen> {
     await _validarSuscripcionActiva();
   }
 
-  @override
-  void dispose() {
-    _bannerAd?.dispose();
-    super.dispose();
-  }
-
-  String get _adManagerBannerAdUnitId {
-    if (Platform.isAndroid) return _adManagerBannerAdUnitIdAndroid;
-    if (Platform.isIOS) return _adManagerBannerAdUnitIdIos;
-    return '';
-  }
-
-  Future<void> _loadBannerAd() async {
-    final perfil = await MiPerfilService().obtenerMiPerfil();
+  Future<void> _resolverAcceso() async {
+    final acceso = await AccesoUsuarioService.instance.resolver();
     if (!mounted) return;
-    _hideAds = AdVisibilityUtil.shouldHideAds(perfil);
-    if (_hideAds) return;
-    final adUnitId = _adManagerBannerAdUnitId;
-    if (adUnitId.isEmpty) return;
-
-    final bannerAd = AdManagerBannerAd(
-      adUnitId: adUnitId,
-      request: const AdManagerAdRequest(),
-      sizes: const [AdSize(width: 300, height: 50), AdSize.banner],
-      listener: AdManagerBannerAdListener(
-        onAdLoaded: (ad) {
-          if (!mounted) {
-            ad.dispose();
-            return;
-          }
-          setState(() {
-            _bannerAd = ad as AdManagerBannerAd;
-            _isBannerAdReady = true;
-            _bannerSize = _bannerAd!.sizes.first;
-          });
-        },
-        onAdFailedToLoad: (ad, error) {
-          ad.dispose();
-          debugPrint('Error al cargar anuncio de Ad Manager: $error');
-        },
-      ),
-    );
-
-    bannerAd.load();
+    setState(() => _acceso = acceso);
   }
 
   Future<void> _validarSuscripcionActiva() async {
     final result = await AuthService().obtenerSuscripcionActiva();
-    if (!mounted || !result.autenticado || result.suscripcionActiva || _hideAds) return;
+    if (!mounted ||
+        !result.autenticado ||
+        result.suscripcionActiva ||
+        _acceso.ocultarAnuncios) {
+      return;
+    }
 
     final shouldShow = await _shouldShowSubscriptionBannerToday();
     if (!shouldShow || _dialogoSuscripcionMostrado) return;
@@ -234,11 +198,10 @@ Tu cuenta no tiene una suscripción activa en este momento.''',
       bottomNavigationBar: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          if (!_hideAds && _isBannerAdReady && _bannerAd != null)
-            SizedBox(
-              width: _bannerSize.width.toDouble(),
-              height: _bannerSize.height.toDouble(),
-              child: AdWidget(ad: _bannerAd!),
+          if (_acceso.mostrarAnuncios)
+            const AdManagerBannerView(
+              adUnitId: _bannerAdUnitId,
+              sizes: _bannerSizes,
             ),
           AnimatedBottomNavigationBar(
             key: _bottomNavKey,
@@ -420,6 +383,11 @@ class _MasOpcionesScreen extends StatelessWidget {
           ),
           const SizedBox(height: 14),
           _OptionsSectionCard(
+            title: 'Legal',
+            children: const [_PoliticaPrivacidadTile()],
+          ),
+          const SizedBox(height: 14),
+          _OptionsSectionCard(
             title: 'Sesión',
             children: [
               GridItem(
@@ -467,6 +435,48 @@ class _OptionsSectionCard extends StatelessWidget {
 }
 
 
+/// Enlace a la política de privacidad.
+///
+/// Play exige que sea alcanzable desde dentro de la app, no solo desde la
+/// ficha de la tienda. Es un enlace público: no usa el handoff de sesión.
+class _PoliticaPrivacidadTile extends StatelessWidget {
+  const _PoliticaPrivacidadTile();
+
+  static final Uri _url = Uri.parse(
+    'https://www.diariotiempo.hn/politica-privacidad-app',
+  );
+
+  Future<void> _abrir(BuildContext context) async {
+    final messenger = ScaffoldMessenger.of(context);
+    var abierto = false;
+
+    try {
+      abierto = await launchUrl(_url, mode: LaunchMode.externalApplication);
+    } catch (_) {
+      abierto = false;
+    }
+
+    if (!abierto) {
+      messenger.showSnackBar(
+        const SnackBar(
+          backgroundColor: Colors.red,
+          content: Text('No pudimos abrir la política de privacidad.'),
+        ),
+      );
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return GridItem(
+      icono: Icons.privacy_tip_outlined,
+      funcion: () => _abrir(context),
+      texto: 'Política de privacidad',
+      subtitulo: 'Cómo tratamos tus datos.',
+    );
+  }
+}
+
 /// Control único para encender o apagar los avisos de noticias.
 ///
 /// Unifica dos estados que al usuario le da igual distinguir: el permiso del
@@ -474,7 +484,7 @@ class _OptionsSectionCard extends StatelessWidget {
 /// ambos lo están.
 /// Acceso a la baja de cuenta. El borrado se resuelve en el sitio web, pero
 /// Play exige que el punto de entrada viva dentro de la app, así que se abre
-/// `/profile` con la sesión ya iniciada usando el mismo handoff del checkout.
+/// `/mi-perfil` con la sesión ya iniciada usando el mismo handoff del checkout.
 class _EliminarCuentaTile extends StatefulWidget {
   const _EliminarCuentaTile();
 

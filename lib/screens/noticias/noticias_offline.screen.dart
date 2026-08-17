@@ -2,6 +2,7 @@ import 'package:flips_app/models/noticias.model.dart';
 import 'package:flips_app/providers/noticias.provider.dart';
 import 'package:flips_app/screens/noticias/noticias.screen.dart';
 import 'package:flips_app/screens/paquetes/paquetes.screen.dart';
+import 'package:flips_app/services/acceso_usuario.service.dart';
 import 'package:flips_app/services/auth.service.dart';
 import 'package:flips_app/services/noticias.service.dart';
 import 'package:flutter/material.dart';
@@ -320,7 +321,15 @@ class _OfflineCard extends StatelessWidget {
           Navigator.push(
             context,
             MaterialPageRoute(
-              builder: (_) => NoticiaDetalleScreen(noticia: noticia, hideAds: true),
+              // A esta pantalla solo se llega con suscripción vigente: la
+              // valida `_validarAccesoOffline` antes de listar nada.
+              builder: (_) => NoticiaDetalleScreen(
+                noticia: noticia,
+                acceso: const AccesoUsuario(
+                  esAdmin: false,
+                  tieneSuscripcionActiva: true,
+                ),
+              ),
             ),
           );
         },

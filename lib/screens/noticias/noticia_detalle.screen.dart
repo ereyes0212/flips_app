@@ -1,10 +1,13 @@
 part of 'noticias.screen.dart';
 
 class _NoticiaDetalleScreen extends StatefulWidget {
-  const _NoticiaDetalleScreen({required this.noticia, this.hideAds = false});
+  const _NoticiaDetalleScreen({
+    required this.noticia,
+    this.acceso = const AccesoUsuario.sinResolver(),
+  });
 
   final NoticiaModel noticia;
-  final bool hideAds;
+  final AccesoUsuario acceso;
 
   @override
   State<_NoticiaDetalleScreen> createState() => _NoticiaDetalleScreenState();
@@ -61,7 +64,7 @@ class _NoticiaDetalleScreenState extends State<_NoticiaDetalleScreen> {
 
   /// Los suscriptores guardan la nota completa para leerla sin conexión.
   Future<void> _guardarOffline(NoticiaModel noticia) async {
-    if (!widget.hideAds) return;
+    if (!widget.acceso.puedeLeerOffline) return;
 
     await _service.guardarNoticiaOffline(noticia);
     final guardadas = await _service.obtenerNoticiasOffline();
@@ -87,7 +90,7 @@ class _NoticiaDetalleScreenState extends State<_NoticiaDetalleScreen> {
   @override
   Widget build(BuildContext context) {
     final noticia = _noticia;
-    final hideAds = widget.hideAds;
+    final acceso = widget.acceso;
     final theme = Theme.of(context);
     final categoriasPorId = context.watch<NoticiasProvider>().categoriasPorId;
 
@@ -105,51 +108,60 @@ class _NoticiaDetalleScreenState extends State<_NoticiaDetalleScreen> {
               ),
             ],
             flexibleSpace: FlexibleSpaceBar(
-              background: Stack(
-                fit: StackFit.expand,
-                children: [
-                  Positioned.fill(
-                    child: _NewsImage(
-                      url: noticia.imageUrl,
-                      iconSize: 72,
-                      borderRadius: BorderRadius.zero,
-                      heroTag: _heroTagForNewsImage(noticia),
-                    ),
-                  ),
-                  DecoratedBox(
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        begin: Alignment.topCenter,
-                        end: Alignment.bottomCenter,
-                        colors: [
-                          Colors.black.withOpacity(0.15),
-                          Colors.black.withOpacity(0.82),
-                        ],
+              // Toda la cabecera abre la imagen: el degradado y el titular van
+              // encima, asi que envolver el Stack evita que se traguen el tap.
+              background: GestureDetector(
+                onTap: () => _abrirImagenCompleta(
+                  context,
+                  imageUrl: noticia.imageUrl,
+                  heroTag: _heroTagForNewsImage(noticia),
+                ),
+                child: Stack(
+                  fit: StackFit.expand,
+                  children: [
+                    Positioned.fill(
+                      child: _NewsImage(
+                        url: noticia.imageUrl,
+                        iconSize: 72,
+                        borderRadius: BorderRadius.zero,
+                        heroTag: _heroTagForNewsImage(noticia),
                       ),
                     ),
-                  ),
-                  Positioned(
-                    left: 16,
-                    right: 16,
-                    bottom: 18,
-                    child: Text(
-                      noticia.title,
-                      maxLines: 3,
-                      overflow: TextOverflow.ellipsis,
-                      style: theme.textTheme.titleLarge?.copyWith(
-                        color: Colors.white,
-                        fontWeight: FontWeight.w900,
-                        shadows: const [
-                          Shadow(
-                            color: Colors.black54,
-                            blurRadius: 10,
-                            offset: Offset(0, 2),
-                          ),
-                        ],
+                    DecoratedBox(
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          begin: Alignment.topCenter,
+                          end: Alignment.bottomCenter,
+                          colors: [
+                            Colors.black.withOpacity(0.15),
+                            Colors.black.withOpacity(0.82),
+                          ],
+                        ),
                       ),
                     ),
-                  ),
-                ],
+                    Positioned(
+                      left: 16,
+                      right: 16,
+                      bottom: 18,
+                      child: Text(
+                        noticia.title,
+                        maxLines: 3,
+                        overflow: TextOverflow.ellipsis,
+                        style: theme.textTheme.titleLarge?.copyWith(
+                          color: Colors.white,
+                          fontWeight: FontWeight.w900,
+                          shadows: const [
+                            Shadow(
+                              color: Colors.black54,
+                              blurRadius: 10,
+                              offset: Offset(0, 2),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
           ),
@@ -188,9 +200,9 @@ class _NoticiaDetalleScreenState extends State<_NoticiaDetalleScreen> {
                       onRetry: _cargarContenido,
                     )
                   else
-                    _ArticleContent(noticia: noticia, hideAds: hideAds),
+                    _ArticleContent(noticia: noticia, acceso: acceso),
                   const SizedBox(height: 28),
-                  _RelatedNewsSection(noticia: noticia, hideAds: hideAds),
+                  _RelatedNewsSection(noticia: noticia, acceso: acceso),
                 ],
               ),
             ),
@@ -202,10 +214,10 @@ class _NoticiaDetalleScreenState extends State<_NoticiaDetalleScreen> {
 }
 
 class _ArticleContent extends StatelessWidget {
-  const _ArticleContent({required this.noticia, required this.hideAds});
+  const _ArticleContent({required this.noticia, required this.acceso});
 
   final NoticiaModel noticia;
-  final bool hideAds;
+  final AccesoUsuario acceso;
 
   @override
   Widget build(BuildContext context) {
@@ -226,10 +238,13 @@ class _ArticleContent extends StatelessWidget {
       children: [
         for (var index = 0; index < blocks.length; index++) ...[
           if (index > 0) const SizedBox(height: 18),
-          _ArticleBlock(block: blocks[index], hideAds: hideAds),
-          if (!hideAds && adPositionMap.containsKey(index)) ...[
+          _ArticleBlock(block: blocks[index], acceso: acceso),
+          if (acceso.mostrarAnuncios && adPositionMap.containsKey(index)) ...[
             const SizedBox(height: 18),
-            _AnimatedArticleInlineAd(adPosition: adPositionMap[index]!),
+            _AnimatedArticleInlineAd(
+              adPosition: adPositionMap[index]!,
+              contentUrl: noticia.link,
+            ),
           ],
         ],
       ],
@@ -395,22 +410,46 @@ class _ArticleContentError extends StatelessWidget {
   }
 }
 
-class _ArticleInlineAd extends StatefulWidget {
-  const _ArticleInlineAd();
+/// Rectángulo intercalado entre los párrafos de la nota.
+class _ArticleInlineAd extends StatelessWidget {
+  const _ArticleInlineAd({this.contentUrl});
 
-  @override
-  State<_ArticleInlineAd> createState() => _ArticleInlineAdState();
-}
+  static const String _adUnitId = '/170101793/APP/box_1';
 
-class _AnimatedArticleInlineAd extends StatelessWidget {
-  const _AnimatedArticleInlineAd({required this.adPosition});
-
-  final int adPosition;
+  /// Enlace de la nota: Ad Manager lo usa para segmentación contextual.
+  final String? contentUrl;
 
   @override
   Widget build(BuildContext context) {
-    final disableAnimations = MediaQuery.maybeOf(context)?.disableAnimations ?? false;
-    if (disableAnimations) return const _ArticleInlineAd();
+    return AdManagerBannerView(
+      adUnitId: _adUnitId,
+      contentUrl: contentUrl,
+      sizes: const [
+        AdSize(width: 300, height: 250),
+        AdSize(width: 336, height: 280),
+        AdSize(width: 300, height: 300),
+      ],
+    );
+  }
+}
+
+class _AnimatedArticleInlineAd extends StatelessWidget {
+  const _AnimatedArticleInlineAd({
+    required this.adPosition,
+    required this.contentUrl,
+  });
+
+  final int adPosition;
+  final String? contentUrl;
+
+  @override
+  Widget build(BuildContext context) {
+    final anuncio = _ArticleInlineAd(contentUrl: contentUrl);
+
+    final disableAnimations =
+        MediaQuery.maybeOf(context)?.disableAnimations ?? false;
+    if (disableAnimations) return anuncio;
+
     return TweenAnimationBuilder<double>(
       tween: Tween(begin: 16, end: 0),
       duration: Duration(milliseconds: 360 + (adPosition * 90)),
@@ -418,74 +457,23 @@ class _AnimatedArticleInlineAd extends StatelessWidget {
       builder: (context, offsetY, child) {
         return Transform.translate(offset: Offset(0, offsetY), child: child);
       },
-      child: const _ArticleInlineAd(),
-    );
-  }
-}
-
-class _ArticleInlineAdState extends State<_ArticleInlineAd> {
-  static const String _adUnitId = '/170101793/APP/box_1';
-
-  AdManagerBannerAd? _ad;
-  bool _ready = false;
-
-  @override
-  void initState() {
-    super.initState();
-    final ad = AdManagerBannerAd(
-      adUnitId: _adUnitId,
-      request: const AdManagerAdRequest(),
-      sizes: const [
-        AdSize(width: 300, height: 250),
-        AdSize(width: 300, height: 300),
-        AdSize(width: 336, height: 280),
-      ],
-      listener: AdManagerBannerAdListener(
-        onAdLoaded: (_) {
-          if (!mounted) return;
-          setState(() => _ready = true);
-        },
-        onAdFailedToLoad: (ad, error) {
-          ad.dispose();
-          debugPrint('Error al cargar box_1 en detalle: $error');
-        },
-      ),
-    );
-    _ad = ad;
-    ad.load();
-  }
-
-  @override
-  void dispose() {
-    _ad?.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    if (!_ready || _ad == null) return const SizedBox.shrink();
-    return Center(
-      child: SizedBox(
-        width: 300,
-        height: 250,
-        child: AdWidget(ad: _ad!),
-      ),
+      child: anuncio,
     );
   }
 }
 
 class _ArticleBlock extends StatelessWidget {
-  const _ArticleBlock({required this.block, required this.hideAds});
+  const _ArticleBlock({required this.block, required this.acceso});
 
   final NoticiaContentBlock block;
-  final bool hideAds;
+  final AccesoUsuario acceso;
 
   @override
   Widget build(BuildContext context) {
     if (block.isImage) return _ArticleImage(block: block);
     if (block.isGallery) return _ArticleGallery(block: block);
     if (block.isVideo) return _ArticleVideo(block: block);
-    if (block.isLink) return _ArticleLink(block: block, hideAds: hideAds);
+    if (block.isLink) return _ArticleLink(block: block, acceso: acceso);
 
     return _ArticleTextBlock(block: block);
   }
@@ -838,10 +826,10 @@ class _ArticleVideoState extends State<_ArticleVideo> {
 }
 
 class _RelatedNewsSection extends StatelessWidget {
-  const _RelatedNewsSection({required this.noticia, required this.hideAds});
+  const _RelatedNewsSection({required this.noticia, required this.acceso});
 
   final NoticiaModel noticia;
-  final bool hideAds;
+  final AccesoUsuario acceso;
 
   @override
   Widget build(BuildContext context) {
@@ -876,7 +864,7 @@ class _RelatedNewsSection extends StatelessWidget {
               final item = related[index];
               final card = SizedBox(
                 width: 232,
-                child: _RelatedNewsCard(noticia: item, hideAds: hideAds),
+                child: _RelatedNewsCard(noticia: item, acceso: acceso),
               );
               if (disableAnimations) return card;
               return TweenAnimationBuilder<double>(
@@ -901,10 +889,10 @@ class _RelatedNewsSection extends StatelessWidget {
 }
 
 class _RelatedNewsCard extends StatelessWidget {
-  const _RelatedNewsCard({required this.noticia, required this.hideAds});
+  const _RelatedNewsCard({required this.noticia, required this.acceso});
 
   final NoticiaModel noticia;
-  final bool hideAds;
+  final AccesoUsuario acceso;
 
   @override
   Widget build(BuildContext context) {
@@ -914,7 +902,7 @@ class _RelatedNewsCard extends StatelessWidget {
       margin: EdgeInsets.zero,
       clipBehavior: Clip.antiAlias,
       child: InkWell(
-        onTap: () => _abrirDetalle(context, noticia, hideAds: hideAds),
+        onTap: () => _abrirDetalle(context, noticia, acceso: acceso),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -1194,10 +1182,10 @@ class _GalleryThumb extends StatelessWidget {
 }
 
 class _ArticleLink extends StatefulWidget {
-  const _ArticleLink({required this.block, required this.hideAds});
+  const _ArticleLink({required this.block, required this.acceso});
 
   final NoticiaContentBlock block;
-  final bool hideAds;
+  final AccesoUsuario acceso;
 
   @override
   State<_ArticleLink> createState() => _ArticleLinkState();
@@ -1318,7 +1306,7 @@ class _ArticleLinkState extends State<_ArticleLink> {
       return;
     }
 
-    _abrirDetalle(context, noticia, hideAds: widget.hideAds);
+    _abrirDetalle(context, noticia, acceso: widget.acceso);
   }
 
   @override
@@ -1393,17 +1381,12 @@ class _ArticleImage extends StatelessWidget {
           borderRadius: BorderRadius.circular(18),
           onTap: block.imageUrl.isEmpty
               ? null
-              : () {
-                  Navigator.of(context).push(
-                    MaterialPageRoute(
-                      builder: (_) => _FullscreenImageViewer(
-                        imageUrl: block.imageUrl,
-                        heroTag: 'article-image-${block.imageUrl}',
-                        caption: block.caption,
-                      ),
-                    ),
-                  );
-                },
+              : () => _abrirImagenCompleta(
+                    context,
+                    imageUrl: block.imageUrl,
+                    heroTag: 'article-image-${block.imageUrl}',
+                    caption: block.caption,
+                  ),
           child: ClipRRect(
             borderRadius: BorderRadius.circular(18),
             child: AspectRatio(
@@ -1444,6 +1427,34 @@ class _FullscreenImageViewer extends StatelessWidget {
   final String heroTag;
   final String caption;
 
+  /// Las noticias guardadas para leer sin conexión traen la imagen en disco,
+  /// así que hay que distinguirla de una URL remota igual que hace `_NewsImage`.
+  Widget _buildImage() {
+    const fallback = Icon(
+      Icons.broken_image_outlined,
+      color: Colors.white70,
+      size: 56,
+    );
+
+    if (imageUrl.startsWith('/') || imageUrl.startsWith('file://')) {
+      final localPath = imageUrl.startsWith('file://')
+          ? Uri.parse(imageUrl).toFilePath()
+          : imageUrl;
+
+      return Image.file(
+        File(localPath),
+        fit: BoxFit.contain,
+        errorBuilder: (_, __, ___) => fallback,
+      );
+    }
+
+    return Image.network(
+      imageUrl,
+      fit: BoxFit.contain,
+      errorBuilder: (_, __, ___) => fallback,
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -1462,15 +1473,7 @@ class _FullscreenImageViewer extends StatelessWidget {
                   child: InteractiveViewer(
                     minScale: 1,
                     maxScale: 4,
-                    child: Image.network(
-                      imageUrl,
-                      fit: BoxFit.contain,
-                      errorBuilder: (_, __, ___) => const Icon(
-                        Icons.broken_image_outlined,
-                        color: Colors.white70,
-                        size: 56,
-                      ),
-                    ),
+                    child: _buildImage(),
                   ),
                 ),
               ),

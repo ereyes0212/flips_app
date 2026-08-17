@@ -11,6 +11,7 @@ import 'package:flips_app/providers/mis_suscripcion.provider.dart';
 import 'package:flips_app/providers/paquetes.provider.dart';
 import 'package:flips_app/screens/home/home.screen.dart';
 import 'package:flips_app/screens/login/login.screen.dart';
+import 'package:flips_app/services/ads_consent.service.dart';
 import 'package:flips_app/services/app_analytics_route_observer.dart';
 import 'package:flips_app/services/session.service.dart';
 import 'package:firebase_core/firebase_core.dart';
@@ -39,6 +40,10 @@ Future<void> main() async {
           .timeout(const Duration(seconds: 4));
     } catch (_) {}
   }
+
+  // El consentimiento se resuelve antes de inicializar el SDK, que es el orden
+  // que documenta Google. Fuera del EEE/Reino Unido no muestra nada.
+  await AdsConsentService.solicitarSiHaceFalta();
 
   try {
     await MobileAds.instance.initialize().timeout(const Duration(seconds: 4));

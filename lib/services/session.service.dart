@@ -2,6 +2,8 @@ import 'dart:convert';
 
 import 'package:flips_app/constants.dart';
 import 'package:flips_app/models/login_response.model.dart';
+import 'package:flips_app/services/acceso_usuario.service.dart';
+import 'package:flips_app/services/interstitial_ads.service.dart';
 import 'package:flutter/material.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -93,6 +95,11 @@ class SessionService {
     for (final key in _sessionKeys) {
       await prefs.remove(key);
     }
+
+    // Sin esto la siguiente cuenta heredaría los privilegios de la anterior:
+    // un usuario gratis podría entrar sin anuncios tras un suscriptor.
+    await AccesoUsuarioService.instance.invalidar();
+    InterstitialAdsService.instance.liberar();
 
     try {
       await GoogleSignIn().signOut();

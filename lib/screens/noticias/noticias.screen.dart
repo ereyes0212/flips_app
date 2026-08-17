@@ -8,11 +8,11 @@ import 'package:flips_app/screens/notificaciones/notificaciones.screen.dart';
 import 'package:flips_app/screens/sitio_web/sitio_web.screen.dart';
 import 'package:flips_app/services/noticias.service.dart';
 import 'package:flips_app/services/analytics.service.dart';
-import 'package:flips_app/services/mi_perfil.service.dart';
 import 'package:flips_app/services/push_notifications.service.dart';
-import 'package:flips_app/utils/ad_visibility.util.dart';
+import 'package:flips_app/globals/widgets/ad_banner.widget.dart';
+import 'package:flips_app/services/acceso_usuario.service.dart';
+import 'package:flips_app/services/interstitial_ads.service.dart';
 import 'package:flips_app/utils/noticia_link.util.dart';
-import 'package:flutter/foundation.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
@@ -43,21 +43,11 @@ class NoticiasScreen extends StatefulWidget {
 }
 
 class _NoticiasScreenState extends State<NoticiasScreen> {
-  static const String _interstitialAdUnitId = '/170101793/APP/Interstitial';
-  static const int _interstitialFrequency = 5;
-  static const int _preloadBeforeNewsCount = 2;
-  static const Duration _retryLoadDelay = Duration(seconds: 8);
   static const Duration _manualRefreshCooldown = Duration(seconds: 45);
 
   final _controller = NoticiasController();
   final _searchController = TextEditingController();
-  Timer? _retryInterstitialTimer;
-  int _openedNewsCount = 0;
-  int _nextInterstitialAt = _interstitialFrequency;
-  bool _pendingInterstitial = false;
-  AdManagerInterstitialAd? _interstitialAd;
-  bool _isInterstitialLoading = false;
-  bool _hideAds = false;
+  AccesoUsuario _acceso = const AccesoUsuario.sinResolver();
   DateTimeRange? _filtroFecha;
   DateTime? _lastManualRefreshAt;
   final _noticiasService = NoticiasService();
@@ -70,7 +60,7 @@ class _NoticiasScreenState extends State<NoticiasScreen> {
       _controller.cargarCategorias(context);
       _cargarNoticiasOffline();
     });
-    _initAdsVisibility();
+    _resolverAcceso();
   }
 
   Future<void> _cargarNoticiasOffline() async {
@@ -81,109 +71,27 @@ class _NoticiasScreenState extends State<NoticiasScreen> {
 
   @override
   void dispose() {
-    _retryInterstitialTimer?.cancel();
-    _interstitialAd?.dispose();
     _searchController.dispose();
     super.dispose();
   }
 
-  Future<void> _initAdsVisibility() async {
-    final perfil = await MiPerfilService().obtenerMiPerfil();
+  Future<void> _resolverAcceso() async {
+    final acceso = await AccesoUsuarioService.instance.resolver();
     if (!mounted) return;
-    setState(() => _hideAds = AdVisibilityUtil.shouldHideAds(perfil));
-    if (_hideAds) return;
-    _loadInterstitial();
-  }
 
-  void _loadInterstitial() {
-    if (_hideAds) return;
-    if (_isInterstitialLoading || _interstitialAd != null) return;
-    _retryInterstitialTimer?.cancel();
-    _isInterstitialLoading = true;
-    AdManagerInterstitialAd.load(
-      adUnitId: _interstitialAdUnitId,
-      request: const AdManagerAdRequest(),
-      adLoadCallback: AdManagerInterstitialAdLoadCallback(
-        onAdLoaded: (ad) {
-          ad.setImmersiveMode(true);
-          _interstitialAd = ad;
-          _isInterstitialLoading = false;
-        },
-        onAdFailedToLoad: (error) {
-          _interstitialAd = null;
-          _isInterstitialLoading = false;
-          if (kDebugMode) {
-            if (error.code == 3) {
-              debugPrint(
-                'Interstitial sin inventario (no fill). Se reintentará en ${_retryLoadDelay.inSeconds}s.',
-              );
-            } else {
-              debugPrint('Error al cargar interstitial: $error');
-            }
-          }
-          _scheduleInterstitialReload();
-        },
-      ),
-    );
-  }
-
-  void _scheduleInterstitialReload() {
-    _retryInterstitialTimer?.cancel();
-    _retryInterstitialTimer = Timer(_retryLoadDelay, _loadInterstitial);
-  }
-
-  void _maybePreloadInterstitial() {
-    final remaining = _nextInterstitialAt - _openedNewsCount;
-    if (remaining <= _preloadBeforeNewsCount) {
-      _loadInterstitial();
-    }
+    setState(() => _acceso = acceso);
+    if (acceso.mostrarAnuncios) InterstitialAdsService.instance.precargar();
   }
 
   void _abrirDetalleConInterstitial(NoticiaModel noticia) {
-    if (_hideAds) {
-      _abrirDetalle(context, noticia, hideAds: _hideAds);
+    void abrir() => _abrirDetalle(context, noticia, acceso: _acceso);
+
+    if (!_acceso.mostrarAnuncios) {
+      abrir();
       return;
     }
 
-    _openedNewsCount += 1;
-    final reachedMilestone = _openedNewsCount >= _nextInterstitialAt;
-    final shouldShowInterstitial = _pendingInterstitial || reachedMilestone;
-    if (reachedMilestone) {
-      _pendingInterstitial = true;
-    }
-    _maybePreloadInterstitial();
-    final ad = _interstitialAd;
-    if (kDebugMode) {
-      debugPrint(
-        'Noticias abiertas: $_openedNewsCount, mostrar interstitial: $shouldShowInterstitial',
-      );
-    }
-    if (!shouldShowInterstitial || ad == null) {
-      _abrirDetalle(context, noticia, hideAds: _hideAds);
-      if (ad == null) _loadInterstitial();
-      return;
-    }
-
-    ad.fullScreenContentCallback = FullScreenContentCallback(
-      onAdDismissedFullScreenContent: (ad) {
-        ad.dispose();
-        _pendingInterstitial = false;
-        _nextInterstitialAt += _interstitialFrequency;
-        _interstitialAd = null;
-        _loadInterstitial();
-        _abrirDetalle(context, noticia, hideAds: _hideAds);
-      },
-      onAdFailedToShowFullScreenContent: (ad, error) {
-        ad.dispose();
-        _pendingInterstitial = true;
-        _interstitialAd = null;
-        _loadInterstitial();
-        debugPrint('Error mostrando interstitial: $error');
-        _abrirDetalle(context, noticia, hideAds: _hideAds);
-      },
-    );
-
-    ad.show();
+    InterstitialAdsService.instance.registrarAperturaYContinuar(abrir);
   }
 
 
@@ -309,7 +217,7 @@ class _NoticiasScreenState extends State<NoticiasScreen> {
                 fechaHasta: _filtroFecha?.end,
               ),
               onTapNoticia: _abrirDetalleConInterstitial,
-              hideAds: _hideAds,
+              acceso: _acceso,
             ),
           ],
         ),
@@ -324,14 +232,14 @@ class _NoticiasContentSlivers extends StatelessWidget {
     required this.onRetry,
     required this.onLoadMore,
     required this.onTapNoticia,
-    required this.hideAds,
+    required this.acceso,
   });
 
   final NoticiasProvider provider;
   final VoidCallback onRetry;
   final VoidCallback onLoadMore;
   final ValueChanged<NoticiaModel> onTapNoticia;
-  final bool hideAds;
+  final AccesoUsuario acceso;
 
   @override
   Widget build(BuildContext context) {
@@ -392,7 +300,7 @@ class _NoticiasContentSlivers extends StatelessWidget {
             padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
             child: _PortadaCard(
               noticia: provider.noticias.first,
-              hideAds: hideAds,
+              acceso: acceso,
             ),
           ),
         ),
@@ -422,7 +330,7 @@ class _NoticiasContentSlivers extends StatelessWidget {
         _NoticiasList(
           noticias: provider.noticias,
           onTapNoticia: onTapNoticia,
-          hideAds: hideAds,
+          acceso: acceso,
         ),
         SliverToBoxAdapter(
           child: _LoadMoreButton(
@@ -437,11 +345,15 @@ class _NoticiasContentSlivers extends StatelessWidget {
 }
 
 class _NoticiasList extends StatelessWidget {
-  const _NoticiasList({required this.noticias, required this.onTapNoticia, this.hideAds = false});
+  const _NoticiasList({
+    required this.noticias,
+    required this.onTapNoticia,
+    required this.acceso,
+  });
 
   final List<NoticiaModel> noticias;
   final ValueChanged<NoticiaModel> onTapNoticia;
-  final bool hideAds;
+  final AccesoUsuario acceso;
 
   @override
   Widget build(BuildContext context) {
@@ -456,7 +368,9 @@ class _NoticiasList extends StatelessWidget {
           onTapOverride: () => onTapNoticia(noticia),
         ),
       );
-      if (!hideAds && (i + 1) % 5 == 0 && i != noticias.length - 1) {
+      if (acceso.mostrarAnuncios &&
+          (i + 1) % 5 == 0 &&
+          i != noticias.length - 1) {
         children.add(
           const Padding(
             padding: EdgeInsets.only(top: 8, bottom: 8),
@@ -481,54 +395,21 @@ class _NoticiasList extends StatelessWidget {
   }
 }
 
-class _InlineNewsAdBanner extends StatefulWidget {
+/// Rectángulo que se intercala cada cinco noticias del listado.
+class _InlineNewsAdBanner extends StatelessWidget {
   const _InlineNewsAdBanner();
 
-  @override
-  State<_InlineNewsAdBanner> createState() => _InlineNewsAdBannerState();
-}
-
-class _InlineNewsAdBannerState extends State<_InlineNewsAdBanner> {
   static const String _adUnitId = '/170101793/APP/box_1';
-  AdManagerBannerAd? _ad;
-  bool _ready = false;
-
-  @override
-  void initState() {
-    super.initState();
-    final ad = AdManagerBannerAd(
-      adUnitId: _adUnitId,
-      request: const AdManagerAdRequest(),
-      sizes: const [
-        AdSize(width: 300, height: 250),
-        AdSize(width: 320, height: 480),
-        AdSize(width: 336, height: 280),
-      ],
-      listener: AdManagerBannerAdListener(
-        onAdLoaded: (_) => mounted ? setState(() => _ready = true) : null,
-        onAdFailedToLoad: (ad, error) {
-          ad.dispose();
-          debugPrint('Error banner inline noticias: $error');
-        },
-      ),
-    );
-    _ad = ad;
-    ad.load();
-  }
-
-  @override
-  void dispose() {
-    _ad?.dispose();
-    super.dispose();
-  }
 
   @override
   Widget build(BuildContext context) {
-    if (!_ready || _ad == null) return const SizedBox.shrink();
-    return SizedBox(
-      width: 300,
-      height: 250,
-      child: AdWidget(ad: _ad!),
+    return const AdManagerBannerView(
+      adUnitId: _adUnitId,
+      sizes: [
+        AdSize(width: 300, height: 250),
+        AdSize(width: 336, height: 280),
+        AdSize(width: 320, height: 480),
+      ],
     );
   }
 }
@@ -554,12 +435,16 @@ Future<void> _compartirNoticia(BuildContext context, NoticiaModel noticia) async
 
 // La nota completa (y su guardado offline) se resuelve dentro del detalle,
 // porque el listado solo trae los datos de la tarjeta.
-void _abrirDetalle(BuildContext context, NoticiaModel noticia, {bool hideAds = false}) {
+void _abrirDetalle(
+  BuildContext context,
+  NoticiaModel noticia, {
+  AccesoUsuario acceso = const AccesoUsuario.sinResolver(),
+}) {
   Navigator.push(
     context,
     MaterialPageRoute(
       settings: analyticsRouteSettingsFromNews(noticia),
-      builder: (_) => _NoticiaDetalleScreen(noticia: noticia, hideAds: hideAds),
+      builder: (_) => _NoticiaDetalleScreen(noticia: noticia, acceso: acceso),
     ),
   );
 }
@@ -588,6 +473,29 @@ String _heroTagForNewsImage(NoticiaModel noticia) {
   return 'news-image-${noticia.id}-${noticia.slug}';
 }
 
+/// Abre una imagen a pantalla completa con zoom.
+///
+/// Comparte el `heroTag` con la miniatura de origen para que la transición sea
+/// continua. Ignora las URLs vacías: sin imagen no hay nada que ampliar.
+void _abrirImagenCompleta(
+  BuildContext context, {
+  required String imageUrl,
+  required String heroTag,
+  String caption = '',
+}) {
+  if (imageUrl.isEmpty) return;
+
+  Navigator.of(context).push(
+    MaterialPageRoute<void>(
+      builder: (_) => _FullscreenImageViewer(
+        imageUrl: imageUrl,
+        heroTag: heroTag,
+        caption: caption,
+      ),
+    ),
+  );
+}
+
 void _abrirCategoria(BuildContext context, CategoriaNoticiaModel categoria) {
   AnalyticsService.logCategorySearch(
     categoryId: categoria.id,
@@ -610,17 +518,17 @@ class NoticiaDetalleScreen extends StatelessWidget {
   const NoticiaDetalleScreen({
     super.key,
     required this.noticia,
-    this.hideAds = false,
+    this.acceso = const AccesoUsuario.sinResolver(),
   });
 
   final NoticiaModel noticia;
-  final bool hideAds;
+  final AccesoUsuario acceso;
 
   @override
   Widget build(BuildContext context) {
     final noticiaParaDetalle = noticia.localImagePath.isEmpty
         ? noticia
         : noticia.copyWith(imageUrl: noticia.localImagePath);
-    return _NoticiaDetalleScreen(noticia: noticiaParaDetalle, hideAds: hideAds);
+    return _NoticiaDetalleScreen(noticia: noticiaParaDetalle, acceso: acceso);
   }
 }

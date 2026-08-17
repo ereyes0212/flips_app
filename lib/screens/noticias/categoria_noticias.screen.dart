@@ -18,19 +18,19 @@ class _CategoriaNoticiasScreenState extends State<_CategoriaNoticiasScreen> {
   var _error = '';
   var _page = 1;
   var _hasMore = true;
-  bool _hideAds = false;
+  AccesoUsuario _acceso = const AccesoUsuario.sinResolver();
 
   @override
   void initState() {
     super.initState();
     Future.microtask(_cargarNoticias);
-    _initAdsVisibility();
+    _resolverAcceso();
   }
 
-  Future<void> _initAdsVisibility() async {
-    final perfil = await MiPerfilService().obtenerMiPerfil();
+  Future<void> _resolverAcceso() async {
+    final acceso = await AccesoUsuarioService.instance.resolver();
     if (!mounted) return;
-    setState(() => _hideAds = AdVisibilityUtil.shouldHideAds(perfil));
+    setState(() => _acceso = acceso);
   }
 
   Future<void> _cargarNoticias({bool reset = true}) async {
@@ -102,8 +102,8 @@ class _CategoriaNoticiasScreenState extends State<_CategoriaNoticiasScreen> {
               _NoticiasList(
                 noticias: _noticias,
                 onTapNoticia: (noticia) =>
-                    _abrirDetalle(context, noticia, hideAds: _hideAds),
-                hideAds: _hideAds,
+                    _abrirDetalle(context, noticia, acceso: _acceso),
+                acceso: _acceso,
               ),
               SliverToBoxAdapter(
                 child: _LoadMoreButton(

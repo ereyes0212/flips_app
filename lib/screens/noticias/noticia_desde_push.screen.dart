@@ -69,26 +69,28 @@ class _NoticiaDesdePushScreenState extends State<NoticiaDesdePushScreen> {
   static const _esperaPerfil = Duration(seconds: 3);
 
   bool _resolviendoPerfil = true;
-  bool _hideAds = false;
+  AccesoUsuario _acceso = const AccesoUsuario.sinResolver();
 
   @override
   void initState() {
     super.initState();
-    Future.microtask(_resolverAnuncios);
+    Future.microtask(_resolverAcceso);
   }
 
-  Future<void> _resolverAnuncios() async {
-    var hideAds = false;
+  Future<void> _resolverAcceso() async {
+    var acceso = const AccesoUsuario.sinPrivilegios();
     try {
-      final perfil = await MiPerfilService().obtenerMiPerfil().timeout(
+      acceso = await AccesoUsuarioService.instance.resolver().timeout(
         _esperaPerfil,
       );
-      hideAds = AdVisibilityUtil.shouldHideAds(perfil);
-    } catch (_) {}
+    } catch (_) {
+      // Llegando desde una notificación no se hace esperar al usuario: si el
+      // perfil tarda se abre la nota y, como mucho, se ve un anuncio de más.
+    }
 
     if (!mounted) return;
     setState(() {
-      _hideAds = hideAds;
+      _acceso = acceso;
       _resolviendoPerfil = false;
     });
   }
@@ -99,7 +101,7 @@ class _NoticiaDesdePushScreenState extends State<NoticiaDesdePushScreen> {
       return _NoticiaDesdePushPlaceholder(noticia: widget.noticia);
     }
 
-    return _NoticiaDetalleScreen(noticia: widget.noticia, hideAds: _hideAds);
+    return _NoticiaDetalleScreen(noticia: widget.noticia, acceso: _acceso);
   }
 }
 
