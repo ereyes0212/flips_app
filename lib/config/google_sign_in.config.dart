@@ -1,8 +1,25 @@
 import 'package:flutter/foundation.dart';
 
 class GoogleSignInConfig {
-  static const webClientId = String.fromEnvironment('GOOGLE_WEB_CLIENT_ID');
-  static const iosClientId = String.fromEnvironment('GOOGLE_IOS_CLIENT_ID');
+  /// Client IDs de OAuth. No son secretos: los mismos valores viajan en
+  /// `android/app/google-services.json`, que sí está versionado.
+  ///
+  /// El `defaultValue` existe porque olvidar el `--dart-define` producía un
+  /// binario que compilaba, se instalaba y solo fallaba al tocar "Continuar
+  /// con Google", con un mensaje que apuntaba al SHA-1 y mandaba a revisar
+  /// Firebase durante horas. El dart-define sigue teniendo prioridad para
+  /// poder apuntar a otro proyecto sin tocar código.
+  static const webClientId = String.fromEnvironment(
+    'GOOGLE_WEB_CLIENT_ID',
+    defaultValue:
+        '374905649903-tatkk8u7keo8r0aq8580k1kqeiotvvc8.apps.googleusercontent.com',
+  );
+
+  static const iosClientId = String.fromEnvironment(
+    'GOOGLE_IOS_CLIENT_ID',
+    defaultValue:
+        '374905649903-t8toeo9bp074mlm9qv69tbc00qco5rki.apps.googleusercontent.com',
+  );
 
   static const scopes = ['email', 'profile'];
 
