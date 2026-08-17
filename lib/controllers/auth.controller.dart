@@ -78,14 +78,27 @@ class AuthController {
       }
 
       await _googleSignIn.signOut();
-      final account = await _googleSignIn.signIn();
+      var account = await _googleSignIn.signIn();
       if (account == null) {
         authprovider.loading = false;
         return false;
       }
 
-      final auth = await account.authentication;
-      final idToken = auth.idToken ?? '';
+      var idToken = (await account.authentication).idToken ?? '';
+
+      if (idToken.isEmpty) {
+        // Play Services puede devolver una sesión cacheada sin idToken, y en
+        // Android el plugin no tiene forma de refrescarlo: lo reusa del login
+        // o lo deja nulo. Por eso el primer inicio funciona y los siguientes
+        // no. `signOut()` no basta; hay que revocar el acceso para que la
+        // siguiente autenticación sea completa y vuelva a emitir el token.
+        account = await _reautenticarConGoogle();
+        if (account == null) {
+          authprovider.loading = false;
+          return false;
+        }
+        idToken = (await account.authentication).idToken ?? '';
+      }
 
       if (idToken.isEmpty) {
         globalSnackBar(
@@ -123,6 +136,21 @@ class AuthController {
 
     authprovider.loading = false;
     return false;
+  }
+
+  /// Revoca el acceso y vuelve a pedir la cuenta desde cero.
+  ///
+  /// `disconnect()` es lo único que limpia el estado que Play Services guarda
+  /// entre sesiones. Cuesta que la persona vuelva a ver la pantalla de
+  /// consentimiento, pero solo ocurre cuando el token no llegó.
+  Future<GoogleSignInAccount?> _reautenticarConGoogle() async {
+    try {
+      await _googleSignIn.disconnect();
+    } catch (_) {
+      // Si no había nada conectado, seguir adelante.
+    }
+
+    return _googleSignIn.signIn();
   }
 
   String _mensajeErrorGoogle(PlatformException error) {
