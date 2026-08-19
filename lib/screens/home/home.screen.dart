@@ -396,9 +396,11 @@ class _MasOpcionesScreen extends StatelessWidget {
                 texto: 'Cerrar sesión',
                 color: colorScheme.error,
               ),
-              const _EliminarCuentaTile(),
             ],
           ),
+          const SizedBox(height: 8),
+          const _EliminarCuentaTile(),
+          const SizedBox(height: 8),
         ],
       ),
     );
@@ -587,25 +589,27 @@ Al completarla se borran tu cuenta y tus datos de forma permanente, y pierdes el
 
   @override
   Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
+    final theme = Theme.of(context);
 
-    return GridItem(
-      icono: Icons.person_remove_outlined,
-      funcion: _confirmarYAbrir,
-      texto: 'Eliminar cuenta',
-      subtitulo:
-          _abriendo
-              ? 'Abriendo el sitio web...'
-              : 'Se gestiona en el sitio web. Es permanente.',
-      color: colorScheme.error,
-      trailing:
-          _abriendo
-              ? const SizedBox(
-                height: 18,
-                width: 18,
+    // Deliberadamente discreto: es una acción irreversible y como tarjeta,
+    // al lado de "Cerrar sesión", se tocaba por error. Sigue a un toque de
+    // esta pantalla, que es lo que Play exige, pero ya no compite
+    // visualmente con las opciones de uso diario.
+    return Center(
+      child: TextButton(
+        onPressed: _abriendo ? null : _confirmarYAbrir,
+        style: TextButton.styleFrom(
+          foregroundColor: theme.colorScheme.onSurfaceVariant,
+          textStyle: theme.textTheme.bodySmall,
+        ),
+        child: _abriendo
+            ? const SizedBox(
+                height: 14,
+                width: 14,
                 child: CircularProgressIndicator(strokeWidth: 2),
               )
-              : null,
+            : const Text('Eliminar mi cuenta'),
+      ),
     );
   }
 }
@@ -730,28 +734,52 @@ class _NewsAlertsSwitchState extends State<_NewsAlertsSwitch> {
 class _NotificationUnreadBadge extends StatelessWidget {
   const _NotificationUnreadBadge({required this.count});
 
+  /// Lado del círculo. Con dos dígitos a 12px el texto entra holgado.
+  static const double _lado = 24;
+
   final int count;
 
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
     final label = count > 99 ? '99+' : '$count';
+
+    final texto = Text(
+      label,
+      style: TextStyle(
+        color: colorScheme.onError,
+        fontSize: 12,
+        fontWeight: FontWeight.w800,
+        // Sin esto la altura de línea desplaza el número dentro del círculo.
+        height: 1,
+      ),
+    );
+
+    // Hasta 99 el badge es un círculo exacto: antes el padding horizontal lo
+    // estiraba y con dos dígitos quedaba ovalado. Solo "99+" no entra, y ahí
+    // sí se ensancha en píldora en vez de deformar el círculo.
+    if (label.length <= 2) {
+      return Container(
+        width: _lado,
+        height: _lado,
+        alignment: Alignment.center,
+        decoration: BoxDecoration(
+          color: colorScheme.error,
+          shape: BoxShape.circle,
+        ),
+        child: texto,
+      );
+    }
+
     return Container(
-      constraints: const BoxConstraints(minWidth: 26, minHeight: 26),
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      height: _lado,
+      padding: const EdgeInsets.symmetric(horizontal: 7),
+      alignment: Alignment.center,
       decoration: BoxDecoration(
         color: colorScheme.error,
-        borderRadius: BorderRadius.circular(999),
+        borderRadius: BorderRadius.circular(_lado / 2),
       ),
-      alignment: Alignment.center,
-      child: Text(
-        label,
-        style: TextStyle(
-          color: colorScheme.onError,
-          fontSize: 12,
-          fontWeight: FontWeight.w800,
-        ),
-      ),
+      child: texto,
     );
   }
 }

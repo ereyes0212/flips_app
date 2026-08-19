@@ -34,20 +34,62 @@ Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
   await _persistMessageToStorage(message);
 }
 
+/// El emisor no siempre usa las mismas llaves: las campañas arman el `data`
+/// a partir del objeto de la nota, que trae los nombres en español.
+const List<String> _kClavesTitulo = ['title', 'titulo', 'headline', 'subject'];
+const List<String> _kClavesCuerpo = [
+  'body',
+  'cuerpo',
+  'mensaje',
+  'message',
+  'resumen',
+  'descripcion',
+  'descripción',
+  'subtitle',
+];
+
+String? _primerTextoNoVacio(Map<String, dynamic> data, List<String> claves) {
+  for (final clave in claves) {
+    final valor = data[clave]?.toString().trim();
+    if (valor != null && valor.isNotEmpty) return valor;
+  }
+  return null;
+}
+
+/// Texto del aviso, venga en el bloque `notification` o suelto en `data`.
+///
+/// Se descarta el vacío además del nulo: un `notification` con el título en
+/// blanco dejaba la tarjeta sin encabezado en vez de caer al respaldo.
+String? _tituloDeMensaje(RemoteMessage message) {
+  final delBloque = message.notification?.title?.trim();
+  if (delBloque != null && delBloque.isNotEmpty) return delBloque;
+  return _primerTextoNoVacio(message.data, _kClavesTitulo);
+}
+
+String? _cuerpoDeMensaje(RemoteMessage message) {
+  final delBloque = message.notification?.body?.trim();
+  if (delBloque != null && delBloque.isNotEmpty) return delBloque;
+  return _primerTextoNoVacio(message.data, _kClavesCuerpo);
+}
+
+/// `false` para los mensajes de control (pings de sincronización, silenciosos
+/// de iOS con `content-available`): no traen nada que leer, y guardarlos era lo
+/// que llenaba el historial de tarjetas en blanco.
+bool _mensajeTieneContenido(RemoteMessage message) =>
+    _tituloDeMensaje(message) != null || _cuerpoDeMensaje(message) != null;
+
+/// Id del aviso local: derivarlo del `messageId` evita que un reintento del
+/// mismo mensaje apile dos avisos en la bandeja.
+int _idDeAvisoLocal(RemoteMessage message) =>
+    (message.messageId ?? message.hashCode.toString()).hashCode;
+
 PushNotificationItem _itemFromMessage(RemoteMessage message) {
-  final notification = message.notification;
   return PushNotificationItem(
     id:
         message.messageId ??
         DateTime.now().microsecondsSinceEpoch.toString(),
-    title:
-        notification?.title ??
-        message.data['title']?.toString() ??
-        'Notificación',
-    body:
-        notification?.body ??
-        message.data['body']?.toString() ??
-        'Toque para ver detalles.',
+    title: _tituloDeMensaje(message) ?? 'Notificación',
+    body: _cuerpoDeMensaje(message) ?? 'Toque para ver detalles.',
     data: message.data,
     receivedAt: DateTime.now().toUtc(),
   );
@@ -64,6 +106,7 @@ Future<void> _persistMessageToStorage(RemoteMessage message) async {
     await prefs.reload();
 
     if (!(prefs.getBool(_kNewsAlertsKey) ?? true)) return;
+    if (!_mensajeTieneContenido(message)) return;
 
     final item = _itemFromMessage(message);
     final stored = prefs.getStringList(_kStorageKey) ?? <String>[];
@@ -552,15 +595,16 @@ class PushNotificationsService extends ChangeNotifier {
   Future<void> _onForegroundMessage(RemoteMessage message) async {
     // Avisos apagados: ni aviso en pantalla ni entrada en el historial.
     if (!_newsAlertsEnabled) return;
+    if (!_mensajeTieneContenido(message)) return;
 
     await _addNotification(message);
-    final notification = message.notification;
-    if (notification == null) return;
 
+    // Con los textos ya resueltos: el aviso que traía el título solo en `data`
+    // se descartaba aquí y nunca llegaba a la bandeja con la app abierta.
     await _localNotificationsPlugin.show(
-      notification.hashCode,
-      notification.title,
-      notification.body,
+      _idDeAvisoLocal(message),
+      _tituloDeMensaje(message),
+      _cuerpoDeMensaje(message),
       const NotificationDetails(
         android: AndroidNotificationDetails(
           'new_flips',
@@ -577,6 +621,10 @@ class PushNotificationsService extends ChangeNotifier {
   }
 
   Future<void> _addNotification(RemoteMessage message) async {
+    // También entran por aquí `getInitialMessage` y `onMessageOpenedApp`, así
+    // que el filtro vive en este punto y no solo en el de primer plano.
+    if (!_mensajeTieneContenido(message)) return;
+
     final item = _itemFromMessage(message);
     // El isolate de background pudo haberlo guardado ya: sin este control el
     // mismo aviso aparecería dos veces al tocarlo.
