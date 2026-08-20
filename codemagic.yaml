@@ -5,14 +5,23 @@ workflows:
     max_build_duration: 60
 
     environment:
+      # Debe coincidir con .fvmrc y con el --flutter-version de Shorebird.
+      # Se usa para el pub get / pod install previos; el build real lo hace
+      # Shorebird con su propio checkout de esta misma version.
       flutter: 3.35.5
       xcode: latest
       cocoapods: default
 
-      # Grupo de variables definido en Codemagic > Environment variables.
-      # Debe contener GOOGLE_IOS_CLIENT_ID y GOOGLE_WEB_CLIENT_ID.
+      # Grupo definido en Codemagic > Environment variables.
+      # Debe contener SHOREBIRD_TOKEN, marcado como secure. La CLI lo lee
+      # sola, no hay que pasarlo por flag.
+      #
+      # El token es una API key creada en console.shorebird.dev
+      # (Account > API Keys). El viejo `shorebird login:ci` ya no existe.
+      # Las keys empiezan con "sb_api_" y por defecto expiran al ano: si el
+      # build falla por autenticacion, revisa primero si vencio.
       groups:
-        - google_signin
+        - shorebird
 
       ios_signing:
         distribution_type: app_store
@@ -24,6 +33,12 @@ workflows:
       app_store_connect: DiarioTiempo_ASC_Key
 
     scripts:
+      - name: Instalar Shorebird
+        script: |
+          curl --proto '=https' --tlsv1.2 \
+            https://raw.githubusercontent.com/shorebirdtech/install/main/install.sh -sSf | bash
+          echo PATH="$HOME/.shorebird/bin:$PATH" >> $CM_ENV
+
       - name: Flutter packages
         script: flutter pub get
 
@@ -33,12 +48,17 @@ workflows:
       - name: Configurar firma en el proyecto Xcode
         script: xcode-project use-profiles
 
-      - name: Build IPA
+      # `shorebird release` en vez de `flutter build ipa`: es lo que registra
+      # el release en Shorebird y deja el binario parcheable con
+      # `shorebird patch ios`. Un IPA hecho con flutter build NO lo es.
+      #
+      # Los client IDs de Google ya no van por --dart-define: estan como
+      # defaultValue en lib/config/google_sign_in.config.dart. Pasarlos vacios
+      # desde aqui los sobreescribiria con "" y romperia el login.
+      - name: Shorebird release iOS
         script: |
-          flutter build ipa --release \
+          shorebird release ios --flutter-version=3.35.5 -- \
             --build-number=$BUILD_NUMBER \
-            --dart-define=GOOGLE_IOS_CLIENT_ID=$GOOGLE_IOS_CLIENT_ID \
-            --dart-define=GOOGLE_WEB_CLIENT_ID=$GOOGLE_WEB_CLIENT_ID \
             --export-options-plist=/Users/builder/export_options.plist
 
     artifacts:

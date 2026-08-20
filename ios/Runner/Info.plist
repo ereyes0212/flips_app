@@ -49,11 +49,19 @@
 	<true/>
 	<key>FirebaseAutomaticScreenReportingEnabled</key>
 	<false/>
-	<!-- OJO: este App ID debe ser el de la app iOS en AdMob, NO el de Android. -->
+	<!-- App ID de la app iOS en Ad Manager. Distinto al de Android
+	     (ca-app-pub-0351121958876929~3366731644, en AndroidManifest.xml). -->
 	<key>GADApplicationIdentifier</key>
-	<string>REEMPLAZAR_ADMOB_IOS_APP_ID</string>
+	<string>ca-app-pub-0351121958876929~7158749339</string>
+	<!--
+	  audio: sin esto la lectura por voz se corta al bloquear la pantalla.
+	         lectura_voz.service.dart ya configura la sesion con la categoria
+	         playback, pero la categoria sola no sobrevive al background.
+	  remote-notification: pushes de FCM con la app cerrada.
+	-->
 	<key>UIBackgroundModes</key>
 	<array>
+		<string>audio</string>
 		<string>remote-notification</string>
 	</array>
 	<!-- google_sign_in: el scheme es el REVERSED_CLIENT_ID de GoogleService-Info.plist -->
