@@ -292,39 +292,227 @@ class _NotificationCard extends StatelessWidget {
   final bool selected;
   final VoidCallback onToggleSelection;
 
+  void _abrir(BuildContext context) {
+    if (selectionMode) {
+      onToggleSelection();
+      return;
+    }
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => NotificacionDetalleScreen(notification: item),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
-    final date = DateFormat('dd/MM/yyyy HH:mm').format(item.receivedAt.toLocal());
-    return AppInfoCard(
-      icon: Icons.notifications_outlined,
-      title: item.title ?? 'Notificación',
-      subtitle: item.body ?? 'Sin descripción disponible.',
-      selected: selected,
-      leading: selectionMode
-          ? Checkbox(value: selected, onChanged: (_) => onToggleSelection())
-          : _NotificationIcon(type: item.type),
-      badge: selectionMode ? null : const Icon(Icons.chevron_right_rounded),
-      onLongPress: onToggleSelection,
-      onTap: () {
-        if (selectionMode) {
-          onToggleSelection();
-          return;
-        }
-        Navigator.push(
-          context,
-          MaterialPageRoute(builder: (_) => NotificacionDetalleScreen(notification: item)),
-        );
-      },
+    final theme = Theme.of(context);
+
+    return Material(
+      color: selected
+          ? theme.colorScheme.primaryContainer.withOpacity(0.35)
+          : theme.colorScheme.surface,
+      borderRadius: BorderRadius.circular(16),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: () => _abrir(context),
+        onLongPress: onToggleSelection,
+        child: Container(
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(
+              color: selected
+                  ? theme.colorScheme.primary.withOpacity(0.6)
+                  : theme.colorScheme.outlineVariant.withOpacity(0.35),
+              width: selected ? 1.6 : 1,
+            ),
+          ),
+          padding: const EdgeInsets.fromLTRB(12, 12, 10, 12),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              if (selectionMode)
+                Checkbox(value: selected, onChanged: (_) => onToggleSelection())
+              else
+                _NotificationAvatar(url: item.imageUrl, type: item.type),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      item.title ?? 'Notificación',
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: theme.textTheme.titleSmall?.copyWith(
+                        fontWeight:
+                            item.read ? FontWeight.w600 : FontWeight.w800,
+                        height: 1.25,
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    _NotificationMeta(item: item),
+                  ],
+                ),
+              ),
+              Icon(
+                Icons.chevron_right_rounded,
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Pie de la tarjeta: de qué tipo es el aviso y hace cuánto llegó.
+class _NotificationMeta extends StatelessWidget {
+  const _NotificationMeta({required this.item});
+
+  final PushNotificationItem item;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final estilo = theme.textTheme.labelMedium?.copyWith(
+      color: theme.colorScheme.onSurfaceVariant,
+    );
+
+    return Row(
       children: [
-        AppInfoRow(
-          icon: Icons.schedule_rounded,
-          label: 'Recibida',
-          value: date,
-          showDivider: false,
+        if (!item.read) ...[
+          Container(
+            width: 8,
+            height: 8,
+            decoration: BoxDecoration(
+              color: theme.colorScheme.primary,
+              shape: BoxShape.circle,
+            ),
+          ),
+          const SizedBox(width: 7),
+        ],
+        Text(
+          _etiquetaDeTipo(item.type),
+          style: estilo?.copyWith(
+            color: theme.colorScheme.primary,
+            fontWeight: FontWeight.w700,
+            letterSpacing: 0.2,
+          ),
+        ),
+        Text('  ·  ', style: estilo),
+        Flexible(
+          child: Text(
+            _tiempoRelativo(item.receivedAt),
+            style: estilo,
+            overflow: TextOverflow.ellipsis,
+          ),
         ),
       ],
     );
   }
+}
+
+/// Miniatura circular del aviso.
+///
+/// Es solo una pista visual de qué nota es: la foto en grande vive en el
+/// detalle, para no repetir en la lista lo mismo que se ve al entrar. Si no hay
+/// imagen, o si falla, cae al ícono del tipo y la fila conserva el mismo alto.
+class _NotificationAvatar extends StatelessWidget {
+  const _NotificationAvatar({required this.url, required this.type});
+
+  final String? url;
+  final String type;
+
+  static const double _tamano = 52;
+
+  @override
+  Widget build(BuildContext context) {
+    final imagen = url;
+    if (imagen == null) {
+      return SizedBox(
+        width: _tamano,
+        height: _tamano,
+        child: _NotificationIcon(type: type),
+      );
+    }
+
+    return ClipOval(
+      child: Image.network(
+        imagen,
+        width: _tamano,
+        height: _tamano,
+        fit: BoxFit.cover,
+        loadingBuilder: (context, child, progreso) {
+          if (progreso == null) return child;
+          return _MarcoDeMiniatura(
+            child: const SizedBox(
+              width: 18,
+              height: 18,
+              child: CircularProgressIndicator(strokeWidth: 2),
+            ),
+          );
+        },
+        errorBuilder: (_, __, ___) => SizedBox(
+          width: _tamano,
+          height: _tamano,
+          child: _NotificationIcon(type: type),
+        ),
+      ),
+    );
+  }
+}
+
+class _MarcoDeMiniatura extends StatelessWidget {
+  const _MarcoDeMiniatura({required this.child});
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: _NotificationAvatar._tamano,
+      height: _NotificationAvatar._tamano,
+      alignment: Alignment.center,
+      color: Theme.of(context).colorScheme.surfaceContainerHighest,
+      child: child,
+    );
+  }
+}
+
+String _etiquetaDeTipo(String type) {
+  switch (type.toLowerCase()) {
+    case 'new_flip':
+      return 'DIARIO DEL DÍA';
+    case 'campana':
+    case 'noticia':
+    case 'noticias':
+      return 'NOTICIA';
+    default:
+      return 'AVISO';
+  }
+}
+
+/// "hace 5 min" se entiende de un vistazo; una fecha completa obliga a pensar.
+/// Pasadas 24 horas ya no hay ventaja y se muestra la fecha.
+String _tiempoRelativo(DateTime recibida) {
+  final ahora = DateTime.now();
+  final local = recibida.toLocal();
+  final diferencia = ahora.difference(local);
+
+  if (diferencia.inMinutes < 1) return 'Hace un momento';
+  if (diferencia.inMinutes < 60) return 'Hace ${diferencia.inMinutes} min';
+  if (diferencia.inHours < 24) {
+    final horas = diferencia.inHours;
+    return 'Hace $horas ${horas == 1 ? 'hora' : 'horas'}';
+  }
+  if (diferencia.inDays == 1) {
+    return 'Ayer, ${DateFormat('HH:mm').format(local)}';
+  }
+  return DateFormat('dd/MM/yyyy HH:mm').format(local);
 }
 
 
@@ -343,6 +531,11 @@ class _NotificationIcon extends StatelessWidget {
             : normalized == 'noticia' || normalized == 'noticias'
                 ? Icons.article_outlined
                 : Icons.notifications_outlined;
-    return CircleAvatar(child: Icon(icon));
+    // El radio se fija para que ocupe lo mismo que una miniatura con foto: si
+    // no, las filas sin imagen quedaban desalineadas con el resto de la lista.
+    return CircleAvatar(
+      radius: _NotificationAvatar._tamano / 2,
+      child: Icon(icon),
+    );
   }
 }

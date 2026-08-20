@@ -17,6 +17,7 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -70,6 +71,41 @@ String? _cuerpoDeMensaje(RemoteMessage message) {
   final delBloque = message.notification?.body?.trim();
   if (delBloque != null && delBloque.isNotEmpty) return delBloque;
   return _primerTextoNoVacio(message.data, _kClavesCuerpo);
+}
+
+/// Imagen del aviso, venga en el bloque `notification` o suelta en `data`.
+String? _imagenDeMensaje(RemoteMessage message) {
+  final deAndroid = message.notification?.android?.imageUrl?.trim();
+  if (deAndroid != null && deAndroid.isNotEmpty) return deAndroid;
+
+  final deApple = message.notification?.apple?.imageUrl?.trim();
+  if (deApple != null && deApple.isNotEmpty) return deApple;
+
+  final deData = message.data['imageUrl']?.toString().trim();
+  return (deData != null && deData.isNotEmpty) ? deData : null;
+}
+
+/// Baja la foto a un archivo temporal para poder mostrarla dentro del aviso.
+///
+/// Android no acepta una URL: exige un bitmap local. Si falla o tarda se
+/// devuelve `null` y el aviso sale sin foto, nunca sin aviso.
+Future<String?> _descargarImagenDeAviso(String url) async {
+  try {
+    final uri = Uri.tryParse(url);
+    if (uri == null || !uri.hasScheme) return null;
+
+    final respuesta = await http
+        .get(uri)
+        .timeout(const Duration(seconds: 8));
+    if (respuesta.statusCode != 200) return null;
+
+    final carpeta = await Directory.systemTemp.createTemp('push_img');
+    final archivo = File('${carpeta.path}/portada.jpg');
+    await archivo.writeAsBytes(respuesta.bodyBytes);
+    return archivo.path;
+  } catch (_) {
+    return null;
+  }
 }
 
 /// `false` para los mensajes de control (pings de sincronización, silenciosos
@@ -599,13 +635,35 @@ class PushNotificationsService extends ChangeNotifier {
 
     await _addNotification(message);
 
+    final titulo = _tituloDeMensaje(message);
+    final cuerpo = _cuerpoDeMensaje(message);
+
+    // Con la app abierta el aviso lo dibuja la app, no FCM: si no se baja la
+    // foto acá, la noticia llega sin imagen justo cuando el usuario está
+    // mirando la pantalla.
+    final imagen = _imagenDeMensaje(message);
+    final rutaImagen =
+        imagen == null ? null : await _descargarImagenDeAviso(imagen);
+
+    // Con la foto se despliega a lo grande; sin ella, al menos el texto
+    // completo en vez de una sola línea recortada.
+    final estilo = rutaImagen != null
+        ? BigPictureStyleInformation(
+            FilePathAndroidBitmap(rutaImagen),
+            largeIcon: FilePathAndroidBitmap(rutaImagen),
+            contentTitle: titulo,
+            summaryText: cuerpo,
+            hideExpandedLargeIcon: true,
+          )
+        : (cuerpo != null ? BigTextStyleInformation(cuerpo) : null);
+
     // Con los textos ya resueltos: el aviso que traía el título solo en `data`
     // se descartaba aquí y nunca llegaba a la bandeja con la app abierta.
     await _localNotificationsPlugin.show(
       _idDeAvisoLocal(message),
-      _tituloDeMensaje(message),
-      _cuerpoDeMensaje(message),
-      const NotificationDetails(
+      titulo,
+      cuerpo,
+      NotificationDetails(
         android: AndroidNotificationDetails(
           'new_flips',
           'Flips Notifications',
@@ -613,8 +671,9 @@ class PushNotificationsService extends ChangeNotifier {
           importance: Importance.high,
           priority: Priority.high,
           icon: '@mipmap/ic_launcher',
+          styleInformation: estilo,
         ),
-        iOS: DarwinNotificationDetails(),
+        iOS: const DarwinNotificationDetails(),
       ),
       payload: jsonEncode(message.data),
     );

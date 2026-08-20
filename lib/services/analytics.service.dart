@@ -155,6 +155,29 @@ class AnalyticsService {
     );
   }
 
+  /// Cuántas personas usan el lector en voz alta.
+  ///
+  /// Es el dato que decide si vale la pena generar audio con voz natural en el
+  /// backend: si casi nadie toca el botón, no hay nada que optimizar.
+  static Future<void> logNoteListen({
+    required int noteId,
+    required String slug,
+    required String title,
+    required int characters,
+    String engine = 'device_tts',
+  }) async {
+    await _logEvent(
+      name: 'note_listen',
+      parameters: {
+        'item_id': noteId.toString(),
+        'item_name': _sanitize(title),
+        'item_variant': _sanitize(slug),
+        'characters': characters,
+        'engine': _sanitize(engine),
+      },
+    );
+  }
+
   static Future<void> _logEvent({
     required String name,
     required Map<String, Object?> parameters,

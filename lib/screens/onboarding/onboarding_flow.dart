@@ -164,6 +164,44 @@ class OnboardingFlow {
     await runTour(context, bellKey: bellKey, bottomNavKey: bottomNavKey);
   }
 
+  /// Presenta escuchar y compartir la primera vez que se abre una noticia.
+  ///
+  /// Se hace acá y no en el tour del Home porque estos dos botones solo existen
+  /// dentro del detalle: resaltarlos exige tenerlos en pantalla.
+  static Future<void> runArticleTour(
+    BuildContext context, {
+    required GlobalKey listenKey,
+    required GlobalKey shareKey,
+  }) async {
+    if (!await OnboardingService.isArticleTourPending()) return;
+    if (!context.mounted) return;
+
+    // La cabecera se arma con la nota ya cargada: puede tardar algún frame.
+    await _waitForKey(listenKey);
+    if (!context.mounted) return;
+
+    await showCoachMarks(context, [
+      CoachMarkStep(
+        targetKey: listenKey,
+        icon: Icons.headphones_outlined,
+        title: 'Escucha la noticia',
+        description:
+            'Toca aquí y una voz te lee la nota completa. Puedes pausarla, '
+            'cambiar la velocidad y seguir leyendo mientras escuchas.',
+      ),
+      CoachMarkStep(
+        targetKey: shareKey,
+        icon: Icons.share_outlined,
+        title: 'Compártela con quien quieras',
+        description:
+            'Envía la noticia por WhatsApp, redes sociales o cualquier otra '
+            'aplicación que tengas instalada.',
+      ),
+    ]);
+
+    await OnboardingService.markArticleTourCompleted();
+  }
+
   // ---------------------------------------------------------------------------
   // Utilidades internas
   // ---------------------------------------------------------------------------

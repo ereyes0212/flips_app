@@ -23,6 +23,28 @@ void main() {
     });
   });
 
+  group('aviso del detalle de noticia', () {
+    test('está pendiente hasta completarlo', () async {
+      expect(await OnboardingService.isArticleTourPending(), isTrue);
+
+      await OnboardingService.markArticleTourCompleted();
+      expect(await OnboardingService.isArticleTourPending(), isFalse);
+    });
+
+    test('es independiente del tour del Home', () async {
+      await OnboardingService.markTourCompleted();
+
+      expect(await OnboardingService.isArticleTourPending(), isTrue);
+    });
+
+    test('repetir el tutorial también lo vuelve a mostrar', () async {
+      await OnboardingService.markArticleTourCompleted();
+      await OnboardingService.resetTour();
+
+      expect(await OnboardingService.isArticleTourPending(), isTrue);
+    });
+  });
+
   group('solicitud de notificaciones', () {
     test('no se pregunta si el permiso ya está concedido', () async {
       expect(

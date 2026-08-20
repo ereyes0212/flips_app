@@ -54,6 +54,11 @@
             <action android:name="android.intent.action.PROCESS_TEXT"/>
             <data android:mimeType="text/plain"/>
         </intent>
+        <!-- Sin esto Android 11+ oculta el motor de texto a voz y el lector de
+             noticias se queda mudo sin avisar. -->
+        <intent>
+            <action android:name="android.intent.action.TTS_SERVICE"/>
+        </intent>
     </queries>
 
 </manifest>

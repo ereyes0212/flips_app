@@ -16,17 +16,38 @@ class _NoticiaDetalleScreen extends StatefulWidget {
 class _NoticiaDetalleScreenState extends State<_NoticiaDetalleScreen> {
   final _service = NoticiasService();
   late NoticiaModel _noticia = widget.noticia;
+  late final LectorProvider _lector;
+
+  /// Objetivos del aviso de bienvenida del detalle.
+  final _escucharKey = GlobalKey();
+  final _compartirKey = GlobalKey();
+
   bool _tracked = false;
+  bool _avisoLanzado = false;
   bool _cargandoContenido = false;
   String _errorContenido = '';
+
+  String get _claveLectura => claveDeNoticia(_noticia);
 
   @override
   void initState() {
     super.initState();
+    // Se guarda la referencia acá porque en `dispose` ya no se puede consultar
+    // el árbol de providers y hay que cortar la voz al salir.
+    _lector = context.read<LectorProvider>();
     // El listado solo trae la tarjeta: el contenido se pide al abrir la nota.
     if (!_noticia.tieneContenido) {
       Future.microtask(_cargarContenido);
     }
+  }
+
+  @override
+  void dispose() {
+    // Si el usuario se va de la nota, la lectura de esa nota se detiene. No se
+    // usa `detener()` a secas para no cortar una lectura que arrancó otra
+    // pantalla.
+    unawaited(_lector.detenerSi(_claveLectura));
+    super.dispose();
   }
 
   @override
@@ -37,6 +58,31 @@ class _NoticiaDetalleScreenState extends State<_NoticiaDetalleScreen> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       unawaited(_trackNewsView());
+      // Si la nota ya venía completa no hay descarga que esperar y el aviso
+      // puede salir de una vez.
+      _programarAvisoDeAcciones();
+    });
+  }
+
+  /// Muestra una sola vez, en la primera noticia que se abre, para qué sirven
+  /// los botones de escuchar y compartir.
+  ///
+  /// Se espera a que el contenido esté cargado: con la nota a medias el botón
+  /// de escuchar aparece deshabilitado y el aviso quedaría señalando algo que
+  /// no responde.
+  void _programarAvisoDeAcciones() {
+    if (_avisoLanzado || _cargandoContenido) return;
+    _avisoLanzado = true;
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      unawaited(
+        OnboardingFlow.runArticleTour(
+          context,
+          listenKey: _escucharKey,
+          shareKey: _compartirKey,
+        ),
+      );
     });
   }
 
@@ -58,6 +104,10 @@ class _NoticiaDetalleScreenState extends State<_NoticiaDetalleScreen> {
         _noticia = completa;
       }
     });
+
+    // Con la nota ya en pantalla el botón de escuchar responde, así que ahora
+    // sí tiene sentido señalarlo.
+    _programarAvisoDeAcciones();
 
     if (completa != null) unawaited(_guardarOffline(completa));
   }
@@ -95,17 +145,26 @@ class _NoticiaDetalleScreenState extends State<_NoticiaDetalleScreen> {
     final categoriasPorId = context.watch<NoticiasProvider>().categoriasPorId;
 
     return Scaffold(
+      // Solo ocupa espacio mientras se está escuchando esta nota.
+      bottomNavigationBar: _BarraLector(clave: _claveLectura),
       body: CustomScrollView(
         slivers: [
           SliverAppBar(
             expandedHeight: 320,
             pinned: true,
             actions: [
-              IconButton(
-                tooltip: 'Compartir noticia',
-                onPressed: () => _compartirNoticia(context, noticia),
-                icon: const Icon(Icons.share_outlined),
+              _BotonEscuchar(
+                key: _escucharKey,
+                noticia: noticia,
+                habilitado: !_cargandoContenido,
               ),
+              _AccionCabecera(
+                key: _compartirKey,
+                tooltip: 'Compartir noticia',
+                icon: Icons.share_outlined,
+                onPressed: () => _compartirNoticia(context, noticia),
+              ),
+              const SizedBox(width: 4),
             ],
             flexibleSpace: FlexibleSpaceBar(
               // Toda la cabecera abre la imagen: el degradado y el titular van
@@ -208,6 +267,177 @@ class _NoticiaDetalleScreenState extends State<_NoticiaDetalleScreen> {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+/// Botón de la cabecera, pensado para ir encima de la foto.
+///
+/// La `AppBar` pinta sus iconos con `onSurface`, que es oscuro, y el fondo de
+/// la barra es transparente: sobre una foto oscura los botones desaparecían.
+/// Con un disco translúcido detrás y el icono en blanco se leen igual sobre
+/// cualquier imagen y también sobre el cuerpo de la nota al hacer scroll.
+class _AccionCabecera extends StatelessWidget {
+  const _AccionCabecera({
+    super.key,
+    required this.tooltip,
+    required this.icon,
+    required this.onPressed,
+  });
+
+  final String tooltip;
+  final IconData icon;
+
+  /// `null` deja el botón deshabilitado y atenuado.
+  final VoidCallback? onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 2),
+      child: Material(
+        color: Colors.black.withOpacity(0.42),
+        shape: const CircleBorder(),
+        clipBehavior: Clip.antiAlias,
+        child: IconButton(
+          tooltip: tooltip,
+          onPressed: onPressed,
+          color: Colors.white,
+          disabledColor: Colors.white38,
+          iconSize: 22,
+          icon: Icon(icon),
+        ),
+      ),
+    );
+  }
+}
+
+/// Botón de la barra superior que arranca y pausa la lectura en voz alta.
+///
+/// Escucha con `select` en vez de `watch` para que el cambio de párrafo no
+/// rearme el artículo entero: el cuerpo trae imágenes y anuncios, y volver a
+/// construirlos cada pocos segundos se nota.
+class _BotonEscuchar extends StatelessWidget {
+  const _BotonEscuchar({
+    super.key,
+    required this.noticia,
+    required this.habilitado,
+  });
+
+  final NoticiaModel noticia;
+
+  /// Falso mientras la nota todavía se está descargando: aún no hay qué leer.
+  final bool habilitado;
+
+  Future<void> _alternar(BuildContext context) async {
+    final lector = context.read<LectorProvider>();
+    final messenger = ScaffoldMessenger.of(context);
+    final clave = claveDeNoticia(noticia);
+    final guion = construirGuionDeLectura(noticia);
+
+    // Se mira antes de alternar: si no había nada sonando para esta nota,
+    // entonces esto es un arranque y no una pausa ni un reanudar.
+    final arranque = !lector.estaActivoPara(clave);
+
+    final mensaje = await lector.alternar(clave: clave, guion: guion);
+
+    if (mensaje != null) {
+      messenger.showSnackBar(
+        SnackBar(content: Text(mensaje), duration: const Duration(seconds: 5)),
+      );
+      return;
+    }
+
+    if (arranque) {
+      unawaited(
+        AnalyticsService.logNoteListen(
+          noteId: noticia.id,
+          slug: noticia.slug,
+          title: noticia.title,
+          characters: guion.caracteres,
+        ),
+      );
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final leyendo = context.select<LectorProvider, bool>(
+      (lector) => lector.estaLeyendo(claveDeNoticia(noticia)),
+    );
+
+    return _AccionCabecera(
+      tooltip: leyendo ? 'Pausar lectura' : 'Escuchar noticia',
+      icon: leyendo ? Icons.pause_circle_outline : Icons.headphones_outlined,
+      onPressed: habilitado ? () => _alternar(context) : null,
+    );
+  }
+}
+
+/// Controles de reproducción al pie de la nota.
+///
+/// Se pinta solo si la que suena es esta noticia; en cualquier otro caso ocupa
+/// cero alto y el `Scaffold` no le reserva espacio.
+class _BarraLector extends StatelessWidget {
+  const _BarraLector({required this.clave});
+
+  final String clave;
+
+  static String _etiquetaVelocidad(double factor) {
+    final texto = factor.toStringAsFixed(2);
+    return '${texto.replaceFirst(RegExp(r'\.?0+$'), '')}x';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final lector = context.watch<LectorProvider>();
+    if (!lector.estaActivoPara(clave)) return const SizedBox.shrink();
+
+    final theme = Theme.of(context);
+    final leyendo = lector.estado == EstadoLector.leyendo;
+
+    return Material(
+      elevation: 8,
+      color: theme.colorScheme.surface,
+      child: SafeArea(
+        top: false,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            LinearProgressIndicator(value: lector.progreso, minHeight: 3),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(8, 6, 12, 6),
+              child: Row(
+                children: [
+                  IconButton(
+                    tooltip: leyendo ? 'Pausar' : 'Reanudar',
+                    onPressed: leyendo ? lector.pausar : lector.reanudar,
+                    icon: Icon(leyendo ? Icons.pause : Icons.play_arrow),
+                  ),
+                  IconButton(
+                    tooltip: 'Detener lectura',
+                    onPressed: lector.detener,
+                    icon: const Icon(Icons.stop),
+                  ),
+                  Expanded(
+                    child: Text(
+                      leyendo ? 'Escuchando noticia' : 'Lectura en pausa',
+                      style: theme.textTheme.bodyMedium?.copyWith(
+                        fontWeight: FontWeight.w600,
+                      ),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                  TextButton(
+                    onPressed: lector.siguienteVelocidad,
+                    child: Text(_etiquetaVelocidad(lector.factorVelocidad)),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -495,69 +725,10 @@ class _ArticleTextBlockState extends State<_ArticleTextBlock> {
   final _service = NoticiasService();
   bool _openingLink = false;
 
-  String cleanHtml(String value, {bool preserveParagraphs = false}) {
-    var text = value
-        .replaceAll(RegExp(r'<\s*br\s*/?\s*>', caseSensitive: false), '\n')
-        .replaceAll(
-          RegExp(
-            r'</\s*(p|div|h[1-6]|li|blockquote)\s*>',
-            caseSensitive: false,
-          ),
-          preserveParagraphs ? '\n\n' : ' ',
-        )
-        .replaceAll(RegExp(r'<[^>]*>'), ' ');
+  String cleanHtml(String value, {bool preserveParagraphs = false}) =>
+      limpiarHtml(value, preservarParrafos: preserveParagraphs);
 
-    text = _decodeHtmlEntities(text);
-
-    if (preserveParagraphs) {
-      return _stripRedaccionPrefix(
-        text
-          .split('\n')
-          .map((line) => line.replaceAll(RegExp(r'\s+'), ' ').trim())
-          .where((line) => line.isNotEmpty)
-          .join('\n\n'),
-      );
-    }
-
-    return _stripRedaccionPrefix(text.replaceAll(RegExp(r'\s+'), ' ').trim());
-  }
-
-  String _decodeHtmlEntities(String value) {
-    var text = value
-        .replaceAll('&nbsp;', ' ')
-        .replaceAll('&amp;', '&')
-        .replaceAll('&quot;', '"')
-        .replaceAll('&#039;', "'")
-        .replaceAll('&apos;', "'")
-        .replaceAll('&lt;', '<')
-        .replaceAll('&gt;', '>')
-        .replaceAll('&ldquo;', '“')
-        .replaceAll('&rdquo;', '”')
-        .replaceAll('&lsquo;', '‘')
-        .replaceAll('&rsquo;', '’')
-        .replaceAll('&ndash;', '–')
-        .replaceAll('&mdash;', '—')
-        .replaceAll('&hellip;', '…');
-
-    text = text.replaceAllMapped(RegExp(r'&#(\d+);'), (match) {
-      final codePoint = int.tryParse(match.group(1) ?? '');
-      if (codePoint == null) return match.group(0) ?? '';
-      return String.fromCharCode(codePoint);
-    });
-
-    return text.replaceAllMapped(RegExp(r'&#x([0-9a-fA-F]+);'), (match) {
-      final codePoint = int.tryParse(match.group(1) ?? '', radix: 16);
-      if (codePoint == null) return match.group(0) ?? '';
-      return String.fromCharCode(codePoint);
-    });
-  }
-
-  String _stripRedaccionPrefix(String value) {
-    return value.replaceFirst(
-      RegExp(r'^\s*redacci[oó]n[\s\.:,\-–—]+\s*', caseSensitive: false),
-      '',
-    );
-  }
+  String _decodeHtmlEntities(String value) => decodificarEntidadesHtml(value);
 
 
 
@@ -655,7 +826,7 @@ class _ArticleTextBlockState extends State<_ArticleTextBlock> {
       var cleaned = _decodeHtmlEntities(raw);
       if (cleaned.isEmpty) return;
       if (!strippedPrefix) {
-        cleaned = _stripRedaccionPrefix(cleaned);
+        cleaned = quitarPrefijoDeRedaccion(cleaned);
         strippedPrefix = true;
       }
       if (cleaned.isNotEmpty) {
@@ -1195,60 +1366,14 @@ class _ArticleLinkState extends State<_ArticleLink> {
   final _service = NoticiasService();
   bool _loading = false;
 
-  String _cleanHtml(String value, {bool preserveParagraphs = false}) {
-    var text = value
-        .replaceAll(RegExp(r'<\s*br\s*/?\s*>', caseSensitive: false), '\n')
-        .replaceAll(
-          RegExp(
-            r'</\s*(p|div|h[1-6]|li|blockquote)\s*>',
-            caseSensitive: false,
-          ),
-          preserveParagraphs ? '\n\n' : ' ',
-        )
-        .replaceAll(RegExp(r'<[^>]*>'), ' ');
-
-    text = _decodeHtmlEntities(text);
-
-    if (preserveParagraphs) {
-      return text
-          .split('\n')
-          .map((line) => line.replaceAll(RegExp(r'\s+'), ' ').trim())
-          .where((line) => line.isNotEmpty)
-          .join('\n\n');
-    }
-
-    return text.replaceAll(RegExp(r'\s+'), ' ').trim();
-  }
-
-  String _decodeHtmlEntities(String value) {
-    var text = value
-        .replaceAll('&nbsp;', ' ')
-        .replaceAll('&amp;', '&')
-        .replaceAll('&quot;', '"')
-        .replaceAll('&#039;', "'")
-        .replaceAll('&apos;', "'")
-        .replaceAll('&lt;', '<')
-        .replaceAll('&gt;', '>')
-        .replaceAll('&ldquo;', '“')
-        .replaceAll('&rdquo;', '”')
-        .replaceAll('&lsquo;', '‘')
-        .replaceAll('&rsquo;', '’')
-        .replaceAll('&ndash;', '–')
-        .replaceAll('&mdash;', '—')
-        .replaceAll('&hellip;', '…');
-
-    text = text.replaceAllMapped(RegExp(r'&#(\d+);'), (match) {
-      final codePoint = int.tryParse(match.group(1) ?? '');
-      if (codePoint == null) return match.group(0) ?? '';
-      return String.fromCharCode(codePoint);
-    });
-
-    return text.replaceAllMapped(RegExp(r'&#x([0-9a-fA-F]+);'), (match) {
-      final codePoint = int.tryParse(match.group(1) ?? '', radix: 16);
-      if (codePoint == null) return match.group(0) ?? '';
-      return String.fromCharCode(codePoint);
-    });
-  }
+  /// Los enlaces relacionados no llevan el "Redacción." de las notas, así que
+  /// acá el prefijo no se toca.
+  String _cleanHtml(String value, {bool preserveParagraphs = false}) =>
+      limpiarHtml(
+        value,
+        preservarParrafos: preserveParagraphs,
+        quitarPrefijoRedaccion: false,
+      );
 
   List<TextSpan> _buildLabelSpans(TextStyle baseStyle) {
     final source = widget.block.sourceHtml;

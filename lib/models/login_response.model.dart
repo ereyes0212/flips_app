@@ -9,6 +9,8 @@ class LoginResponseModel {
     this.expiresIn,
     this.expiresAt,
     this.sessionCookie = '',
+    this.refreshToken = '',
+    this.refreshExpiresAt,
   });
 
   final bool ok;
@@ -20,6 +22,15 @@ class LoginResponseModel {
   final int? expiresIn;
   final DateTime? expiresAt;
   final String sessionCookie;
+
+  /// Credencial de larga duración (60 días deslizantes) para pedir un `token`
+  /// nuevo sin volver a pedir usuario y contraseña. Vacío en respuestas de
+  /// backends antiguos, que es lo que decide si la app puede renovar sola.
+  final String refreshToken;
+
+  final DateTime? refreshExpiresAt;
+
+  bool get tieneRefreshToken => refreshToken.trim().isNotEmpty;
 
   factory LoginResponseModel.fromJson(Map<String, dynamic> json) {
     final data = _mapValue(json['data']);
@@ -43,6 +54,13 @@ class LoginResponseModel {
       expiresIn: _intValue(json['expiresIn']),
       expiresAt: _dateTimeValue(json['expiresAt']),
       sessionCookie: _stringValue(json['sessionCookie']) ?? '',
+      refreshToken: _stringValue(json['refreshToken'])
+          ?? _stringValue(json['refresh_token'])
+          ?? _stringValue(data['refreshToken'])
+          ?? _stringValue(data['refresh_token'])
+          ?? '',
+      refreshExpiresAt: _dateTimeValue(json['refreshExpiresAt'])
+          ?? _dateTimeValue(json['refresh_expires_at']),
     );
   }
 
@@ -57,6 +75,8 @@ class LoginResponseModel {
       expiresIn: expiresIn,
       expiresAt: expiresAt,
       sessionCookie: sessionCookie ?? this.sessionCookie,
+      refreshToken: refreshToken,
+      refreshExpiresAt: refreshExpiresAt,
     );
   }
 

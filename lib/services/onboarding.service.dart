@@ -12,10 +12,15 @@ class OnboardingService {
   /// Súbela cuando el tour cambie y quieras volver a mostrarlo a todos.
   static const int tourVersion = 1;
 
+  /// Versión del aviso que se muestra la primera vez que se abre una noticia.
+  /// Va aparte del tour del Home porque se dispara en otro momento.
+  static const int articleTourVersion = 1;
+
   static const int _maxNotificationPrompts = 3;
   static const Duration _promptCooldown = Duration(days: 7);
 
   static const String _kTourVersion = 'onboarding_tour_version';
+  static const String _kArticleTourVersion = 'onboarding_article_tour_version';
   static const String _kPromptCount = 'notifications_prompt_count';
   static const String _kPromptLastShown = 'notifications_prompt_last_shown';
   static const String _kPromptPendingLogin = 'notifications_prompt_pending_login';
@@ -35,9 +40,27 @@ class OnboardingService {
   }
 
   /// Permite volver a ver el tutorial desde "Más opciones".
+  ///
+  /// Borra también el aviso del detalle: quien pide repetir el tutorial espera
+  /// verlo completo, no a medias.
   static Future<void> resetTour() async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove(_kTourVersion);
+    await prefs.remove(_kArticleTourVersion);
+  }
+
+  // ---------------------------------------------------------------------------
+  // Aviso del detalle de noticia
+  // ---------------------------------------------------------------------------
+
+  static Future<bool> isArticleTourPending() async {
+    final prefs = await SharedPreferences.getInstance();
+    return (prefs.getInt(_kArticleTourVersion) ?? 0) < articleTourVersion;
+  }
+
+  static Future<void> markArticleTourCompleted() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setInt(_kArticleTourVersion, articleTourVersion);
   }
 
   // ---------------------------------------------------------------------------

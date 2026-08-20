@@ -165,22 +165,11 @@ class AuthController {
   ) async {
     final prefs = await SharedPreferences.getInstance();
     final token = SessionService.normalizeToken(response.token) ?? '';
-    final sessionCookie =
-        SessionService.normalizeSessionCookie(response.sessionCookie)
-            ?? SessionService.sessionCookieFromToken(token)
-            ?? '';
-    final sessionExpiresAt = SessionService.sessionExpiresAt(response);
 
-    await prefs.setString('token', token);
-    await prefs.setString('sessionCookie', sessionCookie);
-    if (sessionExpiresAt != null) {
-      await prefs.setString(
-        'sessionExpiresAt',
-        sessionExpiresAt.toIso8601String(),
-      );
-    } else {
-      await prefs.remove('sessionExpiresAt');
-    }
+    // El par de credenciales lo escribe el servicio, que es el mismo camino que
+    // usa la renovación: así el login y el refresh no pueden guardar distinto.
+    await SessionService.guardarTokens(response);
+
     await prefs.setString('user', response.data.user);
     await prefs.setString('idUser', response.data.idUser);
     await prefs.setString('nombre', response.data.nombre);
@@ -213,6 +202,9 @@ class AuthController {
   Future logoutController(context) async {
     try {
       await PushNotificationsService.instance.unregisterTokenOnLogout();
+      // Antes de borrar nada local: es lo que revoca el refresh token en el
+      // servidor. Sin esto quedaría vivo 60 días aunque el usuario haya salido.
+      await SessionService.cerrarSesionEnServidor();
       await SessionService.clearSession();
       await _googleSignIn.signOut();
     } finally {

@@ -9,7 +9,17 @@ import 'package:google_mobile_ads/google_mobile_ads.dart';
 /// medida distinta a la primera. El tamaño real se pide con
 /// `getPlatformAdSize()` dentro de `onAdLoaded`, que es lo que documenta el SDK.
 ///
-/// Mientras no haya anuncio ocupa cero: no deja huecos en blanco.
+/// Dos cuidados para que intercalado en una lista no sacuda el scroll:
+///
+/// * **Reserva el alto desde el principio.** Antes ocupaba cero hasta que el
+///   anuncio llegaba y ahí empujaba todo lo de abajo de golpe: leyendo el
+///   listado, el texto se movía solo. Ahora aparta el tamaño preferido mientras
+///   carga y solo se encoge si el anuncio falla, que es cuando de verdad no
+///   debe quedar un hueco.
+/// * **Sobrevive al scroll.** Los slivers destruyen lo que sale de pantalla; sin
+///   `AutomaticKeepAliveClientMixin` cada vuelta atrás desechaba el anuncio y
+///   pedía otro, así que el banner desaparecía y volvía —a veces con otra
+///   creatividad— con solo bajar y subir.
 class AdManagerBannerView extends StatefulWidget {
   const AdManagerBannerView({
     super.key,
@@ -34,9 +44,16 @@ class AdManagerBannerView extends StatefulWidget {
   State<AdManagerBannerView> createState() => _AdManagerBannerViewState();
 }
 
-class _AdManagerBannerViewState extends State<AdManagerBannerView> {
+class _AdManagerBannerViewState extends State<AdManagerBannerView>
+    with AutomaticKeepAliveClientMixin {
   AdManagerBannerAd? _ad;
   AdSize? _tamanoServido;
+  bool _fallo = false;
+
+  /// Mantiene vivo el anuncio aunque se salga de la pantalla. Es lo que evita
+  /// que bajar y volver a subir dispare una petición nueva.
+  @override
+  bool get wantKeepAlive => true;
 
   @override
   void initState() {
@@ -75,7 +92,7 @@ class _AdManagerBannerViewState extends State<AdManagerBannerView> {
         onAdFailedToLoad: (ad, error) {
           _ad = null;
           ad.dispose();
-          if (mounted) setState(() {});
+          if (mounted) setState(() => _fallo = true);
           debugPrint('Banner ${widget.adUnitId} no cargó: $error');
         },
       ),
@@ -87,16 +104,44 @@ class _AdManagerBannerViewState extends State<AdManagerBannerView> {
 
   @override
   Widget build(BuildContext context) {
+    super.build(context); // Lo exige AutomaticKeepAliveClientMixin.
+
+    if (_fallo || widget.sizes.isEmpty) return const SizedBox.shrink();
+
     final ad = _ad;
     final tamano = _tamanoServido;
-    if (ad == null || tamano == null) return const SizedBox.shrink();
+    final cargado = ad != null && tamano != null;
+
+    // Mientras no se sepa la medida real se aparta la preferida: es la que Ad
+    // Manager sirve casi siempre, así que al llegar el anuncio no se mueve nada.
+    final medida = tamano ?? widget.sizes.first;
 
     return Align(
       alignment: widget.alignment,
       child: SizedBox(
-        width: tamano.width.toDouble(),
-        height: tamano.height.toDouble(),
-        child: AdWidget(ad: ad),
+        width: medida.width.toDouble(),
+        height: medida.height.toDouble(),
+        child: cargado ? AdWidget(ad: ad) : const _EspacioDeAnuncio(),
+      ),
+    );
+  }
+}
+
+/// Marca el sitio mientras el anuncio viaja.
+///
+/// Un hueco transparente del alto de un rectángulo parece un error de armado;
+/// un bloque tenue se lee como algo que todavía está cargando.
+class _EspacioDeAnuncio extends StatelessWidget {
+  const _EspacioDeAnuncio();
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surfaceContainerHighest.withOpacity(0.45),
+        borderRadius: BorderRadius.circular(12),
       ),
     );
   }

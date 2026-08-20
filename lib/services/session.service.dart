@@ -6,6 +6,7 @@ import 'package:flips_app/services/acceso_usuario.service.dart';
 import 'package:flips_app/services/interstitial_ads.service.dart';
 import 'package:flutter/material.dart';
 import 'package:google_sign_in/google_sign_in.dart';
+import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 
 class SessionExpiredException implements Exception {
@@ -26,10 +27,38 @@ class SessionService {
     'nombre',
     'fotoUrl',
     'sessionExpiresAt',
+    'refreshToken',
+    'refreshExpiresAt',
   ];
+
+  /// Un token que vence en segundos no alcanza a llegar al servidor. Se cambia
+  /// antes de tiempo para no perder la petición por unos milisegundos.
+  static const _margenDeRenovacion = Duration(seconds: 30);
+
   static bool _redirecting = false;
 
+  /// Renovación en vuelo. El backend consume el refresh token en cada canje, así
+  /// que dos peticiones que caduquen a la vez no deben pedir dos renovaciones:
+  /// la segunda gastaría un token ya usado y el servidor lo leería como robo.
+  static Future<bool>? _renovacionEnCurso;
+
+  /// Token de acceso listo para usar, renovándolo si hizo falta.
+  ///
+  /// Devuelve `null` cuando no hay forma de seguir: o no había sesión, o el
+  /// refresh fue rechazado (en cuyo caso la sesión ya quedó cerrada), o no hubo
+  /// red para intentarlo.
   static Future<String?> getValidToken() async {
+    final vigente = await _tokenVigente();
+    if (vigente != null) return vigente;
+
+    // Antes esto cerraba la sesión y mandaba al login. Ahora se canjea el
+    // refresh token: es lo que evita que el usuario vuelva a entrar cada hora.
+    final renovado = await renovarSesion();
+    return renovado ? _tokenVigente() : null;
+  }
+
+  /// El token guardado, si todavía sirve. No renueva ni borra nada.
+  static Future<String?> _tokenVigente() async {
     final prefs = await SharedPreferences.getInstance();
     final token = normalizeToken(prefs.getString('token'));
 
@@ -44,28 +73,23 @@ class SessionService {
     );
 
     if (storedExpiresAt != null) {
-      if (isExpired(storedExpiresAt)) {
-        await clearSession();
-        return null;
-      }
-
-      return token;
-    }
-
-    if (isJwtExpired(token)) {
-      await clearSession();
-      return null;
+      return _venceEnBreve(storedExpiresAt) ? null : token;
     }
 
     final tokenExpiresAt = jwtExpiresAt(token);
-    if (tokenExpiresAt != null) {
-      await prefs.setString(
-        'sessionExpiresAt',
-        tokenExpiresAt.toIso8601String(),
-      );
-    }
+    if (tokenExpiresAt == null) return token;
 
-    return token;
+    await prefs.setString(
+      'sessionExpiresAt',
+      tokenExpiresAt.toIso8601String(),
+    );
+
+    return _venceEnBreve(tokenExpiresAt) ? null : token;
+  }
+
+  static bool _venceEnBreve(DateTime expiresAt) {
+    final limite = DateTime.now().toUtc().add(_margenDeRenovacion);
+    return !expiresAt.toUtc().isAfter(limite);
   }
 
   static Future<bool> hasValidSession() async => (await getValidToken()) != null;
@@ -74,6 +98,170 @@ class SessionService {
     final prefs = await SharedPreferences.getInstance();
     final token = normalizeToken(prefs.getString('token'));
     return token != null && token.isNotEmpty;
+  }
+
+  // ---------------------------------------------------------------------------
+  // Renovación de sesión
+  // ---------------------------------------------------------------------------
+
+  static Future<String?> getRefreshToken() async {
+    final prefs = await SharedPreferences.getInstance();
+    final value = prefs.getString('refreshToken')?.trim() ?? '';
+    return value.isEmpty ? null : value;
+  }
+
+  /// Guarda el par de credenciales de una respuesta de login o de refresh.
+  ///
+  /// Si la respuesta no trae refresh token se conserva el que ya estuviera
+  /// guardado: un backend viejo no debe borrar una credencial que sirve.
+  static Future<void> guardarTokens(LoginResponseModel respuesta) async {
+    final prefs = await SharedPreferences.getInstance();
+    final token = normalizeToken(respuesta.token) ?? '';
+    final cookie = normalizeSessionCookie(respuesta.sessionCookie)
+        ?? sessionCookieFromToken(token)
+        ?? '';
+    final expiraEn = sessionExpiresAt(respuesta);
+
+    await prefs.setString('token', token);
+    await prefs.setString('sessionCookie', cookie);
+
+    if (expiraEn != null) {
+      await prefs.setString('sessionExpiresAt', expiraEn.toIso8601String());
+    } else {
+      await prefs.remove('sessionExpiresAt');
+    }
+
+    if (!respuesta.tieneRefreshToken) return;
+
+    await prefs.setString('refreshToken', respuesta.refreshToken.trim());
+    final refreshExpira = respuesta.refreshExpiresAt;
+    if (refreshExpira != null) {
+      await prefs.setString(
+        'refreshExpiresAt',
+        refreshExpira.toIso8601String(),
+      );
+    } else {
+      await prefs.remove('refreshExpiresAt');
+    }
+  }
+
+  /// Canjea el refresh token por un par nuevo.
+  ///
+  /// Se serializa a propósito: cada canje consume el token entregado, así que
+  /// dos renovaciones en paralelo mandarían el mismo y la segunda parecería un
+  /// token robado.
+  static Future<bool> renovarSesion() {
+    return _renovacionEnCurso ??= _renovar().whenComplete(() {
+      _renovacionEnCurso = null;
+    });
+  }
+
+  static Future<bool> _renovar() async {
+    final refreshToken = await getRefreshToken();
+
+    if (refreshToken == null) {
+      // Sesión de una versión anterior de la app, o ya cerrada: sin refresh
+      // token el access token vencido no tiene vuelta y toca volver a entrar.
+      await clearSession();
+      return false;
+    }
+
+    final http.Response respuesta;
+    try {
+      respuesta = await http
+          .post(
+            Uri.parse('${apiUrl}auth/refresh'),
+            headers: const {
+              'Accept': 'application/json',
+              'Content-Type': 'application/json',
+            },
+            body: jsonEncode({'refreshToken': refreshToken}),
+          )
+          .timeout(const Duration(seconds: 20));
+    } catch (_) {
+      // Sin red no se sabe si el refresh sigue siendo válido. Se conserva la
+      // sesión para reintentar cuando vuelva la conexión: cerrarla acá dejaría
+      // afuera a quien solo entró al metro.
+      return false;
+    }
+
+    if (respuesta.statusCode == 200) {
+      final renovada = _leerRespuesta(respuesta.body);
+      if (renovada != null && renovada.token.trim().isNotEmpty) {
+        await guardarTokens(renovada);
+        return true;
+      }
+      return false;
+    }
+
+    // El servidor rechazó el refresh: acá sí es definitivo.
+    // `expireAndRedirect` ya borra la sesión antes de mandar al login.
+    await expireAndRedirect(message: _mensajeDeRechazo(_leerJson(respuesta.body)));
+    return false;
+  }
+
+  /// Avisa al servidor que este dispositivo se va, para que revoque el refresh
+  /// token en vez de dejarlo vivo 60 días.
+  ///
+  /// Best effort: si el servidor no contesta, la sesión local se borra igual.
+  /// Dejar al usuario esperando para poder salir sería lo peor de los dos.
+  static Future<void> cerrarSesionEnServidor() async {
+    final refreshToken = await getRefreshToken();
+    if (refreshToken == null) return;
+
+    try {
+      await http
+          .post(
+            Uri.parse('${apiUrl}auth/logout'),
+            headers: const {
+              'Accept': 'application/json',
+              'Content-Type': 'application/json',
+            },
+            body: jsonEncode({'refreshToken': refreshToken}),
+          )
+          .timeout(const Duration(seconds: 6));
+    } catch (_) {
+      // Ver arriba: salir nunca se bloquea por el servidor.
+    }
+  }
+
+  static LoginResponseModel? _leerRespuesta(String body) {
+    final json = _leerJson(body);
+    if (json == null) return null;
+    try {
+      return LoginResponseModel.fromJson(json);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  static Map<String, dynamic>? _leerJson(String body) {
+    if (body.trim().isEmpty) return null;
+    try {
+      final decoded = jsonDecode(body);
+      return decoded is Map<String, dynamic> ? decoded : null;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /// Traduce el `errorCode` del refresh a algo que el usuario entienda.
+  static String _mensajeDeRechazo(Map<String, dynamic>? cuerpo) {
+    final codigo = cuerpo?['errorCode']?.toString().trim().toUpperCase() ?? '';
+    final delServidor = cuerpo?['message']?.toString().trim() ?? '';
+
+    switch (codigo) {
+      case 'CUENTA_DESACTIVADA':
+        return delServidor.isNotEmpty
+            ? delServidor
+            : 'Tu cuenta fue desactivada. Comunícate con nosotros para reactivarla.';
+      case 'REFRESH_REUSADO':
+        // El backend revocó la familia entera por sospecha de robo. Se le dice
+        // al usuario que fue por seguridad y no que "algo falló".
+        return 'Por seguridad cerramos tus sesiones. Vuelve a iniciar sesión.';
+      default:
+        return 'Tu sesión expiró. Inicia sesión nuevamente.';
+    }
   }
 
   static Future<String?> getSessionCookie() async {
