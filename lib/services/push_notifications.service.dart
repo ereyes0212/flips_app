@@ -542,6 +542,27 @@ class PushNotificationsService extends ChangeNotifier {
     return settings.authorizationStatus == AuthorizationStatus.authorized;
   }
 
+  /// ¿Este equipo ya figura en el backend?
+  ///
+  /// Tener el permiso concedido no implica estar registrado: son dos cosas
+  /// distintas. `_kPendingAlertsSyncKey` se escribe en cada intento de alta,
+  /// así que `false` significa que alguno terminó bien y ausente significa que
+  /// nunca se intentó.
+  ///
+  /// Ese «nunca se intentó» es el caso de los teléfonos que traen el permiso
+  /// concedido de fábrica: como no había nada que pedir, no se pedía, y sin esa
+  /// llamada el token no salía nunca hacia la API por más que el permiso
+  /// estuviera en verde.
+  Future<bool> isDeviceRegistered() async {
+    if (!_firebaseReady) return false;
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      return prefs.getBool(_kPendingAlertsSyncKey) == false;
+    } catch (_) {
+      return false;
+    }
+  }
+
   /// Se llama antes de limpiar la sesión, mientras el token de auth sigue
   /// siendo válido: si no, el backend seguiría enviando avisos a este equipo.
   Future<void> unregisterTokenOnLogout() async {
@@ -755,6 +776,9 @@ class PushNotificationsService extends ChangeNotifier {
   /// delega al navegador.
   void _abrirNoticia(NavigatorState navigator, Map<String, dynamic> data) {
     if (_noticiaAbreEnLaApp(data)) {
+      // Sin interstitial: por aquí se entra tocando el aviso del sistema, con
+      // la app cerrada o en segundo plano. El anuncio quedaría encima de lo
+      // primero que el usuario ve al abrir la app.
       navigator.push(rutaNoticiaDesdePush(data));
       return;
     }

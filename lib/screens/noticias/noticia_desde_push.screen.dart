@@ -5,12 +5,22 @@ part of 'noticias.screen.dart';
 /// El payload trae los datos de la tarjeta (título, imagen, fecha…) pero no el
 /// cuerpo: de descargarlo se encarga el detalle de siempre con el slug o el
 /// enlace, igual que cuando la nota se abre desde el listado.
-Route<void> rutaNoticiaDesdePush(Map<String, dynamic> data) {
+///
+/// [conInterstitial] lo prende solo quien abre la nota con la app ya en uso.
+/// Llegar tocando el aviso del sistema no lo prende: ahí la nota es lo primero
+/// que se ve al abrir la app y un anuncio encima taparía justo eso.
+Route<void> rutaNoticiaDesdePush(
+  Map<String, dynamic> data, {
+  bool conInterstitial = false,
+}) {
   final noticia = noticiaDesdePush(data);
 
   return MaterialPageRoute<void>(
     settings: analyticsRouteSettingsFromNews(noticia),
-    builder: (_) => NoticiaDesdePushScreen(noticia: noticia),
+    builder: (_) => NoticiaDesdePushScreen(
+      noticia: noticia,
+      conInterstitial: conInterstitial,
+    ),
   );
 }
 
@@ -53,9 +63,20 @@ List<int> _categoriasDesdePush(String valor) {
 }
 
 class NoticiaDesdePushScreen extends StatefulWidget {
-  const NoticiaDesdePushScreen({super.key, required this.noticia});
+  const NoticiaDesdePushScreen({
+    super.key,
+    required this.noticia,
+    this.conInterstitial = false,
+  });
 
   final NoticiaModel noticia;
+
+  /// Si esta apertura cuenta para el interstitial de noticias.
+  ///
+  /// Apagado por defecto a propósito: de los cuatro caminos que llegan aquí,
+  /// tres son «se abrió la app tocando un aviso» y solo uno —el historial de
+  /// notificaciones dentro de la app— pasa con el usuario ya adentro.
+  final bool conInterstitial;
 
   @override
   State<NoticiaDesdePushScreen> createState() => _NoticiaDesdePushScreenState();
@@ -89,6 +110,27 @@ class _NoticiaDesdePushScreenState extends State<NoticiaDesdePushScreen> {
     }
 
     if (!mounted) return;
+
+    if (!widget.conInterstitial || !acceso.mostrarAnuncios) {
+      _mostrarDetalle(acceso);
+      return;
+    }
+
+    // Abierta desde el historial, la nota cuenta en el mismo marcador que las
+    // del listado: así «una de cada tres» sigue siendo una de cada tres aunque
+    // se mezclen las dos formas de entrar, en vez de sumar anuncios por dos
+    // vías en paralelo.
+    InterstitialAdsService.noticias.registrarAperturaYContinuar(
+      () => _mostrarDetalle(acceso),
+    );
+  }
+
+  /// Cambia la portada de espera por la nota. Se llama tras cerrar el
+  /// interstitial, así que vuelve a mirar `mounted`: entre medio la pantalla
+  /// pudo haberse ido.
+  void _mostrarDetalle(AccesoUsuario acceso) {
+    if (!mounted) return;
+
     setState(() {
       _acceso = acceso;
       _resolviendoPerfil = false;

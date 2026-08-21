@@ -84,18 +84,7 @@ class _NoticiasScreenState extends State<NoticiasScreen> {
     if (!mounted) return;
 
     setState(() => _acceso = acceso);
-    if (acceso.mostrarAnuncios) InterstitialAdsService.instance.precargar();
-  }
-
-  void _abrirDetalleConInterstitial(NoticiaModel noticia) {
-    void abrir() => _abrirDetalle(context, noticia, acceso: _acceso);
-
-    if (!_acceso.mostrarAnuncios) {
-      abrir();
-      return;
-    }
-
-    InterstitialAdsService.instance.registrarAperturaYContinuar(abrir);
+    if (acceso.mostrarAnuncios) InterstitialAdsService.noticias.precargar();
   }
 
 
@@ -220,7 +209,8 @@ class _NoticiasScreenState extends State<NoticiasScreen> {
                 fechaDesde: _filtroFecha?.start,
                 fechaHasta: _filtroFecha?.end,
               ),
-              onTapNoticia: _abrirDetalleConInterstitial,
+              onTapNoticia: (noticia) =>
+                  _abrirDetalle(context, noticia, acceso: _acceso),
               acceso: _acceso,
             ),
           ],
@@ -439,18 +429,37 @@ Future<void> _compartirNoticia(BuildContext context, NoticiaModel noticia) async
 
 // La nota completa (y su guardado offline) se resuelve dentro del detalle,
 // porque el listado solo trae los datos de la tarjeta.
+//
+// El interstitial se dispara aquí y no en cada pantalla a propósito: por esta
+// puerta pasan el listado, la portada, las categorías, las relacionadas y los
+// enlaces internos del cuerpo de la nota. Contarlas todas es lo que hace que
+// «una de cada tres noticias» signifique de verdad una de cada tres.
 void _abrirDetalle(
   BuildContext context,
   NoticiaModel noticia, {
   AccesoUsuario acceso = const AccesoUsuario.sinResolver(),
 }) {
-  Navigator.push(
-    context,
-    MaterialPageRoute(
-      settings: analyticsRouteSettingsFromNews(noticia),
-      builder: (_) => _NoticiaDetalleScreen(noticia: noticia, acceso: acceso),
-    ),
-  );
+  // El navegador se toma antes del anuncio: el `context` que abrió la nota
+  // puede haberse desmontado mientras el interstitial estaba en pantalla.
+  final navigator = Navigator.of(context);
+
+  void abrir() {
+    if (!navigator.mounted) return;
+
+    navigator.push(
+      MaterialPageRoute(
+        settings: analyticsRouteSettingsFromNews(noticia),
+        builder: (_) => _NoticiaDetalleScreen(noticia: noticia, acceso: acceso),
+      ),
+    );
+  }
+
+  if (!acceso.mostrarAnuncios) {
+    abrir();
+    return;
+  }
+
+  InterstitialAdsService.noticias.registrarAperturaYContinuar(abrir);
 }
 
 /// El detalle manda su propio `screen_view` (con el título de la nota), así que

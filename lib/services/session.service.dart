@@ -287,7 +287,7 @@ class SessionService {
     // Sin esto la siguiente cuenta heredaría los privilegios de la anterior:
     // un usuario gratis podría entrar sin anuncios tras un suscriptor.
     await AccesoUsuarioService.instance.invalidar();
-    InterstitialAdsService.instance.liberar();
+    InterstitialAdsService.liberarTodo();
 
     try {
       await GoogleSignIn().signOut();

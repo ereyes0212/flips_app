@@ -3,6 +3,8 @@ import 'package:flips_app/controllers/diarios_digitales.controller.dart';
 import 'package:flips_app/models/diarios_digitales.model.dart';
 import 'package:flips_app/providers/diarios_digitales.provider.dart';
 import 'package:flips_app/screens/paquetes/paquetes.screen.dart';
+import 'package:flips_app/services/acceso_usuario.service.dart';
+import 'package:flips_app/services/interstitial_ads.service.dart';
 import 'package:flips_app/services/session.service.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -20,10 +22,12 @@ class _DiariosDigitalesScreenState extends State<DiariosDigitalesScreen> {
   late final List<int> _anios;
   late int _anioSeleccionado;
   late int _mesSeleccionado;
+  AccesoUsuario _acceso = const AccesoUsuario.sinResolver();
 
   @override
   void initState() {
     super.initState();
+    _resolverAcceso();
     final now = DateTime.now();
     _anioSeleccionado = now.year;
     _mesSeleccionado = now.month;
@@ -32,6 +36,41 @@ class _DiariosDigitalesScreenState extends State<DiariosDigitalesScreen> {
       (index) => now.year + 2 - index,
     );
     Future.microtask(_buscarDiarios);
+  }
+
+  /// Los diarios son contenido de suscriptor, así que el anuncio le toca solo
+  /// a quien entra sin suscripción a leer la edición del día. Quien paga no ve
+  /// anuncios, y los admins tampoco para poder revisar la app.
+  Future<void> _resolverAcceso() async {
+    final acceso = await AccesoUsuarioService.instance.resolver();
+    if (!mounted) return;
+
+    setState(() => _acceso = acceso);
+
+    // Se pide apenas se abre la pantalla, no al tocar la portada: pedirlo en
+    // el toque dejaría el diario esperando a que el anuncio viaje.
+    if (acceso.mostrarAnuncios) InterstitialAdsService.diarios.precargar();
+  }
+
+  void _abrirDiario(DiarioDigitalModel diario) {
+    // El navegador se toma antes del anuncio porque el interstitial se lleva
+    // la pantalla y el `context` puede no seguir montado al volver.
+    final navigator = Navigator.of(context);
+
+    void abrir() {
+      if (!navigator.mounted) return;
+
+      navigator.push(
+        MaterialPageRoute(builder: (_) => PdfViewerScreen(diario: diario)),
+      );
+    }
+
+    if (!_acceso.mostrarAnuncios) {
+      abrir();
+      return;
+    }
+
+    InterstitialAdsService.diarios.registrarAperturaYContinuar(abrir);
   }
 
   static const _meses = {
@@ -137,17 +176,7 @@ class _DiariosDigitalesScreenState extends State<DiariosDigitalesScreen> {
                       diario: diario,
                       mes: _meses[diario.mes] ?? diario.mes.toString(),
                       onTap:
-                          !diario.hasPdf
-                              ? null
-                              : () {
-                                Navigator.push(
-                                  context,
-                                  MaterialPageRoute(
-                                    builder:
-                                        (_) => PdfViewerScreen(diario: diario),
-                                  ),
-                                );
-                              },
+                          !diario.hasPdf ? null : () => _abrirDiario(diario),
                     );
                   },
                 ),

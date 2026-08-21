@@ -28,10 +28,16 @@ class NotificacionDetalleScreen extends StatelessWidget {
 
   /// La nota se lee dentro de la app: el detalle de siempre descarga el
   /// contenido a partir del slug o el enlace que trajo el aviso.
+  ///
+  /// Este es el único camino al detalle desde un aviso que arranca con el
+  /// usuario ya navegando la app, así que es el único que lleva interstitial.
   void _abrirNoticia(BuildContext context) {
     Navigator.push(
       context,
-      rutaNoticiaDesdePush(notification.data ?? const <String, dynamic>{}),
+      rutaNoticiaDesdePush(
+        notification.data ?? const <String, dynamic>{},
+        conInterstitial: true,
+      ),
     );
   }
 

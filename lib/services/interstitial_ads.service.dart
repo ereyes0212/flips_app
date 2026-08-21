@@ -3,29 +3,58 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
 
-/// Interstitial que se muestra cada cierto número de noticias abiertas.
+/// Interstitial con contador propio para cada sitio de la app.
 ///
 /// El contador y el anuncio precargado viven fuera del `State` de la pantalla
 /// a propósito: `NoticiasScreen` se desmonta cada vez que se cambia de pestaña
 /// en el bottom nav, y con el estado dentro la cuenta volvía a cero y se
 /// tiraba el anuncio ya cargado para pedir otro.
+///
+/// Cada sitio lleva su propia instancia porque las frecuencias no se parecen
+/// en nada: en una sesión se abren decenas de noticias y, como mucho, un par
+/// de diarios.
 class InterstitialAdsService {
-  InterstitialAdsService._();
+  InterstitialAdsService._({
+    required String adUnitId,
+    required int frecuencia,
+    required int precargarFaltando,
+  })  : _adUnitId = adUnitId,
+        _frecuencia = frecuencia,
+        _precargarFaltando = precargarFaltando,
+        _proximoEn = frecuencia;
 
-  static final InterstitialAdsService instance = InterstitialAdsService._();
+  /// Una de cada tres noticias abiertas lleva anuncio, venga del listado, de
+  /// una categoría, de la portada o de las relacionadas del detalle.
+  static final InterstitialAdsService noticias = InterstitialAdsService._(
+    adUnitId: _unidadInterstitial,
+    frecuencia: 3,
+    precargarFaltando: 2,
+  );
 
-  static const String _adUnitId = '/170101793/APP/Interstitial';
+  /// Cada diario digital que se abre lleva anuncio. Se abren pocos por sesión,
+  /// así que espaciarlos dejaría el sitio prácticamente sin anuncios.
+  static final InterstitialAdsService diarios = InterstitialAdsService._(
+    adUnitId: _unidadInterstitial,
+    frecuencia: 1,
+    precargarFaltando: 1,
+  );
 
-  /// Una de cada cuántas noticias abiertas lleva anuncio.
-  static const int _frecuencia = 5;
-
-  /// Con cuántas noticias de antelación se empieza a precargar.
-  static const int _precargarFaltando = 2;
+  /// Los dos sitios comparten unidad de Ad Manager. Para medirlos por separado
+  /// basta con darle su propia constante a cada uno.
+  static const String _unidadInterstitial = '/170101793/APP/Interstitial';
 
   static const Duration _reintento = Duration(seconds: 8);
 
+  final String _adUnitId;
+
+  /// Una de cada cuántas aperturas lleva anuncio.
+  final int _frecuencia;
+
+  /// Con cuántas aperturas de antelación se empieza a precargar.
+  final int _precargarFaltando;
+
   int _aperturas = 0;
-  int _proximoEn = _frecuencia;
+  int _proximoEn;
   bool _pendiente = false;
   bool _cargando = false;
   AdManagerInterstitialAd? _ad;
@@ -66,10 +95,10 @@ class InterstitialAdsService {
     );
   }
 
-  /// Cuenta una noticia abierta y muestra el interstitial si toca.
+  /// Cuenta una apertura y muestra el interstitial si toca.
   ///
   /// [alContinuar] se ejecuta siempre: con anuncio, al cerrarlo; sin anuncio o
-  /// si falla al mostrarse, de inmediato. La noticia nunca se queda sin abrir.
+  /// si falla al mostrarse, de inmediato. El contenido nunca se queda sin abrir.
   void registrarAperturaYContinuar(VoidCallback alContinuar) {
     _aperturas += 1;
 
@@ -111,7 +140,7 @@ class InterstitialAdsService {
     ad.show();
   }
 
-  /// Suelta el anuncio y reinicia la cuenta. Se llama al cerrar sesión.
+  /// Suelta el anuncio y reinicia la cuenta.
   void liberar() {
     _timerReintento?.cancel();
     _timerReintento = null;
@@ -121,6 +150,14 @@ class InterstitialAdsService {
     _pendiente = false;
     _aperturas = 0;
     _proximoEn = _frecuencia;
+  }
+
+  /// Reinicia todos los sitios. Se llama al cerrar sesión: la siguiente cuenta
+  /// puede tener otros privilegios y no debe heredar ni la cuenta ni el
+  /// anuncio ya cargado.
+  static void liberarTodo() {
+    noticias.liberar();
+    diarios.liberar();
   }
 
   void _programarReintento() {

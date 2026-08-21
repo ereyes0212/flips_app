@@ -38,9 +38,16 @@ class OnboardingFlow {
     final permissionGranted = await service.isNotificationPermissionGranted();
     if (!context.mounted) return shownSomething;
 
+    // El permiso y el alta en el backend se consultan por separado a propósito:
+    // en los equipos que conceden el permiso de fábrica lo primero es cierto
+    // desde el arranque y lo segundo no ha pasado nunca.
+    final deviceRegistered = await service.isDeviceRegistered();
+    if (!context.mounted) return shownSomething;
+
     final shouldAsk = service.isAvailable &&
         await OnboardingService.shouldAskNotifications(
           permissionGranted: permissionGranted,
+          deviceRegistered: deviceRegistered,
           afterLogin: afterLogin,
         );
     if (!context.mounted) return shownSomething;

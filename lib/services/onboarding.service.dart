@@ -84,13 +84,21 @@ class OnboardingService {
 
   /// ¿Corresponde volver a preguntar por el permiso de notificaciones?
   ///
-  /// [permissionGranted] se recibe como parámetro para no acoplar este servicio
-  /// a Firebase y poder probarlo aislado.
+  /// [permissionGranted] y [deviceRegistered] se reciben como parámetros para
+  /// no acoplar este servicio a Firebase y poder probarlo aislado.
+  ///
+  /// El permiso concedido por sí solo no alcanza para callarse. Hay teléfonos
+  /// que lo traen concedido de fábrica: ahí no se preguntaba nada, y como el
+  /// alta del token colgaba de esa pregunta, el equipo nunca llegaba al backend
+  /// y no recibía un solo aviso pese a tener el permiso en verde. Por eso el
+  /// aviso se muestra igual la primera vez: el «sí» del usuario es lo que
+  /// dispara el registro.
   static Future<bool> shouldAskNotifications({
     required bool permissionGranted,
+    required bool deviceRegistered,
     required bool afterLogin,
   }) async {
-    if (permissionGranted) return false;
+    if (permissionGranted && deviceRegistered) return false;
 
     final prefs = await SharedPreferences.getInstance();
     final count = prefs.getInt(_kPromptCount) ?? 0;

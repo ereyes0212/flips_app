@@ -46,13 +46,28 @@ void main() {
   });
 
   group('solicitud de notificaciones', () {
-    test('no se pregunta si el permiso ya está concedido', () async {
+    test('no se pregunta con el permiso concedido y el equipo registrado', () async {
       expect(
         await OnboardingService.shouldAskNotifications(
           permissionGranted: true,
+          deviceRegistered: true,
           afterLogin: true,
         ),
         isFalse,
+      );
+    });
+
+    // Hay teléfonos que conceden el permiso de fábrica. Antes eso bastaba para
+    // no preguntar nada, y como el alta del token colgaba de esa pregunta, el
+    // equipo nunca llegaba al backend: permiso en verde y cero avisos.
+    test('se pregunta si el permiso vino concedido pero el equipo no está registrado', () async {
+      expect(
+        await OnboardingService.shouldAskNotifications(
+          permissionGranted: true,
+          deviceRegistered: false,
+          afterLogin: false,
+        ),
+        isTrue,
       );
     });
 
@@ -60,6 +75,7 @@ void main() {
       expect(
         await OnboardingService.shouldAskNotifications(
           permissionGranted: false,
+          deviceRegistered: false,
           afterLogin: false,
         ),
         isTrue,
@@ -72,6 +88,22 @@ void main() {
       expect(
         await OnboardingService.shouldAskNotifications(
           permissionGranted: false,
+          deviceRegistered: false,
+          afterLogin: false,
+        ),
+        isFalse,
+      );
+    });
+
+    // El equipo con el permiso de fábrica entra por la misma puerta que el
+    // resto: se le insiste con la misma prudencia, no en cada arranque.
+    test('el permiso de fábrica no esquiva el enfriamiento', () async {
+      await OnboardingService.registerNotificationsPrompt();
+
+      expect(
+        await OnboardingService.shouldAskNotifications(
+          permissionGranted: true,
+          deviceRegistered: false,
           afterLogin: false,
         ),
         isFalse,
@@ -84,6 +116,7 @@ void main() {
       expect(
         await OnboardingService.shouldAskNotifications(
           permissionGranted: false,
+          deviceRegistered: false,
           afterLogin: true,
         ),
         isTrue,
@@ -98,6 +131,7 @@ void main() {
       expect(
         await OnboardingService.shouldAskNotifications(
           permissionGranted: false,
+          deviceRegistered: false,
           afterLogin: true,
         ),
         isFalse,
@@ -113,9 +147,27 @@ void main() {
       expect(
         await OnboardingService.shouldAskNotifications(
           permissionGranted: false,
+          deviceRegistered: false,
           afterLogin: false,
         ),
         isTrue,
+      );
+    });
+
+    // Al conceder se borra el contador, así que sin este corte el aviso
+    // volvería en cada arranque: lo que apaga la insistencia es el alta ya
+    // hecha, no el contador.
+    test('registrado tras conceder, no se vuelve a preguntar', () async {
+      await OnboardingService.registerNotificationsPrompt();
+      await OnboardingService.clearNotificationsPromptHistory();
+
+      expect(
+        await OnboardingService.shouldAskNotifications(
+          permissionGranted: true,
+          deviceRegistered: true,
+          afterLogin: true,
+        ),
+        isFalse,
       );
     });
 
