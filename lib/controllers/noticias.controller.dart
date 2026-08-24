@@ -36,6 +36,7 @@ class NoticiasController {
     provider.loading = true;
     provider.setError('');
     provider.setUsingCache(false);
+    provider.setLoadMoreFailed(false);
 
     final result = await _service.obtenerNoticias(
       busqueda: busqueda,
@@ -66,6 +67,7 @@ class NoticiasController {
     if (provider.loading || provider.loadingMore || !provider.hasMore) return;
 
     final nextPage = provider.page + 1;
+    provider.setLoadMoreFailed(false);
     provider.loadingMore = true;
     final result = await _service.obtenerNoticias(
       page: nextPage,
@@ -78,7 +80,10 @@ class NoticiasController {
       provider.appendNoticias(result.items);
       provider.setPagination(page: nextPage, hasMore: result.hasMore);
     } else {
-      provider.setError(result.errorMessage);
+      // El error de una página se queda en el pie del listado: marcar el
+      // error global taparía con un banner las noticias que ya están en
+      // pantalla y que siguen siendo válidas.
+      provider.setLoadMoreFailed(true, message: result.errorMessage);
     }
     provider.loadingMore = false;
   }

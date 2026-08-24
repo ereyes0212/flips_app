@@ -38,7 +38,7 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
-  static const String _bannerAdUnitId = '/170101793/APP/320x50_fijo';
+  static const String _bannerAdUnitId = AdUnits.bannerFijo;
   static const List<AdSize> _bannerSizes = [
     AdSize(width: 300, height: 50),
     AdSize.banner,

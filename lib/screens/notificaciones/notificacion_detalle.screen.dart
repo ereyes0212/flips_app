@@ -1,3 +1,4 @@
+import 'package:flips_app/globals/widgets/ad_banner.widget.dart';
 import 'package:flips_app/screens/noticias/noticias.screen.dart';
 import 'package:flips_app/services/push_notifications.service.dart';
 import 'package:flutter/material.dart';
@@ -183,6 +184,7 @@ class NotificacionDetalleScreen extends StatelessWidget {
           ),
         ],
       ),
+      bottomNavigationBar: const AnchoredAdBanner(),
     );
   }
 }

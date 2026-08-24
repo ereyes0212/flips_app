@@ -39,6 +39,12 @@ class _NoticiaDetalleScreenState extends State<_NoticiaDetalleScreen> {
     if (!_noticia.tieneContenido) {
       Future.microtask(_cargarContenido);
     }
+
+    // El botón de escuchar muestra interstitial: mejor tenerlo cargado antes
+    // de que lo toquen que empezar a pedirlo cuando ya lo tocaron.
+    if (widget.acceso.mostrarAnuncios) {
+      InterstitialAdsService.noticias.precargar();
+    }
   }
 
   @override
@@ -156,6 +162,7 @@ class _NoticiaDetalleScreenState extends State<_NoticiaDetalleScreen> {
               _BotonEscuchar(
                 key: _escucharKey,
                 noticia: noticia,
+                acceso: acceso,
                 habilitado: !_cargandoContenido,
               ),
               _AccionCabecera(
@@ -322,10 +329,13 @@ class _BotonEscuchar extends StatelessWidget {
   const _BotonEscuchar({
     super.key,
     required this.noticia,
+    required this.acceso,
     required this.habilitado,
   });
 
   final NoticiaModel noticia;
+
+  final AccesoUsuario acceso;
 
   /// Falso mientras la nota todavía se está descargando: aún no hay qué leer.
   final bool habilitado;
@@ -339,6 +349,16 @@ class _BotonEscuchar extends StatelessWidget {
     // Se mira antes de alternar: si no había nada sonando para esta nota,
     // entonces esto es un arranque y no una pausa ni un reanudar.
     final arranque = !lector.estaActivoPara(clave);
+
+    // El anuncio va antes de que suene la voz: cortarla a mitad de párrafo
+    // es peor que esperarlo con el botón recién tocado. En pausas y
+    // reanudaciones no aparece: es el mismo audio, no una acción nueva.
+    if (arranque && acceso.mostrarAnuncios) {
+      await InterstitialAdsService.noticias.mostrarPorAccion();
+      // El interstitial tapa la pantalla, pero si la nota se cerró por
+      // detrás no hay que arrancar una lectura que nadie pidió.
+      if (!context.mounted) return;
+    }
 
     final mensaje = await lector.alternar(clave: clave, guion: guion);
 
@@ -644,7 +664,7 @@ class _ArticleContentError extends StatelessWidget {
 class _ArticleInlineAd extends StatelessWidget {
   const _ArticleInlineAd({this.contentUrl});
 
-  static const String _adUnitId = '/170101793/APP/box_1';
+  static const String _adUnitId = AdUnits.rectangulo;
 
   /// Enlace de la nota: Ad Manager lo usa para segmentación contextual.
   final String? contentUrl;

@@ -1,6 +1,9 @@
+import 'package:flips_app/globals/widgets/ad_banner.widget.dart';
+import 'package:flips_app/globals/widgets/skeleton.widget.dart';
 import 'package:flips_app/screens/notificaciones/notificacion_detalle.screen.dart';
 import 'package:flips_app/screens/onboarding/onboarding_flow.dart';
 import 'package:flips_app/screens/shared/section_card.widget.dart';
+import 'package:flips_app/services/acceso_usuario.service.dart';
 import 'package:flips_app/services/push_notifications.service.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
@@ -16,10 +19,12 @@ class _NotificacionesScreenState extends State<NotificacionesScreen> {
   final Set<String> _selectedIds = <String>{};
   bool _selectionMode = false;
   bool _permissionGranted = true;
+  AccesoUsuario _acceso = const AccesoUsuario.sinResolver();
 
   @override
   void initState() {
     super.initState();
+    _resolverAcceso();
     Future.microtask(() async {
       // Primero el disco: lo que llegó con la app cerrada lo guardó el isolate
       // de background y esta instancia todavía no lo tiene en memoria.
@@ -27,6 +32,12 @@ class _NotificacionesScreenState extends State<NotificacionesScreen> {
       await PushNotificationsService.instance.markAllAsRead();
       await _revisarPermiso();
     });
+  }
+
+  Future<void> _resolverAcceso() async {
+    final acceso = await AccesoUsuarioService.instance.resolver();
+    if (!mounted) return;
+    setState(() => _acceso = acceso);
   }
 
   Future<void> _revisarPermiso() async {
@@ -149,25 +160,205 @@ class _NotificacionesScreenState extends State<NotificacionesScreen> {
                         alertsActive:
                             _permissionGranted && service.newsAlertsEnabled,
                       )
-                    : ListView.separated(
-                        padding: const EdgeInsets.all(16),
-                        itemCount: notifications.length,
-                        separatorBuilder: (_, __) => const SizedBox(height: 12),
-                        itemBuilder: (context, index) {
-                          final item = notifications[index];
-                          return _NotificationCard(
-                            item: item,
-                            selectionMode: _selectionMode,
-                            selected: _selectedIds.contains(item.id),
-                            onToggleSelection: () => _toggleItemSelection(item.id),
-                          );
-                        },
+                    : _ListaDeAvisos(
+                        notifications: notifications,
+                        selectionMode: _selectionMode,
+                        selectedIds: _selectedIds,
+                        onToggleSelection: _toggleItemSelection,
+                        mostrarAnuncios: _acceso.mostrarAnuncios,
                       ),
               ),
             ],
           ),
+          bottomNavigationBar: const AnchoredAdBanner(),
         );
       },
+    );
+  }
+}
+
+/// Qué ocupa cada fila del historial.
+enum _TipoFilaAviso { aviso, anuncio, espacio, esqueleto }
+
+/// Historial de avisos con un rectángulo intercalado cada
+/// [_avisosPorAnuncio] filas.
+///
+/// El historial guardado llega a 100 entradas y antes se armaba entero en el
+/// primer frame: 100 tarjetas con su `Image.network` aunque solo cupieran seis
+/// en pantalla. Ahora se muestran de a [_tamanoPagina] y el resto entra solo al
+/// pasar el [_umbralCargaAutomatica] del scroll. Todo sale del mismo caché en
+/// memoria, así que "traer" la tanda siguiente es dejar de esconderla.
+class _ListaDeAvisos extends StatefulWidget {
+  const _ListaDeAvisos({
+    required this.notifications,
+    required this.selectionMode,
+    required this.selectedIds,
+    required this.onToggleSelection,
+    required this.mostrarAnuncios,
+  });
+
+  final List<PushNotificationItem> notifications;
+  final bool selectionMode;
+  final Set<String> selectedIds;
+  final ValueChanged<String> onToggleSelection;
+  final bool mostrarAnuncios;
+
+  @override
+  State<_ListaDeAvisos> createState() => _ListaDeAvisosState();
+}
+
+class _ListaDeAvisosState extends State<_ListaDeAvisos> {
+  /// Cada cuántos avisos se intercala un anuncio.
+  static const int _avisosPorAnuncio = 5;
+
+  /// Cuántos avisos entran por tanda.
+  static const int _tamanoPagina = 15;
+
+  static const double _umbralCargaAutomatica = 0.8;
+
+  final _scrollController = ScrollController();
+  int _visibles = _tamanoPagina;
+
+  @override
+  void initState() {
+    super.initState();
+    _scrollController.addListener(_alHacerScroll);
+  }
+
+  @override
+  void dispose() {
+    _scrollController
+      ..removeListener(_alHacerScroll)
+      ..dispose();
+    super.dispose();
+  }
+
+  void _alHacerScroll() {
+    if (!_scrollController.hasClients) return;
+    if (_visibles >= widget.notifications.length) return;
+    final posicion = _scrollController.position;
+    final maximo = posicion.maxScrollExtent;
+    if (maximo <= 0) return;
+    if (posicion.pixels < maximo * _umbralCargaAutomatica) return;
+    setState(() => _visibles += _tamanoPagina);
+  }
+
+  /// Mapa fila -> contenido. Intercalar anuncios desalinea el índice de la fila
+  /// con el del aviso, y resolverlo aquí deja el `itemBuilder` en aritmética
+  /// simple sin construir ninguna tarjeta de más.
+  List<({_TipoFilaAviso tipo, int indice})> _filas(int visibles, int total) {
+    final filas = <({_TipoFilaAviso tipo, int indice})>[];
+
+    for (var i = 0; i < visibles; i++) {
+      if (i > 0) filas.add((tipo: _TipoFilaAviso.espacio, indice: i));
+      filas.add((tipo: _TipoFilaAviso.aviso, indice: i));
+
+      // Nunca después del último aviso: ahí el anuncio queda fuera de vista y
+      // deja el historial terminando en publicidad.
+      final cierraGrupo = (i + 1) % _avisosPorAnuncio == 0;
+      if (widget.mostrarAnuncios && cierraGrupo && i != total - 1) {
+        filas.add((tipo: _TipoFilaAviso.anuncio, indice: i));
+      }
+    }
+
+    if (visibles < total) {
+      filas.add((tipo: _TipoFilaAviso.esqueleto, indice: visibles));
+    }
+
+    return filas;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final total = widget.notifications.length;
+    // Borrar avisos puede dejar la ventana por encima del historial.
+    final visibles = _visibles > total ? total : _visibles;
+    final filas = _filas(visibles, total);
+
+    return ListView.builder(
+      controller: _scrollController,
+      padding: const EdgeInsets.all(16),
+      itemCount: filas.length,
+      itemBuilder: (context, index) {
+        final fila = filas[index];
+        switch (fila.tipo) {
+          case _TipoFilaAviso.espacio:
+            return const SizedBox(height: 12);
+          case _TipoFilaAviso.anuncio:
+            return const Padding(
+              padding: EdgeInsets.only(top: 12),
+              child: BoxAdBanner(),
+            );
+          case _TipoFilaAviso.esqueleto:
+            return const Padding(
+              padding: EdgeInsets.only(top: 12),
+              child: _AvisosSkeletonGroup(),
+            );
+          case _TipoFilaAviso.aviso:
+            final item = widget.notifications[fila.indice];
+            return _NotificationCard(
+              key: ValueKey(item.id),
+              item: item,
+              selectionMode: widget.selectionMode,
+              selected: widget.selectedIds.contains(item.id),
+              onToggleSelection: () => widget.onToggleSelection(item.id),
+            );
+        }
+      },
+    );
+  }
+}
+
+/// Filas fantasma mientras entra la tanda siguiente del historial.
+class _AvisosSkeletonGroup extends StatelessWidget {
+  const _AvisosSkeletonGroup();
+
+  static const int _filas = 3;
+
+  @override
+  Widget build(BuildContext context) {
+    return SkeletonShimmer(
+      child: Column(
+        children: [
+          for (var i = 0; i < _filas; i++) ...[
+            if (i > 0) const SizedBox(height: 12),
+            const _AvisoCardSkeleton(),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _AvisoCardSkeleton extends StatelessWidget {
+  const _AvisoCardSkeleton();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.fromLTRB(12, 12, 10, 12),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: Theme.of(context).colorScheme.outlineVariant.withOpacity(0.35),
+        ),
+      ),
+      child: const Row(
+        children: [
+          SkeletonBox.circular(_NotificationAvatar._tamano),
+          SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                SkeletonBox(height: 13),
+                SizedBox(height: 8),
+                SkeletonBox(width: 140, height: 11),
+              ],
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -281,6 +472,7 @@ class _EmptyNotifications extends StatelessWidget {
 
 class _NotificationCard extends StatelessWidget {
   const _NotificationCard({
+    super.key,
     required this.item,
     required this.selectionMode,
     required this.selected,

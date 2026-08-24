@@ -53,12 +53,20 @@ class InterstitialAdsService {
   /// Con cuántas aperturas de antelación se empieza a precargar.
   final int _precargarFaltando;
 
+  /// Mínimo entre dos anuncios cuando el segundo lo dispara una acción.
+  ///
+  /// Sin esto, abrir la nota que toca anuncio y tocar escuchar enseguida
+  /// daban dos interstitials seguidos. Solo frena al disparador por acción:
+  /// el de apertura es un corte natural entre pantallas y no espera a nadie.
+  static const Duration _cooldownAccion = Duration(minutes: 1);
+
   int _aperturas = 0;
   int _proximoEn;
   bool _pendiente = false;
   bool _cargando = false;
   AdManagerInterstitialAd? _ad;
   Timer? _timerReintento;
+  DateTime? _ultimoMostrado;
 
   /// Pide un anuncio si no hay uno listo ni una carga en vuelo.
   void precargar() {
@@ -137,7 +145,52 @@ class InterstitialAdsService {
       },
     );
 
+    _ultimoMostrado = DateTime.now();
     ad.show();
+  }
+
+  /// Muestra el interstitial que dispara una acción del usuario.
+  ///
+  /// A diferencia de [registrarAperturaYContinuar] no cuenta una apertura: el
+  /// hito de "una de cada tres noticias" no debe gastarse por tocar un botón
+  /// dentro de la nota que ya se estaba leyendo.
+  ///
+  /// El `Future` se completa cuando el anuncio se cierra, o de inmediato si no
+  /// hubo anuncio que mostrar. Quien llamó nunca se queda esperando.
+  Future<void> mostrarPorAccion() {
+    final ad = _ad;
+    if (ad == null) {
+      precargar();
+      return Future.value();
+    }
+
+    final ultimo = _ultimoMostrado;
+    if (ultimo != null && DateTime.now().difference(ultimo) < _cooldownAccion) {
+      return Future.value();
+    }
+
+    final cerrado = Completer<void>();
+    ad.fullScreenContentCallback = FullScreenContentCallback(
+      onAdDismissedFullScreenContent: (ad) {
+        ad.dispose();
+        _ad = null;
+        precargar();
+        if (!cerrado.isCompleted) cerrado.complete();
+      },
+      onAdFailedToShowFullScreenContent: (ad, error) {
+        ad.dispose();
+        _ad = null;
+        // No llegó a verse: no tiene por qué gastar el cooldown del siguiente.
+        _ultimoMostrado = null;
+        debugPrint('Error mostrando interstitial: $error');
+        precargar();
+        if (!cerrado.isCompleted) cerrado.complete();
+      },
+    );
+
+    _ultimoMostrado = DateTime.now();
+    ad.show();
+    return cerrado.future;
   }
 
   /// Suelta el anuncio y reinicia la cuenta.
@@ -150,6 +203,7 @@ class InterstitialAdsService {
     _pendiente = false;
     _aperturas = 0;
     _proximoEn = _frecuencia;
+    _ultimoMostrado = null;
   }
 
   /// Reinicia todos los sitios. Se llama al cerrar sesión: la siguiente cuenta

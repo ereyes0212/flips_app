@@ -12,6 +12,7 @@ import 'package:flips_app/services/noticias.service.dart';
 import 'package:flips_app/services/analytics.service.dart';
 import 'package:flips_app/services/push_notifications.service.dart';
 import 'package:flips_app/globals/widgets/ad_banner.widget.dart';
+import 'package:flips_app/globals/widgets/skeleton.widget.dart';
 import 'package:flips_app/services/acceso_usuario.service.dart';
 import 'package:flips_app/services/interstitial_ads.service.dart';
 import 'package:flips_app/utils/html_texto.util.dart';
@@ -49,8 +50,13 @@ class NoticiasScreen extends StatefulWidget {
 class _NoticiasScreenState extends State<NoticiasScreen> {
   static const Duration _manualRefreshCooldown = Duration(seconds: 45);
 
+  /// Umbral del scroll infinito. Al 80% del recorrido ya se pide la página
+  /// siguiente para que llegue antes de que el usuario toque el fondo.
+  static const double _umbralCargaAutomatica = 0.8;
+
   final _controller = NoticiasController();
   final _searchController = TextEditingController();
+  final _scrollController = ScrollController();
   AccesoUsuario _acceso = const AccesoUsuario.sinResolver();
   DateTimeRange? _filtroFecha;
   DateTime? _lastManualRefreshAt;
@@ -59,6 +65,7 @@ class _NoticiasScreenState extends State<NoticiasScreen> {
   @override
   void initState() {
     super.initState();
+    _scrollController.addListener(_alHacerScroll);
     Future.microtask(() {
       _controller.cargarNoticias(context);
       _controller.cargarCategorias(context);
@@ -75,8 +82,47 @@ class _NoticiasScreenState extends State<NoticiasScreen> {
 
   @override
   void dispose() {
+    _scrollController
+      ..removeListener(_alHacerScroll)
+      ..dispose();
     _searchController.dispose();
     super.dispose();
+  }
+
+  void _alHacerScroll() {
+    if (!_scrollController.hasClients) return;
+    final posicion = _scrollController.position;
+    final maximo = posicion.maxScrollExtent;
+    // Sin recorrido todavía no hay nada que anticipar (y el 80% de cero es
+    // cero, que dispararía la carga en el primer frame).
+    if (maximo <= 0) return;
+    if (posicion.pixels < maximo * _umbralCargaAutomatica) return;
+    _cargarMasNoticias();
+  }
+
+  void _cargarMasNoticias() {
+    final provider = context.read<NoticiasProvider>();
+    // `loadMoreFailed` corta el automático: si la última página falló, la
+    // siguiente la pide el usuario desde el pie. Sin esta guarda, cada píxel
+    // de scroll sería un reintento contra un backend que ya dijo que no.
+    if (provider.loading ||
+        provider.loadingMore ||
+        !provider.hasMore ||
+        provider.loadMoreFailed) {
+      return;
+    }
+
+    _controller.cargarMasNoticias(
+      context,
+      busqueda: _searchController.text.trim(),
+      fechaDesde: _filtroFecha?.start,
+      fechaHasta: _filtroFecha?.end,
+    );
+  }
+
+  void _reintentarCargarMas() {
+    context.read<NoticiasProvider>().setLoadMoreFailed(false);
+    _cargarMasNoticias();
   }
 
   Future<void> _resolverAcceso() async {
@@ -182,6 +228,7 @@ class _NoticiasScreenState extends State<NoticiasScreen> {
       body: RefreshIndicator(
         onRefresh: _refrescar,
         child: CustomScrollView(
+          controller: _scrollController,
           physics: const AlwaysScrollableScrollPhysics(),
           slivers: [
             _NoticiasAppBar(
@@ -203,12 +250,7 @@ class _NoticiasScreenState extends State<NoticiasScreen> {
             _NoticiasContentSlivers(
               provider: provider,
               onRetry: _refrescar,
-              onLoadMore: () => _controller.cargarMasNoticias(
-                context,
-                busqueda: _searchController.text.trim(),
-                fechaDesde: _filtroFecha?.start,
-                fechaHasta: _filtroFecha?.end,
-              ),
+              onRetryLoadMore: _reintentarCargarMas,
               onTapNoticia: (noticia) =>
                   _abrirDetalle(context, noticia, acceso: _acceso),
               acceso: _acceso,
@@ -224,14 +266,14 @@ class _NoticiasContentSlivers extends StatelessWidget {
   const _NoticiasContentSlivers({
     required this.provider,
     required this.onRetry,
-    required this.onLoadMore,
+    required this.onRetryLoadMore,
     required this.onTapNoticia,
     required this.acceso,
   });
 
   final NoticiasProvider provider;
   final VoidCallback onRetry;
-  final VoidCallback onLoadMore;
+  final VoidCallback onRetryLoadMore;
   final ValueChanged<NoticiaModel> onTapNoticia;
   final AccesoUsuario acceso;
 
@@ -240,10 +282,7 @@ class _NoticiasContentSlivers extends StatelessWidget {
     final theme = Theme.of(context);
 
     if (provider.loading && provider.noticias.isEmpty) {
-      return const SliverFillRemaining(
-        hasScrollBody: false,
-        child: Center(child: CircularProgressIndicator()),
-      );
+      return const SliverToBoxAdapter(child: _NoticiasSkeletonScreen());
     }
 
     if (provider.errorMessage.isNotEmpty && provider.noticias.isEmpty) {
@@ -327,10 +366,12 @@ class _NoticiasContentSlivers extends StatelessWidget {
           acceso: acceso,
         ),
         SliverToBoxAdapter(
-          child: _LoadMoreButton(
+          child: _NewsListFooter(
             hasMore: provider.hasMore,
             loading: provider.loadingMore,
-            onPressed: onLoadMore,
+            failed: provider.loadMoreFailed,
+            errorMessage: provider.loadMoreError,
+            onRetry: onRetryLoadMore,
           ),
         ),
       ],
@@ -338,6 +379,15 @@ class _NoticiasContentSlivers extends StatelessWidget {
   }
 }
 
+/// Qué ocupa cada fila del listado.
+enum _TipoFilaNoticia { noticia, anuncio, divisor }
+
+/// Listado de noticias con anuncios y divisores intercalados.
+///
+/// Las filas se resuelven a índices y las tarjetas se construyen bajo demanda:
+/// con scroll infinito el listado crece sin techo, y armar la lista completa de
+/// widgets significaba rehacer también todas las tarjetas anteriores cada vez
+/// que entraba una página nueva.
 class _NoticiasList extends StatelessWidget {
   const _NoticiasList({
     required this.noticias,
@@ -345,46 +395,68 @@ class _NoticiasList extends StatelessWidget {
     required this.acceso,
   });
 
+  /// Cada cuántas noticias se intercala un anuncio.
+  static const int _noticiasPorAnuncio = 5;
+
   final List<NoticiaModel> noticias;
   final ValueChanged<NoticiaModel> onTapNoticia;
   final AccesoUsuario acceso;
 
+  /// Mapa fila -> contenido. Son registros, no widgets: recorrer la lista
+  /// entera cuesta poco mientras no construya nada de UI.
+  List<({_TipoFilaNoticia tipo, int indice})> _filas() {
+    final filas = <({_TipoFilaNoticia tipo, int indice})>[];
+    final ultima = noticias.length - 1;
+
+    for (var i = 0; i < noticias.length; i++) {
+      filas.add((tipo: _TipoFilaNoticia.noticia, indice: i));
+      // Ni anuncio ni divisor después de la última: el pie va pegado.
+      if (i == ultima) continue;
+      if (acceso.mostrarAnuncios && (i + 1) % _noticiasPorAnuncio == 0) {
+        filas.add((tipo: _TipoFilaNoticia.anuncio, indice: i));
+      }
+      filas.add((tipo: _TipoFilaNoticia.divisor, indice: i));
+    }
+
+    return filas;
+  }
+
   @override
   Widget build(BuildContext context) {
     final offlineIds = context.watch<NoticiasProvider>().noticiasOfflineIds;
-    final children = <Widget>[];
-    for (var i = 0; i < noticias.length; i++) {
-      final noticia = noticias[i];
-      children.add(
-        _NoticiaCard(
-          noticia: noticia,
-          isDownloaded: offlineIds.contains(noticia.id),
-          onTapOverride: () => onTapNoticia(noticia),
-        ),
-      );
-      if (acceso.mostrarAnuncios &&
-          (i + 1) % 5 == 0 &&
-          i != noticias.length - 1) {
-        children.add(
-          const Padding(
-            padding: EdgeInsets.only(top: 8, bottom: 8),
-            child: _InlineNewsAdBanner(),
-          ),
-        );
-      }
-      if (i != noticias.length - 1) {
-        children.add(
-          Divider(
-            height: 1,
-            color: Theme.of(context).colorScheme.outlineVariant.withOpacity(0.55),
-          ),
-        );
-      }
-    }
+    final filas = _filas();
 
     return SliverPadding(
       padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
-      sliver: SliverList(delegate: SliverChildListDelegate(children)),
+      sliver: SliverList(
+        delegate: SliverChildBuilderDelegate(
+          (context, index) {
+            final fila = filas[index];
+            switch (fila.tipo) {
+              case _TipoFilaNoticia.anuncio:
+                return const Padding(
+                  padding: EdgeInsets.only(top: 8, bottom: 8),
+                  child: _InlineNewsAdBanner(),
+                );
+              case _TipoFilaNoticia.divisor:
+                return Divider(
+                  height: 1,
+                  color: Theme.of(
+                    context,
+                  ).colorScheme.outlineVariant.withOpacity(0.55),
+                );
+              case _TipoFilaNoticia.noticia:
+                final noticia = noticias[fila.indice];
+                return _NoticiaCard(
+                  noticia: noticia,
+                  isDownloaded: offlineIds.contains(noticia.id),
+                  onTapOverride: () => onTapNoticia(noticia),
+                );
+            }
+          },
+          childCount: filas.length,
+        ),
+      ),
     );
   }
 }
@@ -393,7 +465,7 @@ class _NoticiasList extends StatelessWidget {
 class _InlineNewsAdBanner extends StatelessWidget {
   const _InlineNewsAdBanner();
 
-  static const String _adUnitId = '/170101793/APP/box_1';
+  static const String _adUnitId = AdUnits.rectangulo;
 
   @override
   Widget build(BuildContext context) {

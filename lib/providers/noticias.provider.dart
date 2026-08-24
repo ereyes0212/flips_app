@@ -9,6 +9,8 @@ class NoticiasProvider with ChangeNotifier {
   bool _usingCache = false;
   int _page = 1;
   bool _hasMore = true;
+  bool _loadMoreFailed = false;
+  String _loadMoreError = '';
   List<NoticiaModel> _noticias = [];
   List<NoticiaModel> _noticiasOffline = [];
   List<CategoriaNoticiaModel> _categorias = [];
@@ -20,6 +22,13 @@ class NoticiasProvider with ChangeNotifier {
   bool get usingCache => _usingCache;
   int get page => _page;
   bool get hasMore => _hasMore;
+
+  /// La última página pedida por scroll falló.
+  ///
+  /// Lo mira el listado para dejar de pedir sola la siguiente: si no, un
+  /// backend caído se convierte en un reintento por cada scroll.
+  bool get loadMoreFailed => _loadMoreFailed;
+  String get loadMoreError => _loadMoreError;
   List<NoticiaModel> get noticias => _noticias;
   List<NoticiaModel> get noticiasOffline => _noticiasOffline;
   Set<int> get noticiasOfflineIds => _noticiasOffline.map((e) => e.id).toSet();
@@ -76,6 +85,17 @@ class NoticiasProvider with ChangeNotifier {
   void setPagination({required int page, required bool hasMore}) {
     _page = page;
     _hasMore = hasMore;
+    notifyListeners();
+  }
+
+  void setLoadMoreFailed(bool value, {String message = ''}) {
+    // Se llama al empezar cada página: sin esta salida, reconstruiría el
+    // listado entero solo para reafirmar que no hay error.
+    if (_loadMoreFailed == value && (!value || _loadMoreError == message)) {
+      return;
+    }
+    _loadMoreFailed = value;
+    _loadMoreError = value ? message : '';
     notifyListeners();
   }
 }

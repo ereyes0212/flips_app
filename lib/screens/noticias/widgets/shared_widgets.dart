@@ -178,40 +178,174 @@ class _StatusBanner extends StatelessWidget {
   }
 }
 
-class _LoadMoreButton extends StatelessWidget {
-  const _LoadMoreButton({
+/// Pie del listado de noticias.
+///
+/// Con scroll infinito el pie dejó de ser un botón: mientras entra la página
+/// siguiente muestra tarjetas fantasma del mismo alto que las reales, así el
+/// scroll no pega un salto cuando llegan. El botón solo reaparece si la página
+/// falló, para no reintentar en bucle contra un backend caído.
+class _NewsListFooter extends StatelessWidget {
+  const _NewsListFooter({
     required this.hasMore,
     required this.loading,
-    required this.onPressed,
+    required this.failed,
+    required this.onRetry,
+    this.errorMessage = '',
   });
 
   final bool hasMore;
   final bool loading;
-  final VoidCallback onPressed;
+  final bool failed;
+  final VoidCallback onRetry;
+  final String errorMessage;
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 4, 16, 28),
-      child: hasMore
-          ? OutlinedButton.icon(
-              onPressed: loading ? null : onPressed,
-              icon: loading
-                  ? const SizedBox(
-                      width: 16,
-                      height: 16,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                  : const Icon(Icons.expand_more_rounded),
-              label: Text(
-                loading ? 'Cargando 10 noticias más...' : 'Cargar 10 más',
-              ),
-            )
-          : Text(
-              'Ya estás al día con las noticias disponibles.',
+    final theme = Theme.of(context);
+
+    if (loading) {
+      return const Padding(
+        padding: EdgeInsets.fromLTRB(16, 0, 16, 24),
+        child: _NoticiasSkeletonGroup(),
+      );
+    }
+
+    if (failed && hasMore) {
+      return Padding(
+        padding: const EdgeInsets.fromLTRB(16, 4, 16, 28),
+        child: Column(
+          children: [
+            Text(
+              errorMessage.isEmpty
+                  ? 'No pudimos cargar más noticias.'
+                  : errorMessage,
               textAlign: TextAlign.center,
-              style: Theme.of(context).textTheme.bodySmall,
+              style: theme.textTheme.bodySmall,
             ),
+            const SizedBox(height: 10),
+            OutlinedButton.icon(
+              onPressed: onRetry,
+              icon: const Icon(Icons.refresh_rounded),
+              label: const Text('Reintentar'),
+            ),
+          ],
+        ),
+      );
+    }
+
+    if (!hasMore) {
+      return Padding(
+        padding: const EdgeInsets.fromLTRB(16, 4, 16, 28),
+        child: Text(
+          'Ya estás al día con las noticias disponibles.',
+          textAlign: TextAlign.center,
+          style: theme.textTheme.bodySmall,
+        ),
+      );
+    }
+
+    // Quedan páginas y ninguna en vuelo: el listener de scroll pide la
+    // siguiente mucho antes de que el usuario llegue hasta aquí.
+    return const SizedBox(height: 24);
+  }
+}
+
+/// Tanda de tarjetas fantasma con la misma silueta que [_NoticiaCard].
+class _NoticiasSkeletonGroup extends StatelessWidget {
+  const _NoticiasSkeletonGroup({this.items = 3});
+
+  final int items;
+
+  @override
+  Widget build(BuildContext context) {
+    final divisor = Theme.of(
+      context,
+    ).colorScheme.outlineVariant.withOpacity(0.55);
+
+    return SkeletonShimmer(
+      child: Column(
+        children: [
+          for (var i = 0; i < items; i++) ...[
+            if (i > 0) Divider(height: 1, color: divisor),
+            const _NoticiaCardSkeleton(),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _NoticiaCardSkeleton extends StatelessWidget {
+  const _NoticiaCardSkeleton();
+
+  static const _linea = BorderRadius.all(Radius.circular(6));
+
+  @override
+  Widget build(BuildContext context) {
+    return const Padding(
+      padding: EdgeInsets.symmetric(vertical: 10),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SkeletonBox(
+            width: 92,
+            height: 92,
+            borderRadius: BorderRadius.all(Radius.circular(16)),
+          ),
+          SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                SkeletonBox(height: 14, borderRadius: _linea),
+                SizedBox(height: 8),
+                SkeletonBox(width: 190, height: 14, borderRadius: _linea),
+                SizedBox(height: 14),
+                SkeletonBox(height: 10, borderRadius: _linea),
+                SizedBox(height: 10),
+                SkeletonBox(width: 110, height: 10, borderRadius: _linea),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Primera carga del listado: portada y tarjetas fantasma en vez de una ruleta
+/// centrada, para que la pantalla ya tenga la forma que va a tener.
+class _NoticiasSkeletonScreen extends StatelessWidget {
+  const _NoticiasSkeletonScreen();
+
+  @override
+  Widget build(BuildContext context) {
+    final divisor = Theme.of(
+      context,
+    ).colorScheme.outlineVariant.withOpacity(0.55);
+
+    return SkeletonShimmer(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
+        child: Column(
+          children: [
+            const SkeletonBox(
+              height: 310,
+              borderRadius: BorderRadius.all(Radius.circular(24)),
+            ),
+            const SizedBox(height: 20),
+            const Align(
+              alignment: Alignment.centerLeft,
+              child: SkeletonBox(width: 150, height: 16),
+            ),
+            const SizedBox(height: 12),
+            for (var i = 0; i < 4; i++) ...[
+              if (i > 0) Divider(height: 1, color: divisor),
+              const _NoticiaCardSkeleton(),
+            ],
+          ],
+        ),
+      ),
     );
   }
 }

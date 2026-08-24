@@ -1,5 +1,20 @@
+import 'package:flips_app/services/acceso_usuario.service.dart';
 import 'package:flutter/material.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
+
+/// Unidades de Ad Manager de la app, en un solo sitio.
+///
+/// Las rutas estaban repetidas en cada pantalla que pintaba un anuncio, así que
+/// cambiar una unidad obligaba a buscarla por todo el proyecto.
+class AdUnits {
+  const AdUnits._();
+
+  /// Banner fijo al pie de la pantalla.
+  static const String bannerFijo = '/170101793/APP/320x50_fijo';
+
+  /// Rectángulo que se intercala dentro de un listado.
+  static const String rectangulo = '/170101793/APP/box_1';
+}
 
 /// Banner de Ad Manager que se dibuja con el tamaño que realmente sirvió el
 /// servidor.
@@ -117,12 +132,84 @@ class _AdManagerBannerViewState extends State<AdManagerBannerView>
     final medida = tamano ?? widget.sizes.first;
 
     return Align(
+      // `heightFactor` fija el alto al del anuncio. Sin él, el `Align` se
+      // estira a todo el alto disponible cuando el padre le da un máximo
+      // concreto —el caso del slot `bottomNavigationBar` de `Scaffold`— y el
+      // banner se comía la pantalla. Donde el alto ya venía libre (una columna,
+      // un sliver) no cambia nada.
+      heightFactor: 1,
       alignment: widget.alignment,
       child: SizedBox(
         width: medida.width.toDouble(),
         height: medida.height.toDouble(),
         child: cargado ? AdWidget(ad: ad) : const _EspacioDeAnuncio(),
       ),
+    );
+  }
+}
+
+/// Banner fijo al pie de una pantalla, listo para el slot
+/// `bottomNavigationBar` de `Scaffold`.
+///
+/// Resuelve por su cuenta si al usuario le tocan anuncios, para que una
+/// pantalla sin estado no tenga que volverse `StatefulWidget` solo por esto.
+/// `AccesoUsuarioService` cachea el perfil, así que volver a preguntarlo no
+/// cuesta una petición.
+class AnchoredAdBanner extends StatefulWidget {
+  const AnchoredAdBanner({super.key});
+
+  @override
+  State<AnchoredAdBanner> createState() => _AnchoredAdBannerState();
+}
+
+class _AnchoredAdBannerState extends State<AnchoredAdBanner> {
+  AccesoUsuario _acceso = const AccesoUsuario.sinResolver();
+
+  @override
+  void initState() {
+    super.initState();
+    _resolverAcceso();
+  }
+
+  Future<void> _resolverAcceso() async {
+    final acceso = await AccesoUsuarioService.instance.resolver();
+    if (!mounted) return;
+    setState(() => _acceso = acceso);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    // Sin saber quién es el usuario no se ocupa sitio: si no, a un suscriptor
+    // le aparecería el hueco del anuncio para desaparecer un instante después.
+    if (!_acceso.mostrarAnuncios) return const SizedBox.shrink();
+
+    return const SafeArea(
+      top: false,
+      child: AdManagerBannerView(
+        adUnitId: AdUnits.bannerFijo,
+        sizes: [AdSize(width: 300, height: 50), AdSize.banner],
+      ),
+    );
+  }
+}
+
+/// Rectángulo para intercalar entre las filas de un listado.
+///
+/// A diferencia de [AnchoredAdBanner] no resuelve el acceso: quien arma la
+/// lista ya sabe si toca anuncio y así no queda un hueco entre dos filas
+/// cuando no corresponde.
+class BoxAdBanner extends StatelessWidget {
+  const BoxAdBanner({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return const AdManagerBannerView(
+      adUnitId: AdUnits.rectangulo,
+      sizes: [
+        AdSize(width: 300, height: 250),
+        AdSize(width: 336, height: 280),
+        AdSize(width: 320, height: 480),
+      ],
     );
   }
 }
