@@ -6,6 +6,7 @@ import 'package:flips_app/providers/auth.provider.dart';
 import 'package:flips_app/controllers/login/login_flows.controller.dart';
 import 'package:flips_app/screens/login/widgets/auth_flow_sheet.widget.dart';
 import 'package:flips_app/services/auth.service.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -22,6 +23,12 @@ class _LoginScreenState extends State<LoginScreen> {
   TextEditingController txtUser = TextEditingController(text: '');
   TextEditingController txtPass = TextEditingController(text: '');
   bool verContrasena = true;
+
+  /// Sign in with Apple solo existe en plataformas Apple, y la guideline 4.8
+  /// que lo exige solo aplica a la App Store. `defaultTargetPlatform` en vez de
+  /// `Platform.isIOS` para no romper si algún día se compila a web.
+  bool get _mostrarBotonApple =>
+      !kIsWeb && defaultTargetPlatform == TargetPlatform.iOS;
 
   @override
   void dispose() {
@@ -157,6 +164,25 @@ class _LoginScreenState extends State<LoginScreen> {
                     ],
                   ),
                   const SizedBox(height: 12),
+                  // Va antes que Google y con el mismo alto: la guideline 4.8
+                  // pide que Sign in with Apple se ofrezca en igualdad de
+                  // condiciones con los demás logins sociales.
+                  if (_mostrarBotonApple) ...[
+                    SizedBox(
+                      width: double.infinity,
+                      height: 52,
+                      child: OutlinedButton.icon(
+                        onPressed:
+                            authprovider.loading
+                                ? null
+                                : () => AuthController()
+                                    .loginWithAppleController(context),
+                        icon: const FaIcon(FontAwesomeIcons.apple, size: 28),
+                        label: const Text('Continuar con Apple'),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                  ],
                   SizedBox(
                     width: double.infinity,
                     height: 52,

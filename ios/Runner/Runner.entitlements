@@ -9,5 +9,13 @@
 	-->
 	<key>aps-environment</key>
 	<string>production</string>
+	<!--
+	  Sign in with Apple. Requiere ademas que la capability este habilitada en
+	  el App ID del portal de Apple: sin eso el sistema ni emite el token.
+	-->
+	<key>com.apple.developer.applesignin</key>
+	<array>
+		<string>Default</string>
+	</array>
 </dict>
 </plist>

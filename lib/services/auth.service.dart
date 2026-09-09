@@ -17,6 +17,15 @@ class GoogleLoginResult {
   bool get ok => response?.ok ?? false;
 }
 
+class AppleLoginResult {
+  const AppleLoginResult({this.response, this.message = ''});
+
+  final LoginResponseModel? response;
+  final String message;
+
+  bool get ok => response?.ok ?? false;
+}
+
 class AuthActionResult {
   const AuthActionResult({required this.ok, required this.message, this.statusCode});
 
@@ -231,6 +240,90 @@ class AuthService {
       return const GoogleLoginResult(
         message: 'No se pudo leer la respuesta del backend de Google Sign-In.',
       );
+    }
+  }
+
+  Future<AppleLoginResult> loginWithApple({
+    required String identityToken,
+    String? nombre,
+  }) async {
+    try {
+      final nombreLimpio = nombre?.trim() ?? '';
+
+      final response = await _httpService.post(
+        '${apiUrl}auth/apple',
+        body: {
+          'identityToken': identityToken,
+          // Se omite el campo si viene vacío en vez de mandar '': el backend
+          // conserva el nombre que guardó en la primera autorización y no debe
+          // sobrescribirlo en los logins siguientes.
+          if (nombreLimpio.isNotEmpty) 'nombre': nombreLimpio,
+        },
+        includeAuth: false,
+      );
+
+      final body = _decodeBody(response.body);
+      final message = _extractMessage(body);
+
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        final loginResponse = LoginResponseModel.fromJson(body);
+        final token = SessionService.normalizeToken(loginResponse.token) ?? '';
+        if (loginResponse.ok && token.isNotEmpty) {
+          if (SessionService.isJwtExpired(token)) {
+            return const AppleLoginResult(
+              message:
+                  'El backend devolvió una sesión vencida. Intenta iniciar sesión nuevamente.',
+            );
+          }
+
+          return AppleLoginResult(response: loginResponse);
+        }
+
+        if (loginResponse.ok && token.isEmpty) {
+          return const AppleLoginResult(
+            message:
+                'El backend no devolvió un token de sesión para Sign in with Apple.',
+          );
+        }
+
+        return AppleLoginResult(
+          message:
+              message.isNotEmpty
+                  ? message
+                  : 'El backend no aprobó el inicio de sesión con Apple.',
+        );
+      }
+
+      // El mensaje del backend gana: en los 401 explica cómo destrabarse desde
+      // Ajustes > ID de Apple, y eso es más útil que cualquier texto genérico.
+      return AppleLoginResult(
+        message:
+            message.isNotEmpty
+                ? message
+                : _mensajeApplePorEstado(response.statusCode),
+      );
+    } on SocketException {
+      rethrow;
+    } catch (_) {
+      return const AppleLoginResult(
+        message:
+            'No se pudo leer la respuesta del backend de Sign in with Apple.',
+      );
+    }
+  }
+
+  String _mensajeApplePorEstado(int statusCode) {
+    switch (statusCode) {
+      case 400:
+        return 'Faltaron datos para iniciar sesión con Apple. Intenta nuevamente.';
+      case 401:
+        return 'Apple rechazó el inicio de sesión. Intenta nuevamente.';
+      case 403:
+        return 'Tu cuenta fue desactivada. Comunícate con nosotros para reactivarla.';
+      case 429:
+        return 'Demasiados intentos seguidos. Espera un momento y vuelve a intentar.';
+      default:
+        return 'El backend rechazó Sign in with Apple ($statusCode).';
     }
   }
 

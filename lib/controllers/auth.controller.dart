@@ -16,6 +16,7 @@ import 'package:flutter/services.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:sign_in_with_apple/sign_in_with_apple.dart';
 
 class AuthController {
   final cuerpoController = CuerpoDeController();
@@ -156,6 +157,116 @@ class AuthController {
   String _mensajeErrorGoogle(PlatformException error) {
     final detalle = error.message ?? error.code;
     return 'No se pudo iniciar sesión con Google. Verifica la configuración OAuth en Google Cloud Console: Web Client ID, package name y huellas SHA-1/SHA-256. Detalle: $detalle';
+  }
+
+  /// Prefijo del nombre que Apple entrega una única vez. Ver [_nombreDeApple].
+  static const _appleNombreKey = 'apple_nombre_';
+
+  Future<bool> loginWithAppleController(BuildContext context) async {
+    final authprovider = Provider.of<AuthProvider>(context, listen: false);
+    authprovider.loading = true;
+
+    try {
+      final credential = await SignInWithApple.getAppleIDCredential(
+        scopes: const [
+          AppleIDAuthorizationScopes.email,
+          AppleIDAuthorizationScopes.fullName,
+        ],
+      );
+
+      final identityToken = credential.identityToken?.trim() ?? '';
+      if (identityToken.isEmpty) {
+        globalSnackBar(
+          'Apple no devolvió el token de identidad. Intenta nuevamente.',
+        );
+        authprovider.loading = false;
+        return false;
+      }
+
+      // Se resuelve y persiste ANTES del POST a propósito: si la petición falla
+      // por red, Apple ya no vuelve a entregar el nombre y se perdería para
+      // siempre. Guardado en disco, el reintento lo recupera.
+      final nombre = await _nombreDeApple(credential);
+
+      final result = await service.loginWithApple(
+        identityToken: identityToken,
+        nombre: nombre,
+      );
+
+      if (result.ok && result.response != null) {
+        await _guardarSesion(result.response!, authprovider);
+        await _olvidarNombreDeApple(credential.userIdentifier);
+        _irAlHome(context);
+
+        authprovider.loading = false;
+        return true;
+      }
+
+      globalSnackBar(
+        result.message.isNotEmpty
+            ? result.message
+            : 'No se pudo iniciar sesión con Apple.',
+      );
+    } on SignInWithAppleAuthorizationException catch (error) {
+      // Cancelar no es un fallo: se cierra la hoja y no se dice nada.
+      if (error.code != AuthorizationErrorCode.canceled) {
+        alertError(context, mensaje: _mensajeErrorApple(error));
+      }
+    } on SocketException {
+      alertError(
+        context,
+        mensaje:
+            'Ocurrió un error de conexión. Verifique su internet e intente nuevamente.',
+      );
+    } catch (_) {
+      alertError(
+        context,
+        mensaje: 'Ocurrió un error al iniciar sesión con Apple.',
+      );
+    }
+
+    authprovider.loading = false;
+    return false;
+  }
+
+  /// Nombre a enviar al backend, sobreviviendo a reintentos.
+  ///
+  /// Apple entrega `givenName`/`familyName` una sola vez por Apple ID: en los
+  /// logins siguientes llegan nulos. Cuando llegan se persisten; cuando no, se
+  /// relee lo guardado. La clave incluye el `userIdentifier` para que dos
+  /// cuentas de Apple en el mismo equipo no se pisen.
+  Future<String?> _nombreDeApple(
+    AuthorizationCredentialAppleID credential,
+  ) async {
+    final prefs = await SharedPreferences.getInstance();
+    final clave = '$_appleNombreKey${credential.userIdentifier ?? ''}';
+
+    final nombre = [credential.givenName, credential.familyName]
+        .whereType<String>()
+        .map((parte) => parte.trim())
+        .where((parte) => parte.isNotEmpty)
+        .join(' ');
+
+    if (nombre.isNotEmpty) {
+      await prefs.setString(clave, nombre);
+      return nombre;
+    }
+
+    final guardado = prefs.getString(clave)?.trim() ?? '';
+    return guardado.isEmpty ? null : guardado;
+  }
+
+  /// El backend ya lo tiene persistido: se libera la copia local.
+  Future<void> _olvidarNombreDeApple(String? userIdentifier) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove('$_appleNombreKey${userIdentifier ?? ''}');
+  }
+
+  String _mensajeErrorApple(SignInWithAppleAuthorizationException error) {
+    final detalle = error.message.trim();
+    return detalle.isNotEmpty
+        ? 'No se pudo iniciar sesión con Apple. Detalle: $detalle'
+        : 'No se pudo iniciar sesión con Apple. Intenta nuevamente.';
   }
 
 
