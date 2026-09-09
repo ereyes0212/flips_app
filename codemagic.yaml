@@ -22,6 +22,11 @@ workflows:
       # build falla por autenticacion, revisa primero si vencio.
       groups:
         - shorebird
+        # Debe contener CERTIFICATE_PRIVATE_KEY: la llave RSA privada con la
+        # que se emite el certificado de distribucion. Va como secure.
+        # Tiene que ser SIEMPRE la misma: si cambia, Apple emite un
+        # certificado nuevo en cada build y el limite de la cuenta se agota.
+        - apple_signing
 
       vars:
         BUNDLE_ID: com.diariotiempohn.app
@@ -55,6 +60,7 @@ workflows:
         script: |
           app-store-connect fetch-signing-files "$BUNDLE_ID" \
             --type IOS_APP_STORE \
+            --certificate-key=@env:CERTIFICATE_PRIVATE_KEY \
             --create
 
       - name: Cargar el certificado al llavero
