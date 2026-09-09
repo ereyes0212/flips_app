@@ -23,12 +23,13 @@ workflows:
       groups:
         - shorebird
 
-      ios_signing:
-        distribution_type: app_store
-        bundle_identifier: com.diariotiempohn.app
+      vars:
+        BUNDLE_ID: com.diariotiempohn.app
 
     # Nombre de la API key de App Store Connect cargada en
     # Codemagic > Teams > Integrations > App Store Connect.
+    # Expone APP_STORE_CONNECT_ISSUER_ID / _KEY_IDENTIFIER / _PRIVATE_KEY,
+    # que la CLI `app-store-connect` toma sola.
     integrations:
       app_store_connect: DiarioTiempo_ASC_Key
 
@@ -45,7 +46,21 @@ workflows:
       - name: Instalar pods
         script: find . -name "Podfile" -execdir pod install \;
 
-      - name: Configurar firma en el proyecto Xcode
+      # Firma explicita en vez del bloque `ios_signing`. El bloque falla con
+      # "No matching profiles found" cuando el certificado de distribucion o el
+      # perfil todavia no existen en la cuenta; `--create` los genera en vez de
+      # solo buscarlos. Ademas, al ser tres pasos separados, el log dice cual
+      # de los tres rompio.
+      - name: Obtener certificado y perfil de firma
+        script: |
+          app-store-connect fetch-signing-files "$BUNDLE_ID" \
+            --type IOS_APP_STORE \
+            --create
+
+      - name: Cargar el certificado al llavero
+        script: keychain initialize && keychain add-certificates
+
+      - name: Aplicar los perfiles al proyecto Xcode
         script: xcode-project use-profiles
 
       # `shorebird release` en vez de `flutter build ipa`: es lo que registra
