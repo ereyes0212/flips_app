@@ -92,3 +92,37 @@ workflows:
         submit_to_testflight: true
         # Cambia a true cuando quieras que pase a revision automaticamente.
         submit_to_app_store: false
+
+  # Compila para el simulador y deja el .app como artefacto, que es lo que
+  # habilita el boton "Quick Launch" de App Preview: abre la app en un
+  # simulador dentro del navegador, sin dispositivo fisico.
+  #
+  # Sirve sobre todo para revisar el layout en iPad, que es lo que App Review
+  # va a probar. NO sirve para push (APNs no llega a un simulador) ni para
+  # validar anuncios o login social.
+  #
+  # No lleva firma ni Shorebird a proposito: el simulador no usa certificados,
+  # y eso lo deja en unos 5-8 minutos en vez de los ~25 del release.
+  ios-simulator:
+    name: iOS preview en navegador (simulador)
+    instance_type: mac_mini_m2
+    max_build_duration: 30
+
+    environment:
+      flutter: 3.35.5
+      xcode: latest
+      cocoapods: default
+
+    scripts:
+      - name: Flutter packages
+        script: flutter pub get
+
+      - name: Instalar pods
+        script: find . -name "Podfile" -execdir pod install \;
+
+      - name: Build para simulador
+        script: flutter build ios --simulator
+
+    # La ruta del .app es lo que Codemagic detecta para ofrecer Quick Launch.
+    artifacts:
+      - build/ios/iphonesimulator/Runner.app
