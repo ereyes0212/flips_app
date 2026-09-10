@@ -694,7 +694,13 @@ class PushNotificationsService extends ChangeNotifier {
           icon: '@mipmap/ic_launcher',
           styleInformation: estilo,
         ),
-        iOS: const DarwinNotificationDetails(),
+        // La misma foto que Android muestra con BigPicture: en iOS va como
+        // adjunto. Sin esto el aviso en primer plano salia solo con texto.
+        iOS: DarwinNotificationDetails(
+          attachments: rutaImagen == null
+              ? null
+              : [DarwinNotificationAttachment(rutaImagen)],
+        ),
       ),
       payload: jsonEncode(message.data),
     );

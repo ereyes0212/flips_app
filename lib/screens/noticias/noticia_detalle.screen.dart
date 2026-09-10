@@ -169,7 +169,12 @@ class _NoticiaDetalleScreenState extends State<_NoticiaDetalleScreen> {
                 key: _compartirKey,
                 tooltip: 'Compartir noticia',
                 icon: Icons.share_outlined,
-                onPressed: () => _compartirNoticia(context, noticia),
+                onPressed:
+                    () => _compartirNoticia(
+                      context,
+                      noticia,
+                      anchorKey: _compartirKey,
+                    ),
               ),
               const SizedBox(width: 4),
             ],

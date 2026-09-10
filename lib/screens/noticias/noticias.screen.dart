@@ -481,7 +481,27 @@ class _InlineNewsAdBanner extends StatelessWidget {
 }
 
 
-Future<void> _compartirNoticia(BuildContext context, NoticiaModel noticia) async {
+/// Rectangulo desde el que sale la hoja de compartir.
+///
+/// iOS presenta la hoja como popover anclado a un elemento; sin este dato no
+/// aparece nada (en iPad directamente lanza excepcion). Android lo ignora, por
+/// eso el bug solo se veia en iOS. Se prefiere el boton y, si no se puede
+/// medir, se cae a la pantalla completa antes que devolver null.
+Rect? _anclaDeCompartir(BuildContext context, GlobalKey? anchorKey) {
+  for (final candidato in [anchorKey?.currentContext, context]) {
+    final caja = candidato?.findRenderObject();
+    if (caja is RenderBox && caja.hasSize) {
+      return caja.localToGlobal(Offset.zero) & caja.size;
+    }
+  }
+  return null;
+}
+
+Future<void> _compartirNoticia(
+  BuildContext context,
+  NoticiaModel noticia, {
+  GlobalKey? anchorKey,
+}) async {
   final link = noticia.link.trim();
   if (link.isEmpty) {
     ScaffoldMessenger.of(context).showSnackBar(
@@ -490,8 +510,15 @@ Future<void> _compartirNoticia(BuildContext context, NoticiaModel noticia) async
     return;
   }
 
+  final origen = _anclaDeCompartir(context, anchorKey);
   final mensaje = '${noticia.title}\n$link';
-  await SharePlus.instance.share(ShareParams(text: mensaje, subject: noticia.title));
+  await SharePlus.instance.share(
+    ShareParams(
+      text: mensaje,
+      subject: noticia.title,
+      sharePositionOrigin: origen,
+    ),
+  );
   await AnalyticsService.logNoteShare(
     noteId: noticia.id,
     slug: noticia.slug,
