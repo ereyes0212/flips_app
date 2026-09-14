@@ -1,4 +1,86 @@
 workflows:
+  # Android va en Linux y no en el mac: el build no necesita macOS y los minutos
+  # de mac_mini_m2 son el recurso escaso de la cuenta.
+  #
+  # Este workflow existe porque compilar Android en local dejo de ser viable:
+  # Smart App Control de Windows bloquea el `gen_snapshot.exe` del checkout de
+  # Flutter 3.35.5 de Shorebird (binario sin firma y sin reputacion; el de
+  # Flutter normal y el de Shorebird 3.44.9 si pasan). SAC no admite exclusiones
+  # por carpeta y apagarlo es irreversible sin reinstalar Windows.
+  android-release:
+    name: Android release (AAB para Play)
+    instance_type: linux_x2
+    max_build_duration: 45
+
+    environment:
+      # Misma version que .fvmrc y que el --flutter-version de Shorebird.
+      flutter: 3.35.5
+
+      groups:
+        # SHOREBIRD_TOKEN, igual que en iOS.
+        - shorebird
+
+      # Keystore subido en Codemagic > codemagic.yaml settings > Code signing
+      # identities > pestana "Android keystores", con este Reference name.
+      #
+      # El nombre tiene que coincidir exacto: si no, Codemagic no expone las
+      # variables y el build se cae en el paso siguiente.
+      #
+      # Expone CM_KEYSTORE_PATH / CM_KEYSTORE_PASSWORD / CM_KEY_ALIAS /
+      # CM_KEY_PASSWORD.
+      android_signing:
+        - diariotiempo_upload
+
+    scripts:
+      - name: Instalar Shorebird
+        script: |
+          curl --proto '=https' --tlsv1.2 \
+            https://raw.githubusercontent.com/shorebirdtech/install/main/install.sh -sSf | bash
+          echo PATH="$HOME/.shorebird/bin:$PATH" >> $CM_ENV
+
+      # android/app/build.gradle.kts lee la firma de android/key.properties, que
+      # no esta en el repo (lleva contrasenas). Si falta, ESE build.gradle firma
+      # con la llave de debug y solo deja un warning: el AAB se genera igual y
+      # Play lo rechaza al subirlo. Por eso aca se corta el build en vez de
+      # avisar.
+      - name: Generar key.properties
+        script: |
+          set -e
+
+          if [ -z "$CM_KEYSTORE_PATH" ]; then
+            echo "Codemagic no expuso el keystore. Revisa que el Reference name"
+            echo "en Code signing identities sea exactamente 'diariotiempo_upload'."
+            exit 1
+          fi
+
+          {
+            echo "storeFile=$CM_KEYSTORE_PATH"
+            echo "storePassword=$CM_KEYSTORE_PASSWORD"
+            echo "keyAlias=$CM_KEY_ALIAS"
+            echo "keyPassword=$CM_KEY_PASSWORD"
+          } > "$CM_BUILD_DIR/android/key.properties"
+
+      - name: Flutter packages
+        script: flutter pub get
+
+      # Sin --build-number a proposito: el versionCode sale de pubspec.yaml.
+      #
+      # $BUILD_NUMBER es un contador de Codemagic que no sabe nada de lo que ya
+      # subiste a Play. Si queda por debajo del ultimo versionCode publicado,
+      # Play rechaza el AAB; y peor, el numero cambia solo entre builds. El
+      # versionCode de Play tiene que crecer siempre, asi que se controla a mano
+      # subiendo la version en pubspec.yaml.
+      - name: Shorebird release Android
+        script: shorebird release android --flutter-version=3.35.5
+
+    artifacts:
+      - build/app/outputs/bundle/**/*.aab
+      # Sin esto, los stack traces de Crashlytics llegan ofuscados por R8.
+      - build/app/outputs/**/mapping.txt
+
+    # No se publica solo: el AAB se sube a mano a la prueba interna. Para
+    # automatizarlo hace falta una cuenta de servicio de Google Play.
+
   ios-release:
     name: iOS release (TestFlight / App Store)
     instance_type: mac_mini_m2
