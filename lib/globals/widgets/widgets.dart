@@ -13,4 +13,5 @@ export 'cargando.widget.dart';
 export 'textsecundario.widget.dart';
 export 'parteabajo.widget.dart';
 export 'mantemientoalert.widget.dart';
+export 'muro_login.widget.dart';
 export 'snackbarglobal.helper.global.dart';

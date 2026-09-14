@@ -158,6 +158,19 @@ class _NoticiaDetalleScreenState extends State<_NoticiaDetalleScreen> {
           SliverAppBar(
             expandedHeight: 320,
             pinned: true,
+            // El botón por defecto se pinta con `onSurface`, que es oscuro, y
+            // acá el fondo es la foto de la nota: sobre una imagen oscura
+            // desaparecía. Se usa el mismo disco translúcido que escuchar y
+            // compartir para que los tres se lean igual sobre cualquier imagen.
+            leading: Navigator.of(context).canPop()
+                ? _AccionCabecera(
+                    tooltip: 'Volver',
+                    icon: Theme.of(context).platform == TargetPlatform.iOS
+                        ? Icons.arrow_back_ios_new
+                        : Icons.arrow_back,
+                    onPressed: () => Navigator.of(context).maybePop(),
+                  )
+                : null,
             actions: [
               _BotonEscuchar(
                 key: _escucharKey,

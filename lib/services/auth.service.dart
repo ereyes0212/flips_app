@@ -51,7 +51,7 @@ class AuthService {
       final response = await _httpService.post(
         '${apiUrl}auth/login',
         body: {'identifier': email, 'contrasena': password},
-        includeAuth: false,
+        auth: ModoAuth.ninguna,
       );
 
       if (response.statusCode == 200) {
@@ -115,7 +115,7 @@ class AuthService {
       final response = await _httpService.post(
         '$apiUrl$endpoint',
         body: payload,
-        includeAuth: false,
+        auth: ModoAuth.ninguna,
       );
 
       final body = _decodeBody(response.body);
@@ -145,6 +145,17 @@ class AuthService {
 
 
   Future<SuscripcionActivaResult> obtenerSuscripcionActiva() async {
+    // Un invitado no tiene suscripción que consultar, y preguntarlo igual no
+    // sale gratis: `ModoAuth.requerida` sin sesión cierra y saca de la
+    // pantalla. Pasa con "Noticias sin conexión", que sí está en el menú de
+    // quien lee sin cuenta.
+    if (!await SessionService.hasStoredSession()) {
+      return const SuscripcionActivaResult(
+        autenticado: false,
+        suscripcionActiva: false,
+      );
+    }
+
     try {
       final response = await _httpService.get('${apiUrl}mobile/suscripcion-activa');
       if (response.statusCode == 200) {
@@ -193,7 +204,7 @@ class AuthService {
       final response = await _httpService.post(
         '${apiUrl}auth/google',
         body: {'idToken': idToken},
-        includeAuth: false,
+        auth: ModoAuth.ninguna,
       );
 
       final body = _decodeBody(response.body);
@@ -259,7 +270,7 @@ class AuthService {
           // sobrescribirlo en los logins siguientes.
           if (nombreLimpio.isNotEmpty) 'nombre': nombreLimpio,
         },
-        includeAuth: false,
+        auth: ModoAuth.ninguna,
       );
 
       final body = _decodeBody(response.body);

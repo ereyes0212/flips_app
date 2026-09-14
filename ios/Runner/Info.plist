@@ -59,9 +59,13 @@
 	         playback, pero la categoria sola no sobrevive al background.
 	  remote-notification: pushes de FCM con la app cerrada.
 	-->
+	<!-- Sin "audio" a propósito. App Review lo rechazó por la guideline 2.5.4:
+	     ese modo es para reproductores de música o streaming, y la lectura en
+	     voz alta de una noticia no lo justifica. La lectura sigue funcionando
+	     con la app en pantalla; al pasar a segundo plano se pausa sola y se
+	     retoma donde iba (ver LectorProvider). -->
 	<key>UIBackgroundModes</key>
 	<array>
-		<string>audio</string>
 		<string>remote-notification</string>
 	</array>
 	<!-- google_sign_in: el scheme es el REVERSED_CLIENT_ID de GoogleService-Info.plist -->

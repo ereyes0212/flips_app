@@ -66,8 +66,24 @@ class _LoginScreenState extends State<LoginScreen> {
     final isWideLayout = size.width >= 720;
     final formMaxWidth = isWideLayout ? 460.0 : double.infinity;
 
+    // Desde que la app abre en la portada, esta pantalla siempre llega empujada
+    // desde un muro concreto (suscripción, diario, perfil). Sin una salida
+    // visible quedaría atrapando a quien solo quería seguir leyendo — que es
+    // justo lo que la guideline 5.1.1(v) no permite.
+    final puedeVolver = Navigator.of(context).canPop();
+
     return Scaffold(
       backgroundColor: const Color(0xFFF7F9FD),
+      appBar: puedeVolver
+          ? AppBar(
+              backgroundColor: Colors.transparent,
+              leading: IconButton(
+                onPressed: () => Navigator.of(context).maybePop(),
+                icon: const Icon(Icons.close_rounded),
+                tooltip: 'Seguir sin cuenta',
+              ),
+            )
+          : null,
       body: SafeArea(
         child: Center(
           child: SingleChildScrollView(
@@ -202,6 +218,13 @@ class _LoginScreenState extends State<LoginScreen> {
                     icon: const Icon(Icons.verified_user_outlined),
                     label: const Text('Crear cuenta con correo'),
                   ),
+                  if (puedeVolver) ...[
+                    const SizedBox(height: 4),
+                    TextButton(
+                      onPressed: () => Navigator.of(context).maybePop(),
+                      child: const Text('Continuar sin cuenta'),
+                    ),
+                  ],
                 ],
               ),
             ),

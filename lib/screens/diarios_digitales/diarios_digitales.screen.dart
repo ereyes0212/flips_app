@@ -1,9 +1,14 @@
+import 'dart:async';
+
 import 'package:flips_app/constants.dart';
 import 'package:flips_app/controllers/diarios_digitales.controller.dart';
+import 'package:flips_app/globals/widgets/muro_login.widget.dart';
 import 'package:flips_app/models/diarios_digitales.model.dart';
+import 'package:flips_app/providers/auth.provider.dart';
 import 'package:flips_app/providers/diarios_digitales.provider.dart';
 import 'package:flips_app/screens/paquetes/paquetes.screen.dart';
 import 'package:flips_app/services/acceso_usuario.service.dart';
+import 'package:flips_app/services/diarios_digitales.service.dart';
 import 'package:flips_app/services/interstitial_ads.service.dart';
 import 'package:flips_app/services/session.service.dart';
 import 'package:flutter/material.dart';
@@ -35,7 +40,22 @@ class _DiariosDigitalesScreenState extends State<DiariosDigitalesScreen> {
       now.year + 2 - 2008 + 1,
       (index) => now.year + 2 - index,
     );
-    Future.microtask(_buscarDiarios);
+    Future.microtask(_cargarLoQueCorresponda);
+  }
+
+  /// La edición del día se pide siempre; el archivo solo con sesión.
+  ///
+  /// `/mis-notas` es contenido de cuenta: sin sesión solo devolvería un `401`
+  /// y, peor, arrastraría al invitado fuera de la pestaña. Se corta antes de
+  /// salir a la red.
+  Future<void> _cargarLoQueCorresponda() async {
+    // Se pide también con sesión: quien tiene cuenta pero no suscripción recibe
+    // un `403` en el archivo, y sin esto vería menos que un invitado — que es
+    // justo al revés de lo que uno esperaría al iniciar sesión.
+    unawaited(_controller.cargarUltimoPublico(context));
+
+    if (!mounted || !context.read<AuthProvider>().sesionIniciada) return;
+    await _buscarDiarios();
   }
 
   /// Los diarios son contenido de suscriptor, así que el anuncio le toca solo
@@ -52,7 +72,40 @@ class _DiariosDigitalesScreenState extends State<DiariosDigitalesScreen> {
     if (acceso.mostrarAnuncios) InterstitialAdsService.diarios.precargar();
   }
 
-  void _abrirDiario(DiarioDigitalModel diario) {
+  /// Abre la edición pública, renovando la firma si hace falta.
+  ///
+  /// Recargar al entrar no basta: alguien puede dejar la pestaña abierta más de
+  /// los 30 minutos que dura la URL de S3 y tocar la portada después. Acá se
+  /// comprueba justo antes de abrir, que es el único momento en que se sabe de
+  /// verdad si la firma sigue viva.
+  Future<void> _abrirUltimaEdicionPublica(DiarioDigitalModel diario) async {
+    var edicion = diario;
+
+    if (edicion.firmaVencida()) {
+      await _controller.cargarUltimoPublico(context);
+      if (!mounted) return;
+
+      final renovada = context.read<DiariosDigitalesProvider>().ultimoPublico;
+      if (renovada == null || renovada.firmaVencida()) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'No pudimos abrir la edición del día. Revisa tu conexión e '
+              'intenta nuevamente.',
+            ),
+          ),
+        );
+        return;
+      }
+
+      edicion = renovada;
+    }
+
+    if (!mounted) return;
+    _abrirDiario(edicion, publico: true);
+  }
+
+  void _abrirDiario(DiarioDigitalModel diario, {bool publico = false}) {
     // El navegador se toma antes del anuncio porque el interstitial se lleva
     // la pantalla y el `context` puede no seguir montado al volver.
     final navigator = Navigator.of(context);
@@ -61,7 +114,9 @@ class _DiariosDigitalesScreenState extends State<DiariosDigitalesScreen> {
       if (!navigator.mounted) return;
 
       navigator.push(
-        MaterialPageRoute(builder: (_) => PdfViewerScreen(diario: diario)),
+        MaterialPageRoute(
+          builder: (_) => PdfViewerScreen(diario: diario, publico: publico),
+        ),
       );
     }
 
@@ -99,11 +154,44 @@ class _DiariosDigitalesScreenState extends State<DiariosDigitalesScreen> {
   @override
   Widget build(BuildContext context) {
     final provider = context.watch<DiariosDigitalesProvider>();
+    final sesionIniciada = context.watch<AuthProvider>().sesionIniciada;
+
+    // El invitado lee la edición del día completa; el archivo desde 2008 es lo
+    // que sigue siendo de suscriptor. Los filtros de año y mes no se le
+    // muestran porque no tendría con qué llenarlos.
+    if (!sesionIniciada) {
+      return Scaffold(
+        appBar: AppBar(title: const Text('Diarios digitales')),
+        body: RefreshIndicator(
+          onRefresh: () => _controller.cargarUltimoPublico(context),
+          child: ListView(
+            physics: const AlwaysScrollableScrollPhysics(),
+            padding: const EdgeInsets.all(16),
+            children: [
+              _UltimaEdicionPublica(
+                provider: provider,
+                mes: _meses[provider.ultimoPublico?.mes] ?? '',
+                onAbrir: _abrirUltimaEdicionPublica,
+              ),
+              const SizedBox(height: 16),
+              const MuroLoginCard(
+                titulo: 'Ediciones anteriores',
+                detalle:
+                    'Los anuarios desde 2008 están disponibles para cuentas con '
+                    'suscripción activa. La edición del día se lee sin cuenta.',
+              ),
+            ],
+          ),
+        ),
+      );
+    }
 
     return Scaffold(
       appBar: AppBar(title: const Text('Diarios digitales')),
       body: RefreshIndicator(
-        onRefresh: _buscarDiarios,
+        // También renueva la edición pública: se muestra en esta misma pantalla
+        // a las cuentas sin suscripción, y su firma caduca a los 30 minutos.
+        onRefresh: _cargarLoQueCorresponda,
         child: CustomScrollView(
           physics: const AlwaysScrollableScrollPhysics(),
           slivers: [
@@ -141,15 +229,26 @@ class _DiariosDigitalesScreenState extends State<DiariosDigitalesScreen> {
             else if (provider.subscriptionRequired)
               SliverPadding(
                 padding: const EdgeInsets.all(16),
-                sliver: SliverToBoxAdapter(
-                  child: _SubscriptionUpsellCard(
-                    onVerPaquetes: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(builder: (_) => const PaquetesScreen()),
-                      );
-                    },
-                  ),
+                sliver: SliverList.list(
+                  children: [
+                    // Una cuenta sin suscripción recibe `403` en el archivo. Sin
+                    // esto vería menos que un invitado, que es absurdo: la
+                    // edición del día es pública para todos.
+                    _UltimaEdicionPublica(
+                      provider: provider,
+                      mes: _meses[provider.ultimoPublico?.mes] ?? '',
+                      onAbrir: _abrirUltimaEdicionPublica,
+                    ),
+                    const SizedBox(height: 16),
+                    _SubscriptionUpsellCard(
+                      onVerPaquetes: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(builder: (_) => const PaquetesScreen()),
+                        );
+                      },
+                    ),
+                  ],
                 ),
               )
             else if (provider.diarios.isEmpty)
@@ -188,16 +287,109 @@ class _DiariosDigitalesScreenState extends State<DiariosDigitalesScreen> {
   }
 }
 
+/// La edición del día, abierta a cualquiera.
+///
+/// Se muestra en la pestaña tanto a invitados como a cuentas sin suscripción:
+/// son los dos casos que antes no veían absolutamente nada acá.
+class _UltimaEdicionPublica extends StatelessWidget {
+  const _UltimaEdicionPublica({
+    required this.provider,
+    required this.mes,
+    required this.onAbrir,
+  });
+
+  final DiariosDigitalesProvider provider;
+  final String mes;
+  final ValueChanged<DiarioDigitalModel> onAbrir;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final diario = provider.ultimoPublico;
+
+    if (provider.cargandoUltimoPublico && diario == null) {
+      return const SizedBox(
+        height: 220,
+        child: Center(child: CircularProgressIndicator()),
+      );
+    }
+
+    // Ni error ni edición: no se dice nada. Es contenido de cortesía, y un
+    // mensaje de fallo acá solo ensuciaría la pantalla de quien venía al
+    // archivo. El caso "aún no hay edición" sí se nombra, porque es informativo.
+    if (diario == null) {
+      if (!provider.sinEdicionPublica) return const SizedBox.shrink();
+
+      return Card(
+        child: Padding(
+          padding: const EdgeInsets.all(20),
+          child: Text(
+            'Todavía no hay una edición publicada.',
+            style: theme.textTheme.bodyMedium,
+          ),
+        ),
+      );
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Icon(Icons.auto_stories_outlined, color: theme.colorScheme.primary),
+            const SizedBox(width: 8),
+            Text(
+              'Edición del día',
+              style: theme.textTheme.titleMedium?.copyWith(
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 4),
+        Text(
+          'Léela completa, sin cuenta.',
+          style: theme.textTheme.bodySmall?.copyWith(
+            color: theme.colorScheme.onSurfaceVariant,
+          ),
+        ),
+        const SizedBox(height: 14),
+        // Mismo alto que una tarjeta de la cuadrícula del archivo, para que las
+        // dos secciones se lean como lo mismo.
+        SizedBox(
+          height: 330,
+          child: Align(
+            alignment: Alignment.centerLeft,
+            child: AspectRatio(
+              aspectRatio: 0.56,
+              child: _DiarioPosterCard(
+                diario: diario,
+                mes: mes.isEmpty ? diario.mes.toString() : mes,
+                publico: true,
+                onTap: !diario.hasPdf ? null : () => onAbrir(diario),
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
 class _DiarioPosterCard extends StatelessWidget {
   const _DiarioPosterCard({
     required this.diario,
     required this.mes,
     required this.onTap,
+    this.publico = false,
   });
 
   final DiarioDigitalModel diario;
   final String mes;
   final VoidCallback? onTap;
+
+  /// La edición abierta a invitados: su portada va sin credenciales.
+  final bool publico;
 
   @override
   Widget build(BuildContext context) {
@@ -228,7 +420,7 @@ class _DiarioPosterCard extends StatelessWidget {
                 child: Stack(
                   fit: StackFit.expand,
                   children: [
-                    _DiarioPdfCover(diario: diario),
+                    _DiarioPdfCover(diario: diario, publico: publico),
                     Positioned.fill(
                       child: DecoratedBox(
                         decoration: BoxDecoration(
@@ -317,9 +509,10 @@ class _DiarioPosterCard extends StatelessWidget {
 }
 
 class _DiarioPdfCover extends StatelessWidget {
-  const _DiarioPdfCover({required this.diario});
+  const _DiarioPdfCover({required this.diario, this.publico = false});
 
   final DiarioDigitalModel diario;
+  final bool publico;
 
   @override
   Widget build(BuildContext context) {
@@ -334,7 +527,7 @@ class _DiarioPdfCover extends StatelessWidget {
     return ColoredBox(
       color: colorScheme.surfaceContainerHighest,
       child: FutureBuilder<Map<String, String>>(
-        future: _DiarioNetwork.privateHeaders(),
+        future: _DiarioNetwork.headersPara(coverUrl, publico: publico),
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting &&
               !snapshot.hasData) {
@@ -507,16 +700,34 @@ class _DiarioNetwork {
     return baseUri.resolve(value).toString();
   }
 
-  static Future<Map<String, String>> privateHeaders() async {
-    final token = await SessionService.getValidToken() ?? '';
+  /// Cabeceras para bajar la portada o el PDF de un diario.
+  ///
+  /// Quién puede llevar credenciales lo decide [diarioAceptaCredenciales].
+  static Future<Map<String, String>> headersPara(
+    String url, {
+    required bool publico,
+  }) async {
+    if (!diarioAceptaCredenciales(url, publico: publico)) {
+      return const {'Accept': '*/*'};
+    }
+
+    return _privateHeaders();
+  }
+
+  /// Si la sesión ya no sirve se lanza [SessionExpiredException] y lo resuelve
+  /// el `FutureBuilder` que envuelve al visor: antes esto llamaba a
+  /// `expireAndRedirect` y vaciaba la pila de navegación desde dentro de un
+  /// `build`, así que perder el token mientras se cargaba una portada sacaba al
+  /// usuario de la pantalla sin explicación.
+  static Future<Map<String, String>> _privateHeaders() async {
+    final token =
+        await SessionService.getValidToken(expulsarSiFalla: false) ?? '';
     if (token.isEmpty) {
-      await SessionService.expireAndRedirect(
-        message: 'Tu sesión expiró. Inicia sesión nuevamente.',
-      );
       throw const SessionExpiredException();
     }
 
-    final sessionCookie = await SessionService.getSessionCookie() ?? '';
+    final sessionCookie =
+        await SessionService.getSessionCookie(expulsarSiFalla: false) ?? '';
 
     return {
       'Accept': '*/*',
@@ -527,16 +738,26 @@ class _DiarioNetwork {
 }
 
 class PdfViewerScreen extends StatelessWidget {
-  const PdfViewerScreen({super.key, required this.diario});
+  const PdfViewerScreen({
+    super.key,
+    required this.diario,
+    this.publico = false,
+  });
 
   final DiarioDigitalModel diario;
 
+  /// La edición del día, legible sin cuenta. Su URL viene firmada por S3 y
+  /// adjuntarle el Bearer la invalidaría.
+  final bool publico;
+
   @override
   Widget build(BuildContext context) {
+    final url = _DiarioNetwork.resolveUrl(diario.pdfViewerUrl);
+
     return Scaffold(
       appBar: AppBar(title: Text(diario.titulo)),
       body: FutureBuilder<Map<String, String>>(
-        future: _DiarioNetwork.privateHeaders(),
+        future: _DiarioNetwork.headersPara(url, publico: publico),
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting &&
               !snapshot.hasData) {
@@ -549,10 +770,7 @@ class PdfViewerScreen extends StatelessWidget {
             );
           }
 
-          return SfPdfViewer.network(
-            _DiarioNetwork.resolveUrl(diario.pdfViewerUrl),
-            headers: snapshot.data ?? const {},
-          );
+          return SfPdfViewer.network(url, headers: snapshot.data ?? const {});
         },
       ),
     );

@@ -15,6 +15,15 @@ GlobalKey<ScaffoldMessengerState> snackbarKey =
     GlobalKey<ScaffoldMessengerState>();
 GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 
+/// Permite a una pantalla enterarse de que volvió al frente.
+///
+/// `AppAnalyticsRouteObserver` es un `NavigatorObserver` y no sirve para esto:
+/// `RouteAware` (y con él `didPopNext`) necesita un `RouteObserver`. Lo usa el
+/// listado de noticias para recargar al regresar de una nota, que es el caso que
+/// `initState` no cubre — la pantalla nunca se destruyó.
+final RouteObserver<PageRoute<dynamic>> rutasObserver =
+    RouteObserver<PageRoute<dynamic>>();
+
 class AppAssets {
   String logoAppWhite = 'assets/images/logo.png';
   String noImage = 'assets/images/no-image.png';

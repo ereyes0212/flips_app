@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:io';
 
+import 'package:flips_app/constants.dart';
 import 'package:flips_app/controllers/noticias.controller.dart';
 import 'package:flips_app/models/noticias.model.dart';
 import 'package:flips_app/providers/lector.provider.dart';
@@ -47,31 +48,108 @@ class NoticiasScreen extends StatefulWidget {
   State<NoticiasScreen> createState() => _NoticiasScreenState();
 }
 
-class _NoticiasScreenState extends State<NoticiasScreen> {
-  static const Duration _manualRefreshCooldown = Duration(seconds: 45);
-
+class _NoticiasScreenState extends State<NoticiasScreen>
+    with RouteAware, WidgetsBindingObserver {
   /// Umbral del scroll infinito. Al 80% del recorrido ya se pide la página
   /// siguiente para que llegue antes de que el usuario toque el fondo.
   static const double _umbralCargaAutomatica = 0.8;
+
+  /// Tiempo fuera a partir del cual volver se trata como empezar de nuevo.
+  ///
+  /// Por debajo de esto —mirar una notificación, contestar un mensaje— el
+  /// usuario sigue en lo suyo y perderle el recorrido sería una molestia. Por
+  /// encima, ya viene a ver qué hay de nuevo.
+  static const Duration _ausenciaQueJustificaRecarga = Duration(minutes: 2);
 
   final _controller = NoticiasController();
   final _searchController = TextEditingController();
   final _scrollController = ScrollController();
   AccesoUsuario _acceso = const AccesoUsuario.sinResolver();
   DateTimeRange? _filtroFecha;
-  DateTime? _lastManualRefreshAt;
+  DateTime? _salidaASegundoPlano;
   final _noticiasService = NoticiasService();
 
   @override
   void initState() {
     super.initState();
     _scrollController.addListener(_alHacerScroll);
+    WidgetsBinding.instance.addObserver(this);
     Future.microtask(() {
       _controller.cargarNoticias(context);
       _controller.cargarCategorias(context);
       _cargarNoticiasOffline();
     });
     _resolverAcceso();
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final route = ModalRoute.of(context);
+    if (route is PageRoute) rutasObserver.subscribe(this, route);
+  }
+
+  /// Se volvió al listado desde una noticia.
+  ///
+  /// `initState` no cubre este caso: la pantalla nunca se destruyó, solo quedó
+  /// tapada. Sin esto había que tirar hacia abajo para ver lo publicado
+  /// mientras se leía.
+  @override
+  void didPopNext() => _recargarAlVolver();
+
+  /// Volver de segundo plano recarga el listado.
+  ///
+  /// Es el caso que más se nota y el que ningún `initState` cubre: en iOS la app
+  /// se queda viva en segundo plano mucho tiempo, así que volver a abrirla
+  /// *parece* un arranque nuevo pero no lo es — nada se reconstruye y el listado
+  /// seguiría mostrando lo de hace horas.
+  ///
+  /// Cuánto se estuvo fuera decide si se respeta la paginación: ver
+  /// [_ausenciaQueJustificaRecarga].
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.paused ||
+        state == AppLifecycleState.hidden) {
+      _salidaASegundoPlano = DateTime.now();
+      return;
+    }
+
+    if (state != AppLifecycleState.resumed) return;
+
+    final salida = _salidaASegundoPlano;
+    _salidaASegundoPlano = null;
+
+    _recargarAlVolver(
+      aunqueHayaPaginado: salida != null &&
+          DateTime.now().difference(salida) >= _ausenciaQueJustificaRecarga,
+    );
+  }
+
+  void _recargarAlVolver({bool aunqueHayaPaginado = false}) {
+    if (!mounted) return;
+
+    // Recargar devuelve el listado a la primera página. A media sesión eso le
+    // borra el recorrido a quien bajó veinte noticias, así que se respeta; tras
+    // una ausencia larga es al revés, y lo que quiere es la portada al día.
+    if (!aunqueHayaPaginado &&
+        context.read<NoticiasProvider>().page > 1) {
+      return;
+    }
+
+    // Si el listado se va a encoger, se sube primero: quedarse a la altura de
+    // la noticia veinte en una lista que ahora tiene diez deja al usuario en un
+    // punto que no eligió.
+    if (aunqueHayaPaginado && _scrollController.hasClients) {
+      _scrollController.jumpTo(0);
+    }
+
+    _controller.cargarNoticias(
+      context,
+      busqueda: _searchController.text.trim(),
+      fechaDesde: _filtroFecha?.start,
+      fechaHasta: _filtroFecha?.end,
+      enSegundoPlano: true,
+    );
   }
 
   Future<void> _cargarNoticiasOffline() async {
@@ -82,6 +160,8 @@ class _NoticiasScreenState extends State<NoticiasScreen> {
 
   @override
   void dispose() {
+    rutasObserver.unsubscribe(this);
+    WidgetsBinding.instance.removeObserver(this);
     _scrollController
       ..removeListener(_alHacerScroll)
       ..dispose();
@@ -186,35 +266,25 @@ class _NoticiasScreenState extends State<NoticiasScreen> {
       busqueda: _searchController.text.trim(),
       fechaDesde: _filtroFecha?.start,
       fechaHasta: _filtroFecha?.end,
-      forceRefresh: true,
     );
   }
 
+  /// Tirar hacia abajo siempre pide al servidor.
+  ///
+  /// Antes había dos enfriamientos de 45 segundos con relojes distintos: este,
+  /// que al menos avisaba con un snackbar, y el del controlador, que se saltaba
+  /// la petición en silencio. Cuando vencía el primero pero no el segundo, el
+  /// gesto no hacía absolutamente nada y no había forma de saber por qué.
+  ///
+  /// Un refresco que el usuario pide a mano es una orden, no una sugerencia. La
+  /// protección contra abuso es el rate limit del backend, no un contador local
+  /// que además se reseteaba con solo cambiar de pestaña.
   Future<void> _refrescar() async {
-    final provider = context.read<NoticiasProvider>();
-    final now = DateTime.now();
-    final lastRefresh = _lastManualRefreshAt;
-    if (lastRefresh != null &&
-        provider.noticias.isNotEmpty &&
-        now.difference(lastRefresh) < _manualRefreshCooldown) {
-      final remaining = _manualRefreshCooldown - now.difference(lastRefresh);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            'Espera ${remaining.inSeconds + 1}s antes de refrescar nuevamente.',
-          ),
-        ),
-      );
-      return;
-    }
-
-    _lastManualRefreshAt = now;
     await _controller.cargarNoticias(
       context,
       busqueda: _searchController.text.trim(),
       fechaDesde: _filtroFecha?.start,
       fechaHasta: _filtroFecha?.end,
-      forceRefresh: provider.usingCache || provider.errorMessage.isNotEmpty,
     );
     if (!mounted) return;
     await _controller.cargarCategorias(context);

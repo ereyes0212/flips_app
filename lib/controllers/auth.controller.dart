@@ -5,8 +5,7 @@ import 'package:flips_app/globals/functions/functions.dart';
 import 'package:flips_app/globals/widgets/widgets.dart';
 import 'package:flips_app/models/login_response.model.dart';
 import 'package:flips_app/providers/auth.provider.dart';
-import 'package:flips_app/screens/home/home.screen.dart';
-import 'package:flips_app/screens/login/login.screen.dart';
+import 'package:flips_app/services/acceso_usuario.service.dart';
 import 'package:flips_app/services/auth.service.dart';
 import 'package:flips_app/services/onboarding.service.dart';
 import 'package:flips_app/services/push_notifications.service.dart';
@@ -277,10 +276,9 @@ class AuthController {
     final prefs = await SharedPreferences.getInstance();
     final token = SessionService.normalizeToken(response.token) ?? '';
 
-    // El par de credenciales lo escribe el servicio, que es el mismo camino que
-    // usa la renovación: así el login y el refresh no pueden guardar distinto.
-    await SessionService.guardarTokens(response);
-
+    // Los datos del usuario se escriben ANTES que el token: guardar el token es
+    // lo que dispara `sesionRevision`, y quien reaccione a ese aviso tiene que
+    // encontrar el perfil ya completo en disco, no a medio escribir.
     await prefs.setString('user', response.data.user);
     await prefs.setString('idUser', response.data.idUser);
     await prefs.setString('nombre', response.data.nombre);
@@ -292,24 +290,39 @@ class AuthController {
       await prefs.remove('fotoUrl');
     }
 
-    authprovider.nombreUsuario = response.data.nombre;
-    authprovider.user = response.data.user;
-    authprovider.idUser = response.data.idUser;
-    authprovider.token = token;
+    // Lo resuelto como invitado no vale para la cuenta que acaba de entrar: sin
+    // esto, un suscriptor seguía viendo anuncios hasta reiniciar la app.
+    // `clearSession` ya lo hacía al salir; faltaba el camino de entrada.
+    await AccesoUsuarioService.instance.invalidar();
+
+    // El par de credenciales lo escribe el servicio, que es el mismo camino que
+    // usa la renovación: así el login y el refresh no pueden guardar distinto.
+    await SessionService.guardarTokens(response);
+
+    // `guardarTokens` ya notificó y el provider se rehidrata solo; esto lo deja
+    // consistente aunque el disco falle o el aviso llegue tarde.
+    await authprovider.hidratar();
 
     // Iniciar sesión es el momento natural para preguntar por las
     // notificaciones: el Home lo consume al entrar.
     await OnboardingService.markFreshLogin();
   }
 
+  /// Vuelve a la portada ya autenticado.
+  ///
+  /// Por ruta con nombre y vaciando la pila: el login puede haberse abierto
+  /// desde cualquier muro (suscripción, diario, perfil), y reconstruir el Home
+  /// desde cero es lo que hace que `AccesoUsuarioService` vuelva a resolver con
+  /// la cuenta nueva. Sin eso un suscriptor recién entrado seguía viendo los
+  /// anuncios del modo invitado.
   void _irAlHome(BuildContext context) {
-    Navigator.pushAndRemoveUntil(
-      context,
-      MaterialPageRoute(builder: (_) => const HomeScreen()),
-      (Route<dynamic> route) => false,
-    );
+    Navigator.pushNamedAndRemoveUntil(context, '/', (route) => false);
   }
 
+  /// Cierra la sesión y deja al usuario **en la portada como invitado**.
+  ///
+  /// Salir de la cuenta no es salir de la app: las noticias son públicas, así
+  /// que empujar el login acá sería un muro donde no hace falta.
   Future logoutController(context) async {
     try {
       await PushNotificationsService.instance.unregisterTokenOnLogout();
@@ -319,11 +332,7 @@ class AuthController {
       await SessionService.clearSession();
       await _googleSignIn.signOut();
     } finally {
-      Navigator.pushAndRemoveUntil(
-        context,
-        MaterialPageRoute(builder: (_) => const LoginScreen()),
-        (Route<dynamic> route) => false,
-      );
+      Navigator.pushNamedAndRemoveUntil(context, '/', (route) => false);
       resetProviders(context);
     }
   }

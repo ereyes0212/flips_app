@@ -1,4 +1,6 @@
+import 'package:flips_app/globals/widgets/muro_login.widget.dart';
 import 'package:flips_app/models/noticias.model.dart';
+import 'package:flips_app/providers/auth.provider.dart';
 import 'package:flips_app/providers/noticias.provider.dart';
 import 'package:flips_app/screens/noticias/noticias.screen.dart';
 import 'package:flips_app/screens/paquetes/paquetes.screen.dart';
@@ -57,30 +59,49 @@ class _NoticiasOfflineScreenState extends State<NoticiasOfflineScreen> {
 
 
   Future<void> _mostrarDialogoBeneficios() async {
+    // A un invitado no se le habla de "el estado de tu cuenta" ni se le ofrece
+    // gestionarla: primero necesita tener una.
+    final esInvitado = !context.read<AuthProvider>().sesionIniciada;
+
     await showDialog<void>(
       context: context,
       builder: (dialogContext) => AlertDialog(
         title: const Text('Modo sin conexión para suscriptores'),
-        content: const Text(
-          'Para guardar y leer noticias sin internet necesitas una suscripción activa. '
-          'Puedes revisar el estado de tu cuenta desde el sitio web.',
+        content: Text(
+          esInvitado
+              ? 'Guardar noticias para leerlas sin internet requiere una cuenta '
+                  'con suscripción activa. Leer noticias en línea es gratis y no '
+                  'necesita cuenta.'
+              : 'Para guardar y leer noticias sin internet necesitas una '
+                  'suscripción activa. Puedes revisar el estado de tu cuenta '
+                  'desde el sitio web.',
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(dialogContext),
             child: const Text('Ahora no'),
           ),
-          ElevatedButton.icon(
-            onPressed: () {
-              Navigator.pop(dialogContext);
-              Navigator.push(
-                context,
-                MaterialPageRoute(builder: (_) => const PaquetesScreen()),
-              );
-            },
-            icon: const Icon(Icons.manage_accounts_outlined),
-            label: const Text('Gestionar mi cuenta'),
-          ),
+          if (esInvitado)
+            ElevatedButton.icon(
+              onPressed: () {
+                Navigator.pop(dialogContext);
+                abrirLogin(context);
+              },
+              icon: const Icon(Icons.login_rounded),
+              label: const Text('Iniciar sesión'),
+            )
+          else
+            ElevatedButton.icon(
+              onPressed: () {
+                Navigator.pop(dialogContext);
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const PaquetesScreen()),
+                );
+              },
+              icon: const Icon(Icons.manage_accounts_outlined),
+              label: const Text('Gestionar mi cuenta'),
+            ),
         ],
       ),
     );

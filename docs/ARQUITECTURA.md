@@ -340,10 +340,20 @@ la imagen descargada.
 
 Cliente base de toda la app. Métodos `get`, `post`, `put`, `patch`, `delete`.
 
-Responsabilidades:
+Cada llamada declara qué papel juega la sesión, con el enum `ModoAuth`:
+
+| Modo | Manda `Bearer` | Ante un `401` | Para qué |
+|---|---|---|---|
+| `requerida` (por defecto) | Siempre; sin token válido no sale | Renueva, reintenta una vez, y si falla `expireAndRedirect` + `SessionExpiredException` | `/mi-perfil`, `/mis-pagos`, `/mis-facturas`, `/mis-suscripcion`, `/mis-notas` |
+| `opcional` | Solo si hay sesión | Sin sesión: vuelve crudo. Con sesión muerta: la limpia y **reintenta anónima** | `/noticias`, `/noticias/by-link`, `/noticias/categorias` |
+| `ninguna` | Nunca | Vuelve crudo | `/auth/login`, `/auth/register`, OTP, `/auth/refresh` |
+
+`opcional` es lo que sostiene el modo invitado. Antes solo existía un `bool includeAuth`, y con
+dos estados había que elegir entre mandar el Bearer —y expulsar al invitado que no lo tiene— o
+no mandarlo nunca —y que el suscriptor viera anuncios—. Ninguna de las dos servía.
+
+Otras responsabilidades:
 - Arma cabeceras: `Accept`, `Content-Type`, `Authorization: Bearer <jwt>`, `Cookie`.
-- Ante un `401`: llama a `SessionService.renovarSesion()` y **reintenta una sola vez**.
-- Si el reintento vuelve a dar `401`, dispara `expireAndRedirect` y lanza `SessionExpiredException`.
 - **Si no hay token pero sí sesión guardada**, lanza `SocketException` en vez de cerrar sesión.
 
 > Ese último punto es una decisión deliberada y vale la pena conservarla: cerrar sesión ahí
@@ -352,6 +362,25 @@ Responsabilidades:
 
 El reintento es **único** a propósito: si con un token recién emitido el servidor sigue
 rechazando, el problema no es el token y reintentar solo alarga la espera.
+
+#### Modo invitado
+
+La app **abre siempre en la portada**, con o sin cuenta (`main.dart`, `initialRoute: '/'`).
+Apple rechazó la versión 1.1.1 (7) por la guideline 5.1.1(v): exigir registro para leer
+noticias no está permitido, porque leer no es una función "basada en cuenta".
+
+Piezas que lo sostienen:
+
+- `AuthProvider` es el estado de sesión reactivo. Se hidrata del disco al crearse y se
+  resuscribe a `SessionService.sesionRevision`, que cambia cuando se guardan o borran
+  credenciales. Sin esto la UI seguía mostrando "invitado" después de iniciar sesión.
+- `AccesoUsuarioService.resolver()` corta **antes de salir a la red** si no hay sesión
+  guardada. Devuelve `sinPrivilegios` (no `sinResolver`): el invitado sí ve anuncios, y
+  `mostrarAnuncios` exige `resuelto`.
+- `expireAndRedirect` vuelve a `/` como invitado, no a `/login`. A quien se le vence el token
+  a mitad de una nota no hay por qué exigirle cuenta para seguir leyendo algo público.
+- El muro de login se muestra **en la acción** que lo necesita (`muro_login.widget.dart`),
+  nunca al arrancar: diario digital, suscripción, pagos, facturas, perfil, guardado offline.
 
 #### `session.service.dart` (15 KB)
 
@@ -1165,10 +1194,46 @@ Todas las llamadas autenticadas van con `Authorization: Bearer <jwt>` y
 | `/noticias` | GET | `page`, `perPage`, `categoria`, `busqueda`, `fechaDesde`, `fechaHasta` (ISO 8601 UTC) |
 | `/noticias/by-link` | GET | `link` (URL codificada) **o** `slug` |
 | `/noticias/categorias` | GET | `perPage` |
-| `/diarios-digitales` | GET | `anio`, `mes` → incluye `pdfSignedUrl` con expiración |
+| `/diarios-digitales/ultimo` | GET | **Sin parámetros.** Público |
+| `/diarios-digitales/ultimo/portada` | GET | **Sin parámetros.** Público, `image/jpeg` |
+| `/mis-notas` | GET | `anio`, `mes`. Exige sesión; `403` sin suscripción |
 
-Los endpoints de noticias son **públicos**: la app no exige sesión, pero manda el Bearer
-cuando la hay (para personalizar y para saltarse anuncios en suscriptores).
+#### La edición del día es pública
+
+`/diarios-digitales/ultimo` devuelve **una sola** edición y **no acepta filtros**. Eso no es
+cosmético: `/mis-notas` recibe año y mes, así que abrirlo al público dejaría iterar el archivo
+entero desde 2008. El archivo sigue siendo el producto de suscripción.
+
+Si no hay ninguna edición publicada responde `200` con `data: null` — no `404`. "Todavía no hay
+edición" es un estado normal que la app nombra en pantalla; un error se calla, porque esto es
+contenido de cortesía y no tiene sentido enseñar un fallo a quien venía a otra cosa.
+
+**Los dos PDF se abren con mecanismos distintos, y cruzarlos rompe:**
+
+| Origen | `pdfAccess.mode` | Cómo se abre |
+|---|---|---|
+| `/diarios-digitales/ultimo` | `signed_url` | URL firmada de S3, firma en el query string, TTL 20 min. **Sin cabeceras** |
+| `/mis-notas` | `short_private_route` | `/api/private-pdfs/<id>`, ruta nuestra. **Exige el Bearer** |
+
+Adjuntarle `Authorization` a la URL firmada la invalida: S3 responde
+`InvalidArgument: Only one auth mechanism allowed`. Lo decide `diarioAceptaCredenciales()`
+(`diarios_digitales.service.dart`), que además nunca manda el token a un dominio que no sea el
+de la API — el archivo puede pasar a URLs firmadas mañana y la función sigue siendo correcta.
+
+La app consume los endpoints de noticias como **públicos** (`ModoAuth.opcional`): no exige
+sesión, pero manda el Bearer cuando la hay, para personalizar y para saltarse anuncios en
+suscriptores.
+
+Comprobación de que el backend sigue cumpliendo su parte:
+
+```bash
+curl -s -o /dev/null -w "noticias:  %{http_code}\n" "https://www.diariotiempo.hn/api/noticias?page=1&perPage=1"
+curl -s -o /dev/null -w "ultimo:    %{http_code}\n" "https://www.diariotiempo.hn/api/diarios-digitales/ultimo"
+curl -s -o /dev/null -w "mis-notas: %{http_code}\n" "https://www.diariotiempo.hn/api/mis-notas?anio=2026&mes=9"
+```
+
+Esperado: `200`, `200` y **`401`**. El tercero importa tanto como los otros dos: si `mis-notas`
+también devuelve `200`, el archivo de suscriptor quedó abierto.
 
 > El backend es quien habla con WordPress y normaliza la respuesta. La app **no** consume
 > WordPress directamente — así, un medio con otro CMS solo cambia su backend.

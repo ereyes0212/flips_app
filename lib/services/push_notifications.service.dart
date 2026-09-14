@@ -629,7 +629,15 @@ class PushNotificationsService extends ChangeNotifier {
   }) async {
     // Sin sesión válida `HttpService` fuerza el logout: no vale la pena
     // mandar al login a alguien que solo tocó el switch de avisos.
-    if (!await SessionService.hasValidSession()) return false;
+    //
+    // Se devuelve `true`, no `false`: al invitado los avisos le llegan por el
+    // topic de FCM, que no necesita backend, así que la sincronización está
+    // cumplida en lo que a él respecta. Devolver `false` dejaba
+    // `pendingAlertsSync` encendido para siempre, y con él dos efectos: un
+    // reintento en cada arranque, e `isDeviceRegistered()` eternamente en
+    // falso, que hacía al onboarding volver a pedir un permiso ya concedido
+    // hasta agotar los tres intentos.
+    if (!await SessionService.hasValidSession()) return true;
 
     try {
       final response = await _httpService.post(

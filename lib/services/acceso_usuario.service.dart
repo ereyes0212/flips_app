@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flips_app/models/mi_perfil.model.dart';
 import 'package:flips_app/services/mi_perfil.service.dart';
+import 'package:flips_app/services/session.service.dart';
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -86,15 +87,26 @@ class AccesoUsuarioService {
   Future<AccesoUsuario>? _enCurso;
 
   /// Devuelve los privilegios vigentes, reusando la petición si ya hay una.
-  Future<AccesoUsuario> resolver() {
+  Future<AccesoUsuario> resolver() async {
     final cache = _cache;
-    if (cache != null) return Future<AccesoUsuario>.value(cache);
+    if (cache != null) return cache;
+
+    // Un invitado no tiene perfil que consultar. Sin este corte, las seis
+    // pantallas que se montan al abrir la app pedían `/mi-perfil` sin sesión y
+    // cada `401` disparaba su propio `expireAndRedirect`: bastaba abrir la app
+    // sin cuenta para salir rebotado al login seis veces.
+    //
+    // Se devuelve `sinPrivilegios` (resuelto) y no `sinResolver`: el invitado
+    // sí debe ver anuncios, y `mostrarAnuncios` exige `resuelto`.
+    if (!await SessionService.hasStoredSession()) {
+      return const AccesoUsuario.sinPrivilegios();
+    }
 
     return _enCurso ??= _resolverRemoto();
   }
 
-  /// Borra lo resuelto. Se llama al cerrar sesión para que la siguiente cuenta
-  /// no herede los privilegios de la anterior.
+  /// Borra lo resuelto. Se llama al abrir y al cerrar sesión para que una cuenta
+  /// no herede los privilegios de la anterior ni los del modo invitado.
   Future<void> invalidar() async {
     _cache = null;
     _enCurso = null;

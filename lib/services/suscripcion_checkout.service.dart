@@ -13,6 +13,16 @@ class ApiHttpException implements Exception {
   final String message;
 }
 
+/// La acción existe pero necesita una cuenta que ahora mismo no hay.
+///
+/// Se distingue de [ApiHttpException] a secas para que la pantalla muestre el
+/// muro de login en vez de un error rojo: no es un fallo, es un requisito.
+class SesionRequeridaException extends ApiHttpException {
+  SesionRequeridaException([
+    String message = 'Inicia sesión para gestionar tu cuenta.',
+  ]) : super(401, message);
+}
+
 class SuscripcionCheckoutService {
   final HttpService _httpService = HttpService(
     timeout: const Duration(seconds: 30),
@@ -21,13 +31,12 @@ class SuscripcionCheckoutService {
   Future<WebCheckoutSessionResponse> crearSesionWebCheckout({
     String redirect = '/mi-perfil',
   }) async {
-    final token = await SessionService.getValidToken() ?? '';
-    if (token.isEmpty) {
-      await SessionService.expireAndRedirect(
-        message: 'Tu sesión expiró. Inicia sesión nuevamente.',
-      );
-      throw ApiHttpException(401, 'Tu sesión expiró. Inicia sesión nuevamente.');
-    }
+    // Sin expulsar: quien llegó hasta acá está en medio de una acción concreta
+    // y lo que corresponde es ofrecerle el login para esa acción, no vaciarle
+    // la pila de navegación por debajo.
+    final token =
+        await SessionService.getValidToken(expulsarSiFalla: false) ?? '';
+    if (token.isEmpty) throw SesionRequeridaException();
 
     final uri = Uri.parse('${apiUrl}mobile/web-session').replace(
       queryParameters: {'redirect': redirect},
@@ -47,9 +56,11 @@ class SuscripcionCheckoutService {
 
     if (response.statusCode < 200 || response.statusCode >= 300) {
       if (response.statusCode == 401) {
-        await SessionService.expireAndRedirect(
-          message: 'Tu sesión expiró. Inicia sesión nuevamente.',
-        );
+        // El token estaba vencido del lado del servidor: se limpia la sesión
+        // local para que la app deje de creerse autenticada, pero se deja al
+        // usuario donde está y se le ofrece volver a entrar.
+        await SessionService.clearSession();
+        throw SesionRequeridaException();
       }
       throw ApiHttpException(
         response.statusCode,

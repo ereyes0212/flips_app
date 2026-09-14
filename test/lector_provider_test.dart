@@ -108,6 +108,77 @@ void main() {
     expect(tester.takeException(), isNull);
     expect(lector.estaActivoPara('nota-que-suena'), isTrue);
   });
+
+  group('segundo plano', () {
+    /// Simula el aviso del sistema al mandar la app atrás.
+    Future<void> irAlFondo(WidgetTester tester, AppLifecycleState estado) async {
+      tester.binding.handleAppLifecycleStateChanged(estado);
+      await tester.pumpAndSettle();
+    }
+
+    testWidgets('mandar la app atrás pausa la lectura', (tester) async {
+      final lector = LectorProvider();
+      await tester.pumpWidget(montaje(lector, 'nota-de-prueba'));
+      await abrirNota(tester);
+
+      await lector.alternar(
+        clave: 'nota-de-prueba',
+        guion: const GuionNoticia(['Un párrafo.', 'Otro párrafo.']),
+      );
+      await tester.pumpAndSettle();
+      expect(lector.estado, EstadoLector.leyendo);
+
+      await irAlFondo(tester, AppLifecycleState.paused);
+
+      // La app ya no declara el modo `audio`: iOS suspende el proceso y el
+      // motor se calla solo. Sin esto el estado se quedaba en `leyendo` con
+      // nada sonando, y al volver el botón decía "pausar".
+      expect(lector.estado, EstadoLector.pausado);
+    });
+
+    testWidgets('se retoma donde iba, no desde el principio', (tester) async {
+      final lector = LectorProvider();
+      await tester.pumpWidget(montaje(lector, 'nota-de-prueba'));
+      await abrirNota(tester);
+
+      await lector.alternar(
+        clave: 'nota-de-prueba',
+        guion: const GuionNoticia(['Un párrafo.', 'Otro párrafo.']),
+      );
+      await tester.pumpAndSettle();
+
+      await irAlFondo(tester, AppLifecycleState.paused);
+      final parrafo = lector.indice;
+
+      await irAlFondo(tester, AppLifecycleState.resumed);
+      await lector.alternar(
+        clave: 'nota-de-prueba',
+        guion: const GuionNoticia(['Un párrafo.', 'Otro párrafo.']),
+      );
+      await tester.pumpAndSettle();
+
+      expect(lector.estado, EstadoLector.leyendo);
+      expect(lector.indice, parrafo);
+    });
+
+    testWidgets('bajar el centro de notificaciones no corta', (tester) async {
+      final lector = LectorProvider();
+      await tester.pumpWidget(montaje(lector, 'nota-de-prueba'));
+      await abrirNota(tester);
+
+      await lector.alternar(
+        clave: 'nota-de-prueba',
+        guion: const GuionNoticia(['Un párrafo.']),
+      );
+      await tester.pumpAndSettle();
+
+      // `inactive` salta también al entrar una llamada o al bajar el centro de
+      // notificaciones: pausar ahí sería más molesto que no hacer nada.
+      await irAlFondo(tester, AppLifecycleState.inactive);
+
+      expect(lector.estado, EstadoLector.leyendo);
+    });
+  });
 }
 
 /// Equivalente mínimo del detalle de noticia: escucha al provider y corta la

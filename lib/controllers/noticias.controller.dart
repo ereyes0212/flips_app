@@ -4,17 +4,36 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 class NoticiasController {
-  static const _minimumRefreshInterval = Duration(seconds: 45);
   final NoticiasService _service = NoticiasService();
-  DateTime? _lastLoadedAt;
-  String _lastRequestKey = '';
 
+  /// Clave de la petición que está en vuelo, si hay alguna.
+  ///
+  /// Es lo único que queda del viejo enfriamiento de 45 segundos, y hace algo
+  /// distinto: no pospone nada, solo evita que dos disparos simultáneos de la
+  /// **misma** petición salgan dos veces (entrar a la pantalla y tirar hacia
+  /// abajo en el mismo instante). Una búsqueda distinta sí puede adelantar a la
+  /// que esté corriendo.
+  String? _enVuelo;
+
+  /// Trae la primera página del listado.
+  ///
+  /// Antes esto se saltaba la petición si la última había sido hace menos de 45
+  /// segundos, y **se saltaba en silencio**: el `RefreshIndicator` giraba, no
+  /// salía ninguna petición y el usuario veía exactamente lo mismo sin ninguna
+  /// explicación. Peor todavía, el contador vivía en esta instancia, que se
+  /// recrea al cambiar de pestaña — así que ir a Diarios y volver lo reseteaba y
+  /// entonces sí funcionaba. Un enfriamiento que se esquiva sin querer no
+  /// protegía nada y solo hacía impredecible el refresco.
+  ///
+  /// Con [enSegundoPlano] no se enciende el spinner de pantalla completa: se usa
+  /// al volver de una noticia o de segundo plano, donde tapar el listado con un
+  /// cargando sería peor que esperar callado.
   Future<void> cargarNoticias(
     BuildContext context, {
     String? busqueda,
     DateTime? fechaDesde,
     DateTime? fechaHasta,
-    bool forceRefresh = false,
+    bool enSegundoPlano = false,
   }) async {
     final provider = Provider.of<NoticiasProvider>(context, listen: false);
     final requestKey = _requestKey(
@@ -22,39 +41,32 @@ class NoticiasController {
       fechaDesde: fechaDesde,
       fechaHasta: fechaHasta,
     );
-    final canUseFreshInMemoryData =
-        !provider.usingCache && provider.errorMessage.isEmpty;
-    if (!forceRefresh &&
-        canUseFreshInMemoryData &&
-        provider.noticias.isNotEmpty &&
-        requestKey == _lastRequestKey &&
-        _lastLoadedAt != null &&
-        DateTime.now().difference(_lastLoadedAt!) < _minimumRefreshInterval) {
-      return;
-    }
 
-    provider.loading = true;
-    provider.setError('');
-    provider.setUsingCache(false);
-    provider.setLoadMoreFailed(false);
+    if (_enVuelo == requestKey) return;
+    _enVuelo = requestKey;
 
-    final result = await _service.obtenerNoticias(
-      busqueda: busqueda,
-      fechaDesde: fechaDesde,
-      fechaHasta: fechaHasta,
-    );
-    if (!result.success) {
-      provider.setError(result.errorMessage);
-    }
+    try {
+      if (!enSegundoPlano) provider.loading = true;
+      provider.setError('');
+      provider.setUsingCache(false);
+      provider.setLoadMoreFailed(false);
 
-    provider.setUsingCache(result.fromCache);
-    provider.setNoticias(result.items);
-    provider.setPagination(page: 1, hasMore: result.hasMore);
-    if (result.success && !result.fromCache) {
-      _lastLoadedAt = DateTime.now();
-      _lastRequestKey = requestKey;
+      final result = await _service.obtenerNoticias(
+        busqueda: busqueda,
+        fechaDesde: fechaDesde,
+        fechaHasta: fechaHasta,
+      );
+      if (!result.success) {
+        provider.setError(result.errorMessage);
+      }
+
+      provider.setUsingCache(result.fromCache);
+      provider.setNoticias(result.items);
+      provider.setPagination(page: 1, hasMore: result.hasMore);
+    } finally {
+      _enVuelo = null;
+      if (!enSegundoPlano) provider.loading = false;
     }
-    provider.loading = false;
   }
 
   Future<void> cargarMasNoticias(

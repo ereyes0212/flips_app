@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:io';
 
+import 'package:flips_app/globals/widgets/muro_login.widget.dart';
 import 'package:flips_app/screens/shared/section_card.widget.dart';
 import 'package:flips_app/services/suscripcion_checkout.service.dart';
 import 'package:flutter/material.dart';
@@ -30,6 +31,11 @@ class _PaquetesScreenState extends State<PaquetesScreen> {
     if (_abriendoPerfil) return;
 
     setState(() => _abriendoPerfil = true);
+
+    // El reintento tras iniciar sesión se decide acá dentro pero se ejecuta
+    // después del `finally`: si se llamara en el `catch`, `_abriendoPerfil`
+    // seguiría en `true` y la propia guarda de reentrada lo descartaría.
+    var reintentarTrasLogin = false;
 
     try {
       // Siempre a /profile: la app no lleva a un flujo de compra. La gestion
@@ -66,6 +72,15 @@ class _PaquetesScreenState extends State<PaquetesScreen> {
       _showSnack('Sin conexión. Reintenta con internet estable.', error: true);
     } on TimeoutException {
       _showSnack('Tiempo de espera agotado. Intenta nuevamente.', error: true);
+    } on SesionRequeridaException {
+      // La sesión se venció en pleno flujo. No es un error que mostrar en rojo:
+      // se ofrece entrar y, si entra, la acción continúa donde se quedó.
+      if (mounted) {
+        reintentarTrasLogin = await mostrarMuroLogin(
+          context,
+          motivo: 'para gestionar tu suscripción',
+        );
+      }
     } on ApiHttpException catch (e) {
       _showSnack(e.message, error: true);
     } on WebSessionException catch (e) {
@@ -78,6 +93,8 @@ class _PaquetesScreenState extends State<PaquetesScreen> {
     } finally {
       if (mounted) setState(() => _abriendoPerfil = false);
     }
+
+    if (reintentarTrasLogin && mounted) await _abrirPerfilWeb();
   }
 
   void _showSnack(String message, {bool error = false}) {

@@ -80,6 +80,11 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Future<void> _validarSuscripcionActiva() async {
+    // A un invitado no se le ofrece renovar algo que nunca tuvo, y la consulta
+    // ni siquiera tiene a quién preguntar por: sin sesión, `/mobile/
+    // suscripcion-activa` solo devolvería un 401.
+    if (!context.read<AuthProvider>().sesionIniciada) return;
+
     final result = await AuthService().obtenerSuscripcionActiva();
     if (!mounted ||
         !result.autenticado ||
@@ -163,12 +168,15 @@ Tu cuenta no tiene una suscripción activa en este momento.''',
     await prefs.setString('subscription_banner_shown_date', today);
   }
 
-  List<Widget> _pantallas() {
+  List<Widget> _pantallas(bool sesionIniciada) {
     return [
       NoticiasScreen(notificationsButtonKey: _bellKey),
       const DiariosDigitalesScreen(),
-      const MiPerfilScreen(),
+      // "Mi perfil" no existe sin cuenta: al invitado se le ofrece crearla en
+      // vez de mandarlo a una pantalla que solo sabría dar error.
+      sesionIniciada ? const MiPerfilScreen() : const MuroLoginPanel(),
       _MasOpcionesScreen(
+        sesionIniciada: sesionIniciada,
         onCerrarSesion: _confirmarCerrarSesion,
         onVerTutorial: _verTutorial,
       ),
@@ -191,10 +199,11 @@ Tu cuenta no tiene una suscripción activa en este momento.''',
   @override
   Widget build(BuildContext context) {
     final tema = Theme.of(context).colorScheme;
+    final sesionIniciada = context.watch<AuthProvider>().sesionIniciada;
 
     return Scaffold(
       backgroundColor: tema.onSecondary,
-      body: _pantallas()[_currentIndex],
+      body: _pantallas(sesionIniciada)[_currentIndex],
       bottomNavigationBar: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
@@ -205,10 +214,14 @@ Tu cuenta no tiene una suscripción activa en este momento.''',
             ),
           AnimatedBottomNavigationBar(
             key: _bottomNavKey,
-            icons: const [
+            icons: [
               Icons.article_outlined,
               Icons.collections_bookmark_outlined,
-              Icons.person_outline,
+              // Sin cuenta el icono invita a crearla en vez de prometer un
+              // perfil que todavía no existe.
+              sesionIniciada
+                  ? Icons.person_outline
+                  : Icons.person_add_alt_1_outlined,
               Icons.more_horiz,
             ],
             activeIndex: _currentIndex,
@@ -229,10 +242,12 @@ Tu cuenta no tiene una suscripción activa en este momento.''',
 
 class _MasOpcionesScreen extends StatelessWidget {
   const _MasOpcionesScreen({
+    required this.sesionIniciada,
     required this.onCerrarSesion,
     required this.onVerTutorial,
   });
 
+  final bool sesionIniciada;
   final VoidCallback onCerrarSesion;
   final VoidCallback onVerTutorial;
 
@@ -265,7 +280,11 @@ class _MasOpcionesScreen extends StatelessWidget {
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    nombre.isEmpty ? 'Selecciona una opción.' : 'Hola, $nombre.',
+                    !sesionIniciada
+                        ? 'Estás leyendo como invitado.'
+                        : nombre.isEmpty
+                            ? 'Selecciona una opción.'
+                            : 'Hola, $nombre.',
                     style: theme.textTheme.bodyMedium?.copyWith(color: colorScheme.onSurfaceVariant),
                   ),
                 ],
@@ -336,70 +355,85 @@ class _MasOpcionesScreen extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 14),
+          // Todo lo de esta sección depende de la cuenta: mostrárselo a un
+          // invitado solo lo llevaría a pantallas que responden 401. En su
+          // lugar ve una sola entrada, que es la que sí le sirve.
           _OptionsSectionCard(
             title: 'Cuenta y servicios',
-            children: [
-              GridItem(
-                icono: Icons.manage_accounts_outlined,
-                funcion: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(builder: (_) => const PaquetesScreen()),
-                  );
-                },
-                texto: 'Mi cuenta',
-              ),
-              GridItem(
-                icono: Icons.payments_outlined,
-                funcion: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(builder: (_) => const MisPagosScreen()),
-                  );
-                },
-                texto: 'Mis pagos',
-              ),
-              GridItem(
-                icono: Icons.workspace_premium_outlined,
-                funcion: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(builder: (_) => const MisSuscripcionScreen()),
-                  );
-                },
-                texto: 'Mi suscripción',
-              ),
-              GridItem(
-                icono: Icons.receipt_long_outlined,
-                funcion: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(builder: (_) => const MisFacturasScreen()),
-                  );
-                },
-                texto: 'Mis facturas',
-              ),
-            ],
+            children: sesionIniciada
+                ? [
+                    GridItem(
+                      icono: Icons.manage_accounts_outlined,
+                      funcion: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(builder: (_) => const PaquetesScreen()),
+                        );
+                      },
+                      texto: 'Mi cuenta',
+                    ),
+                    GridItem(
+                      icono: Icons.payments_outlined,
+                      funcion: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(builder: (_) => const MisPagosScreen()),
+                        );
+                      },
+                      texto: 'Mis pagos',
+                    ),
+                    GridItem(
+                      icono: Icons.workspace_premium_outlined,
+                      funcion: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(builder: (_) => const MisSuscripcionScreen()),
+                        );
+                      },
+                      texto: 'Mi suscripción',
+                    ),
+                    GridItem(
+                      icono: Icons.receipt_long_outlined,
+                      funcion: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(builder: (_) => const MisFacturasScreen()),
+                        );
+                      },
+                      texto: 'Mis facturas',
+                    ),
+                  ]
+                : [
+                    GridItem(
+                      icono: Icons.login_rounded,
+                      funcion: () => abrirLogin(context),
+                      texto: 'Iniciar sesión',
+                      subtitulo: 'Suscripción, pagos y diario digital',
+                    ),
+                  ],
           ),
           const SizedBox(height: 14),
           _OptionsSectionCard(
             title: 'Legal',
             children: const [_PoliticaPrivacidadTile()],
           ),
-          const SizedBox(height: 14),
-          _OptionsSectionCard(
-            title: 'Sesión',
-            children: [
-              GridItem(
-                icono: Icons.logout_rounded,
-                funcion: onCerrarSesion,
-                texto: 'Cerrar sesión',
-                color: colorScheme.error,
-              ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          const _EliminarCuentaTile(),
+          // Cerrar sesión y eliminar la cuenta no existen sin cuenta.
+          if (sesionIniciada) ...[
+            const SizedBox(height: 14),
+            _OptionsSectionCard(
+              title: 'Sesión',
+              children: [
+                GridItem(
+                  icono: Icons.logout_rounded,
+                  funcion: onCerrarSesion,
+                  texto: 'Cerrar sesión',
+                  color: colorScheme.error,
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            const _EliminarCuentaTile(),
+          ],
           const SizedBox(height: 8),
         ],
       ),

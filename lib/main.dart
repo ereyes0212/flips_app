@@ -14,7 +14,6 @@ import 'package:flips_app/screens/home/home.screen.dart';
 import 'package:flips_app/screens/login/login.screen.dart';
 import 'package:flips_app/services/ads_consent.service.dart';
 import 'package:flips_app/services/app_analytics_route_observer.dart';
-import 'package:flips_app/services/session.service.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_analytics/firebase_analytics.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
@@ -53,16 +52,6 @@ Future<void> main() async {
   runApp(const MyApp());
 }
 
-Future<bool> _resolveInitialSession() async {
-  try {
-    return await SessionService.hasValidSession().timeout(
-      const Duration(seconds: 4),
-    );
-  } catch (_) {
-    return SessionService.hasStoredSession();
-  }
-}
-
 class MyApp extends StatelessWidget {
   const MyApp({super.key});
   @override
@@ -89,7 +78,7 @@ class MyApp extends StatelessWidget {
         ChangeNotifierProvider(create: (context) => MisSuscripcionProvider()),
       ],
       child: MaterialApp(
-        navigatorObservers: [AppAnalyticsRouteObserver()],
+        navigatorObservers: [AppAnalyticsRouteObserver(), rutasObserver],
         localizationsDelegates: const [
           GlobalMaterialLocalizations.delegate,
           GlobalWidgetsLocalizations.delegate,
@@ -174,22 +163,18 @@ class MyApp extends StatelessWidget {
           ),
         ),
         title: 'Diario Tiempo HN',
-        routes: {'/login': (_) => const LoginScreen()},
-        home: FutureBuilder<bool>(
-          future: _resolveInitialSession(),
-          builder: (context, snapshot) {
-            if (snapshot.connectionState == ConnectionState.waiting) {
-              return const Scaffold(body: Center(child: CircularProgressIndicator()));
-            }
-
-            if (snapshot.hasError) {
-              return const LoginScreen();
-            }
-
-            final hasValidSession = snapshot.data ?? false;
-            return hasValidSession ? const HomeScreen() : const LoginScreen();
-          },
-        ),
+        // La app abre siempre en la portada, con o sin cuenta.
+        //
+        // Antes esto era un FutureBuilder que mandaba al login a quien no
+        // tuviera sesión. App Review lo rechazó por la guideline 5.1.1(v): las
+        // noticias no son una función "basada en cuenta", así que no se puede
+        // exigir registro para leerlas. La cuenta ahora se pide en la acción
+        // que sí la necesita (suscripción, pagos, diario), no en la puerta.
+        initialRoute: '/',
+        routes: {
+          '/': (_) => const HomeScreen(),
+          '/login': (_) => const LoginScreen(),
+        },
       ),
     );
   }

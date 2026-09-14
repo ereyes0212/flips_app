@@ -4,6 +4,7 @@ import 'package:flips_app/models/noticias.model.dart';
 import 'package:flips_app/services/lectura_voz.service.dart';
 import 'package:flips_app/utils/lectura_noticia.util.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/widgets.dart';
 
 enum EstadoLector { detenido, leyendo, pausado }
 
@@ -23,7 +24,11 @@ String claveDeNoticia(NoticiaModel noticia) {
 /// Guarda de qué nota se trata además del estado: sin eso, abrir otra noticia
 /// mientras suena una dejaba el botón de la nueva en "reproduciendo" aunque la
 /// voz siguiera leyendo la anterior.
-class LectorProvider with ChangeNotifier {
+class LectorProvider with ChangeNotifier, WidgetsBindingObserver {
+  LectorProvider() {
+    WidgetsBinding.instance.addObserver(this);
+  }
+
   static const List<double> factoresVelocidad = [0.75, 1.0, 1.25, 1.5];
 
   final LecturaVozService _voz = LecturaVozService.instance;
@@ -118,6 +123,35 @@ class LectorProvider with ChangeNotifier {
     _estado = EstadoLector.pausado;
     notifyListeners();
     await _voz.detener();
+  }
+
+  /// Pausa sola al mandar la app a segundo plano.
+  ///
+  /// La app ya no declara el modo `audio` en `UIBackgroundModes` — App Review lo
+  /// rechazó por la guideline 2.5.4, y con razón: ese modo es para
+  /// reproductores de música, no para leer una noticia en voz alta. Sin él iOS
+  /// suspende el proceso y el motor de voz se calla por su cuenta.
+  ///
+  /// Lo que no se arregla solo es el estado: sin esto, [_estado] se quedaba en
+  /// `leyendo` mientras no sonaba nada, así que al volver el botón decía
+  /// "pausar" y no había forma de retomar sin detener y arrancar de cero.
+  /// Pausando se conserva el párrafo y se retoma justo donde iba.
+  ///
+  /// Se escucha `paused` y `hidden`, no `inactive`: esta última salta también al
+  /// bajar el centro de notificaciones o al entrar una llamada, y cortar la
+  /// lectura por eso sería peor que no hacer nada.
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.paused ||
+        state == AppLifecycleState.hidden) {
+      unawaited(pausar());
+    }
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
   }
 
   Future<void> detener() async {

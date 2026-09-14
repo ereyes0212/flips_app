@@ -97,6 +97,23 @@ class DiarioDigitalModel {
 
   bool get hasPdf => pdfViewerUrl.isNotEmpty;
 
+  /// La URL firmada ya venció, o está a punto.
+  ///
+  /// Solo aplica a la edición pública: su `pdfSignedUrl` es una URL de S3 que
+  /// dura 30 minutos y, pasados esos, responde `Request has expired`. El
+  /// archivo de suscriptor llega como ruta nuestra sin `expiresAt`, y su acceso
+  /// lo resuelve el Bearer en cada petición — ahí esto siempre es `false`.
+  ///
+  /// El margen no es paranoia: entre que se toca la portada y el visor empieza
+  /// a descargar puede pasar un interstitial entero. Una firma con veinte
+  /// segundos de vida pasaría la comprobación y moriría a mitad del camino.
+  bool firmaVencida({Duration margen = const Duration(minutes: 2)}) {
+    final vence = pdfSignedUrlExpiresAt;
+    if (vence == null) return false;
+
+    return DateTime.now().toUtc().isAfter(vence.toUtc().subtract(margen));
+  }
+
   bool get hasCover => coverUrl.isNotEmpty;
 
   factory DiarioDigitalModel.fromJson(Map<String, dynamic> json) =>

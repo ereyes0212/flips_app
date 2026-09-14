@@ -37,6 +37,16 @@ class SessionService {
 
   static bool _redirecting = false;
 
+  /// Cambia cada vez que la sesión se abre o se cierra.
+  ///
+  /// Es el único aviso que `SessionService` da hacia afuera: quien necesite
+  /// reaccionar (hoy `AuthProvider`) se suscribe acá en vez de que el servicio
+  /// conozca la capa de UI. Se usa un contador y no un `bool` para que dos
+  /// cambios seguidos al mismo estado también notifiquen.
+  static final ValueNotifier<int> sesionRevision = ValueNotifier<int>(0);
+
+  static void _avisarCambioDeSesion() => sesionRevision.value++;
+
   /// Renovación en vuelo. El backend consume el refresh token en cada canje, así
   /// que dos peticiones que caduquen a la vez no deben pedir dos renovaciones:
   /// la segunda gastaría un token ya usado y el servidor lo leería como robo.
@@ -47,13 +57,18 @@ class SessionService {
   /// Devuelve `null` cuando no hay forma de seguir: o no había sesión, o el
   /// refresh fue rechazado (en cuyo caso la sesión ya quedó cerrada), o no hubo
   /// red para intentarlo.
-  static Future<String?> getValidToken() async {
+  ///
+  /// [expulsarSiFalla] en `false` lo deja resolver sin sacar a nadie de donde
+  /// está: es lo que usan los endpoints públicos, que funcionan igual sin
+  /// sesión y no tienen por qué interrumpir la lectura para avisar de un token
+  /// vencido.
+  static Future<String?> getValidToken({bool expulsarSiFalla = true}) async {
     final vigente = await _tokenVigente();
     if (vigente != null) return vigente;
 
     // Antes esto cerraba la sesión y mandaba al login. Ahora se canjea el
     // refresh token: es lo que evita que el usuario vuelva a entrar cada hora.
-    final renovado = await renovarSesion();
+    final renovado = await renovarSesion(expulsarSiFalla: expulsarSiFalla);
     return renovado ? _tokenVigente() : null;
   }
 
@@ -131,7 +146,10 @@ class SessionService {
       await prefs.remove('sessionExpiresAt');
     }
 
-    if (!respuesta.tieneRefreshToken) return;
+    if (!respuesta.tieneRefreshToken) {
+      _avisarCambioDeSesion();
+      return;
+    }
 
     await prefs.setString('refreshToken', respuesta.refreshToken.trim());
     final refreshExpira = respuesta.refreshExpiresAt;
@@ -143,6 +161,8 @@ class SessionService {
     } else {
       await prefs.remove('refreshExpiresAt');
     }
+
+    _avisarCambioDeSesion();
   }
 
   /// Canjea el refresh token por un par nuevo.
@@ -150,13 +170,19 @@ class SessionService {
   /// Se serializa a propósito: cada canje consume el token entregado, así que
   /// dos renovaciones en paralelo mandarían el mismo y la segunda parecería un
   /// token robado.
-  static Future<bool> renovarSesion() {
-    return _renovacionEnCurso ??= _renovar().whenComplete(() {
+  ///
+  /// Cuando [expulsarSiFalla] es `false` y el servidor rechaza el refresh, la
+  /// sesión se borra pero no se navega ni se avisa: el llamador sigue en modo
+  /// invitado. Si dos peticiones comparten la renovación en vuelo gana la
+  /// primera, y es seguro en ambos sentidos: una petición que sí exigía sesión
+  /// recibe `false` y hace su propio `expireAndRedirect`.
+  static Future<bool> renovarSesion({bool expulsarSiFalla = true}) {
+    return _renovacionEnCurso ??= _renovar(expulsarSiFalla).whenComplete(() {
       _renovacionEnCurso = null;
     });
   }
 
-  static Future<bool> _renovar() async {
+  static Future<bool> _renovar(bool expulsarSiFalla) async {
     final refreshToken = await getRefreshToken();
 
     if (refreshToken == null) {
@@ -195,7 +221,12 @@ class SessionService {
     }
 
     // El servidor rechazó el refresh: acá sí es definitivo.
-    // `expireAndRedirect` ya borra la sesión antes de mandar al login.
+    if (!expulsarSiFalla) {
+      await clearSession();
+      return false;
+    }
+
+    // `expireAndRedirect` ya borra la sesión antes de volver al inicio.
     await expireAndRedirect(message: _mensajeDeRechazo(_leerJson(respuesta.body)));
     return false;
   }
@@ -264,7 +295,7 @@ class SessionService {
     }
   }
 
-  static Future<String?> getSessionCookie() async {
+  static Future<String?> getSessionCookie({bool expulsarSiFalla = true}) async {
     final prefs = await SharedPreferences.getInstance();
     final cookie = normalizeSessionCookie(prefs.getString('sessionCookie'));
     if (cookie != null && cookie.isNotEmpty) {
@@ -274,12 +305,17 @@ class SessionService {
       return cookie;
     }
 
-    final token = await getValidToken();
+    final token = await getValidToken(expulsarSiFalla: expulsarSiFalla);
     return sessionCookieFromToken(token);
   }
 
   static Future<void> clearSession() async {
     final prefs = await SharedPreferences.getInstance();
+
+    // Solo hay cambio de sesión que anunciar si de verdad había una: sin esto
+    // cada petición anónima que pasa por acá despertaría a los oyentes.
+    final habiaSesion = normalizeToken(prefs.getString('token')) != null;
+
     for (final key in _sessionKeys) {
       await prefs.remove(key);
     }
@@ -294,8 +330,18 @@ class SessionService {
     } catch (_) {
       // No todos los flujos tienen una sesión activa de Google.
     }
+
+    if (habiaSesion) _avisarCambioDeSesion();
   }
 
+  /// Cierra la sesión vencida y devuelve al usuario a la portada **como
+  /// invitado**, no al login.
+  ///
+  /// Antes esto empujaba `/login` y vaciaba la pila. Con la lectura abierta eso
+  /// es hostil y además incorrecto: a quien se le vence el token a mitad de una
+  /// nota no hay por qué exigirle una cuenta para seguir leyendo algo que es
+  /// público. El muro de login se muestra ahora en la acción que sí lo necesita
+  /// (suscripción, pagos, diario), no al perder la sesión.
   static Future<void> expireAndRedirect({String? message}) async {
     await clearSession();
 
@@ -308,7 +354,7 @@ class SessionService {
 
       if (navigator != null) {
         navigator.pushNamedAndRemoveUntil(
-          '/login',
+          '/',
           (Route<dynamic> route) => false,
         );
       }

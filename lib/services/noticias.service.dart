@@ -5,7 +5,6 @@ import 'dart:io';
 import 'package:flips_app/constants.dart';
 import 'package:flips_app/models/noticias.model.dart';
 import 'package:flips_app/services/http.service.dart';
-import 'package:flips_app/services/session.service.dart';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:path_provider/path_provider.dart';
@@ -115,7 +114,10 @@ class NoticiasService {
     final uri = Uri.parse(_baseUrl).replace(queryParameters: query);
 
     try {
-      final response = await _httpService.get(uri.toString());
+      final response = await _httpService.get(
+        uri.toString(),
+        auth: ModoAuth.opcional,
+      );
       if (response.statusCode == 200) {
         final body = jsonDecode(response.body);
         final rawItems = _extraerLista(body);
@@ -153,23 +155,12 @@ class NoticiasService {
           '[noticias] ${response.statusCode} en $uri -> ${response.body}',
         );
       }
-      // 400: algún filtro llegó fuera de rango (la API no los silencia).
-      return await _desdeCache(
-        response.statusCode == 400
-            ? 'Los filtros de búsqueda no son válidos. '
-                'Mostrando la última versión guardada.'
-            : 'No pudimos actualizar las noticias (error ${response.statusCode}). '
-                'Mostrando la última versión guardada.',
-      );
+      return await _desdeCache(_mensajeDeError(response.statusCode));
     } on SocketException {
       return await _desdeCache('Sin conexión a internet. Mostrando noticias guardadas.');
     } on TimeoutException {
       return await _desdeCache(
         'La conexión tardó demasiado. Mostrando noticias guardadas.',
-      );
-    } on SessionExpiredException {
-      return await _desdeCache(
-        'Tu sesión expiró. Inicia sesión nuevamente para ver las noticias.',
       );
     } catch (_) {
       return await _desdeCache(
@@ -225,7 +216,10 @@ class NoticiasService {
     final uri = Uri.parse('$_baseUrl/by-link').replace(queryParameters: query);
 
     try {
-      final response = await _httpService.get(uri.toString());
+      final response = await _httpService.get(
+        uri.toString(),
+        auth: ModoAuth.opcional,
+      );
       if (response.statusCode != 200) {
         if (kDebugMode) {
           debugPrint(
@@ -264,7 +258,10 @@ class NoticiasService {
       },
     );
     try {
-      final response = await _httpService.get(uri.toString());
+      final response = await _httpService.get(
+        uri.toString(),
+        auth: ModoAuth.opcional,
+      );
       if (response.statusCode == 200) {
         final body = jsonDecode(response.body);
         final parsed = _extraerLista(body)
@@ -283,6 +280,29 @@ class NoticiasService {
         items: [],
         errorMessage: 'Sin conexión para cargar categorías.',
       );
+    }
+  }
+
+  /// Traduce el código HTTP a algo accionable para el lector.
+  ///
+  /// El `401`/`403` merece mensaje propio: significa que el backend está
+  /// pidiendo sesión en un endpoint que la app consume como público. Es un
+  /// fallo de configuración del servidor, no algo que el usuario pueda
+  /// resolver iniciando sesión, y confundirlos manda a la gente a crear una
+  /// cuenta que no necesita.
+  String _mensajeDeError(int statusCode) {
+    switch (statusCode) {
+      // La API no silencia los filtros fuera de rango.
+      case 400:
+        return 'Los filtros de búsqueda no son válidos. '
+            'Mostrando la última versión guardada.';
+      case 401:
+      case 403:
+        return 'Las noticias no están disponibles en este momento. '
+            'Mostrando la última versión guardada.';
+      default:
+        return 'No pudimos actualizar las noticias (error $statusCode). '
+            'Mostrando la última versión guardada.';
     }
   }
 
