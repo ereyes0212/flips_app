@@ -1,6 +1,9 @@
 workflows:
-  # Android va en Linux y no en el mac: el build no necesita macOS y los minutos
-  # de mac_mini_m2 son el recurso escaso de la cuenta.
+  # Android compila en mac_mini_m2 aunque no necesite macOS, y es a proposito:
+  # el plan gratuito da 500 minutos al mes SOLO en macOS M2. Linux y Windows no
+  # tienen minutos gratis, se cobran a $0.045/min desde el primero. Correr este
+  # workflow en linux_x2 costaba ~$1 por build mientras los minutos de mac
+  # quedaban sin usar.
   #
   # Este workflow existe porque compilar Android en local dejo de ser viable:
   # Smart App Control de Windows bloquea el `gen_snapshot.exe` del checkout de
@@ -9,7 +12,7 @@ workflows:
   # por carpeta y apagarlo es irreversible sin reinstalar Windows.
   android-release:
     name: Android release (AAB para Play)
-    instance_type: linux_x2
+    instance_type: mac_mini_m2
     max_build_duration: 45
 
     environment:
@@ -158,10 +161,19 @@ workflows:
       # Los client IDs de Google ya no van por --dart-define: estan como
       # defaultValue en lib/config/google_sign_in.config.dart. Pasarlos vacios
       # desde aqui los sobreescribiria con "" y romperia el login.
+      # Sin --build-number, igual que en Android: el numero sale de pubspec.yaml.
+      #
+      # $BUILD_NUMBER es el contador de la app EN CODEMAGIC, no el de la tienda.
+      # Al recrear la app en la cuenta personal ese contador arranco de cero y
+      # un build salio como 1.1.1 (2) cuando en App Store Connect ya existian
+      # la (5) y la (7). Cuando el contador llegue a 5, la subida falla por
+      # numero repetido.
+      #
+      # Desde pubspec.yaml el numero es el mismo en las dos tiendas y lo
+      # controla quien sube la version, que es donde tiene que estar.
       - name: Shorebird release iOS
         script: |
           shorebird release ios --flutter-version=3.35.5 -- \
-            --build-number=$BUILD_NUMBER \
             --export-options-plist=/Users/builder/export_options.plist
 
     artifacts:
