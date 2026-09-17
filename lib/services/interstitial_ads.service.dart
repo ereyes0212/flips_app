@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flips_app/globals/widgets/ad_banner.widget.dart';
 import 'package:flutter/foundation.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
 
@@ -41,7 +42,11 @@ class InterstitialAdsService {
 
   /// Los dos sitios comparten unidad de Ad Manager. Para medirlos por separado
   /// basta con darle su propia constante a cada uno.
-  static const String _unidadInterstitial = '/170101793/APP/Interstitial';
+  ///
+  /// La unidad vive en [AdUnits] con el resto: en debug apunta sola a la de
+  /// prueba de Google, para no pedirle anuncios reales a la cuenta que factura
+  /// el sitio.
+  static const String _unidadInterstitial = AdUnits.interstitial;
 
   /// Primera espera después de un fallo de carga. Se duplica en cada intento
   /// hasta [_reintentoMaximo] y vuelve al inicio en cuanto uno funciona.

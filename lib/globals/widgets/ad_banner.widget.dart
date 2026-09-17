@@ -1,4 +1,6 @@
 import 'package:flips_app/services/acceso_usuario.service.dart';
+// material.dart reexporta solo una parte de foundation y kDebugMode no entra.
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
 
@@ -6,14 +8,40 @@ import 'package:google_mobile_ads/google_mobile_ads.dart';
 ///
 /// Las rutas estaban repetidas en cada pantalla que pintaba un anuncio, así que
 /// cambiar una unidad obligaba a buscarla por todo el proyecto.
+/// En debug se piden anuncios de prueba y no los reales.
+///
+/// Google avisa que pedir —y sobre todo tocar— anuncios de producción mientras
+/// se desarrolla marca la cuenta por actividad inválida. La cuenta es la misma
+/// que factura el sitio, así que el riesgo no es quedarse sin los anuncios de
+/// la app.
+///
+/// Los emuladores y simuladores ya cuentan como dispositivo de prueba por su
+/// cuenta; un teléfono de verdad con un build de debug, no. Por eso la decisión
+/// va por [kDebugMode] y no por plataforma: probar en el teléfono propio es
+/// justo el caso que el SDK no cubre solo.
+///
+/// Son las unidades de ejemplo que publica Google para Ad Manager. Siempre
+/// tienen inventario, así que además sirven para distinguir "no llega el
+/// anuncio" de "no hay anuncio que llegue".
 class AdUnits {
   const AdUnits._();
 
+  static const String _bannerPrueba = '/6499/example/banner';
+  static const String _interstitialPrueba = '/6499/example/interstitial';
+
   /// Banner fijo al pie de la pantalla.
-  static const String bannerFijo = '/170101793/APP/320x50_fijo';
+  static const String bannerFijo =
+      kDebugMode ? _bannerPrueba : '/170101793/APP/320x50_fijo';
 
   /// Rectángulo que se intercala dentro de un listado.
-  static const String rectangulo = '/170101793/APP/box_1';
+  static const String rectangulo =
+      kDebugMode ? _bannerPrueba : '/170101793/APP/box_1';
+
+  /// Pantalla completa entre noticias y al abrir un diario.
+  ///
+  /// La usa `InterstitialAdsService`, que es quien lleva la frecuencia.
+  static const String interstitial =
+      kDebugMode ? _interstitialPrueba : '/170101793/APP/Interstitial';
 }
 
 /// Banner de Ad Manager que se dibuja con el tamaño que realmente sirvió el

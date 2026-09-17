@@ -1,5 +1,7 @@
 // ignore_for_file: depend_on_referenced_packages, avoid_print, empty_catches, deprecated_member_use
 
+import 'dart:async';
+
 import 'package:flips_app/constants.dart';
 import 'package:flips_app/providers/auth.provider.dart';
 import 'package:flips_app/providers/diarios_digitales.provider.dart';
@@ -45,9 +47,15 @@ Future<void> main() async {
   // que documenta Google. Fuera del EEE/Reino Unido no muestra nada.
   await AdsConsentService.solicitarSiHaceFalta();
 
-  try {
-    await MobileAds.instance.initialize().timeout(const Duration(seconds: 4));
-  } catch (_) {}
+  // Sin await a propósito, que es como lo inicializa el sample de Google: su
+  // recomendación es no cargar con esto el hilo principal. Con el await, el
+  // primer frame esperaba hasta 4 segundos al SDK de anuncios antes de pintar
+  // una sola noticia, y ese tiempo lo pagaba el usuario entero.
+  //
+  // Lo que se pida antes de que termine no se pierde: el SDK encola las
+  // peticiones y las despacha en cuanto está listo. Por eso tampoco hace falta
+  // el timeout: ya no hay nadie esperando del otro lado.
+  unawaited(MobileAds.instance.initialize().then((_) {}, onError: (_) {}));
 
   runApp(const MyApp());
 }
