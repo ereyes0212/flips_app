@@ -53,6 +53,14 @@
 	     (ca-app-pub-0351121958876929~3366731644, en AndroidManifest.xml). -->
 	<key>GADApplicationIdentifier</key>
 	<string>ca-app-pub-0351121958876929~7158749339</string>
+	<!-- Sacan la inicialización y la carga de anuncios del hilo principal. Sin
+	     esto el SDK hace ese trabajo donde también se dibuja la UI y se sienten
+	     tirones al aparecer un banner. Equivalen a OPTIMIZE_INITIALIZATION y
+	     OPTIMIZE_AD_LOADING del AndroidManifest.xml. -->
+	<key>GADOptimizeInitialization</key>
+	<true/>
+	<key>GADOptimizeAdLoading</key>
+	<true/>
 	<!--
 	  audio: sin esto la lectura por voz se corta al bloquear la pantalla.
 	         lectura_voz.service.dart ya configura la sesion con la categoria

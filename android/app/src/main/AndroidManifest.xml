@@ -35,6 +35,21 @@
             android:name="com.google.android.gms.ads.APPLICATION_ID"
             android:value="ca-app-pub-0351121958876929~3366731644" />
 
+        <!-- Por defecto el SDK de anuncios inicializa y carga en el hilo de UI,
+             y cada banner que aparece deja un tiron en el scroll. Estos dos
+             flags mueven ese trabajo a un hilo aparte; son los que documenta
+             Google para este sintoma.
+
+             El equivalente en iOS son GADOptimizeInitialization y
+             GADOptimizeAdLoading en ios/Runner/Info.plist. -->
+        <meta-data
+            android:name="com.google.android.gms.ads.flag.OPTIMIZE_INITIALIZATION"
+            android:value="true" />
+
+        <meta-data
+            android:name="com.google.android.gms.ads.flag.OPTIMIZE_AD_LOADING"
+            android:value="true" />
+
         <meta-data
             android:name="com.google.firebase.messaging.default_notification_channel_id"
             android:value="new_flips" />

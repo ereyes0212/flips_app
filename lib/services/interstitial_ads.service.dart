@@ -43,7 +43,26 @@ class InterstitialAdsService {
   /// basta con darle su propia constante a cada uno.
   static const String _unidadInterstitial = '/170101793/APP/Interstitial';
 
-  static const Duration _reintento = Duration(seconds: 8);
+  /// Primera espera después de un fallo de carga. Se duplica en cada intento
+  /// hasta [_reintentoMaximo] y vuelve al inicio en cuanto uno funciona.
+  ///
+  /// Antes era fijo: sin inventario, la app pedía un anuncio cada 8 segundos
+  /// durante toda la sesión. Gasta datos y batería para nada, y un patrón tan
+  /// regular es de los que Google mira como tráfico inválido.
+  static const Duration _reintentoInicial = Duration(seconds: 8);
+  static const Duration _reintentoMaximo = Duration(minutes: 5);
+
+  /// Cuánto se guarda un anuncio precargado antes de tirarlo.
+  ///
+  /// Google caduca los interstitials **a la hora** de cargarlos. Mostrar uno
+  /// vencido no falla de forma visible: dispara
+  /// `onAdFailedToShowFullScreenContent` y el usuario simplemente no ve nada.
+  /// Era la causa de que a veces no saliera anuncio sin que nada pareciera
+  /// roto.
+  ///
+  /// Se descarta a los 50 para no acercarse al borde: entre que se decide
+  /// mostrarlo y se muestra pasa tiempo, y el reloj del SDK no es el nuestro.
+  static const Duration _vigencia = Duration(minutes: 50);
 
   final String _adUnitId;
 
@@ -68,9 +87,33 @@ class InterstitialAdsService {
   Timer? _timerReintento;
   DateTime? _ultimoMostrado;
 
-  /// Pide un anuncio si no hay uno listo ni una carga en vuelo.
+  /// Cuándo llegó [_ad]. Es lo que se mide contra [_vigencia].
+  DateTime? _cargadoEn;
+
+  /// Espera del próximo reintento. Crece sola mientras la carga siga fallando.
+  Duration _esperaReintento = _reintentoInicial;
+
+  /// El anuncio en mano, o `null` si venció o nunca llegó.
+  ///
+  /// Tirar el vencido acá y no al mostrarlo es lo que deja a [precargar] pedir
+  /// otro: mientras `_ad` siguiera ocupado por uno muerto, la precarga se daba
+  /// por satisfecha y el sitio se quedaba sin anuncios el resto de la sesión.
+  AdManagerInterstitialAd? _vigente() {
+    final ad = _ad;
+    final cargadoEn = _cargadoEn;
+    if (ad == null || cargadoEn == null) return null;
+
+    if (DateTime.now().difference(cargadoEn) < _vigencia) return ad;
+
+    ad.dispose();
+    _ad = null;
+    _cargadoEn = null;
+    return null;
+  }
+
+  /// Pide un anuncio si no hay uno vigente ni una carga en vuelo.
   void precargar() {
-    if (_cargando || _ad != null) return;
+    if (_cargando || _vigente() != null) return;
 
     _timerReintento?.cancel();
     _cargando = true;
@@ -82,10 +125,13 @@ class InterstitialAdsService {
         onAdLoaded: (ad) {
           ad.setImmersiveMode(true);
           _ad = ad;
+          _cargadoEn = DateTime.now();
           _cargando = false;
+          _esperaReintento = _reintentoInicial;
         },
         onAdFailedToLoad: (error) {
           _ad = null;
+          _cargadoEn = null;
           _cargando = false;
 
           if (kDebugMode) {
@@ -93,7 +139,8 @@ class InterstitialAdsService {
                 ? 'sin inventario (no fill)'
                 : error.toString();
             debugPrint(
-              'Interstitial no cargó: $motivo. Reintento en ${_reintento.inSeconds}s.',
+              'Interstitial no cargó: $motivo. '
+              'Reintento en ${_esperaReintento.inSeconds}s.',
             );
           }
 
@@ -119,7 +166,7 @@ class InterstitialAdsService {
 
     if ((_proximoEn - _aperturas) <= _precargarFaltando) precargar();
 
-    final ad = _ad;
+    final ad = _vigente();
     if (!debeMostrar || ad == null) {
       alContinuar();
       if (ad == null) precargar();
@@ -130,14 +177,23 @@ class InterstitialAdsService {
       onAdDismissedFullScreenContent: (ad) {
         ad.dispose();
         _ad = null;
+        _cargadoEn = null;
         _pendiente = false;
-        _proximoEn += _frecuencia;
+        // El hito se cuenta desde la apertura de ahora, no desde el anterior.
+        //
+        // Con `_proximoEn += _frecuencia` el hito quedaba atrás de las
+        // aperturas cada vez que un anuncio tardaba varias notas en llegar, y
+        // al llegar se disparaba en TODAS las siguientes hasta que el contador
+        // alcanzaba a las aperturas: después de una racha sin inventario, el
+        // usuario comía un interstitial por noticia.
+        _proximoEn = _aperturas + _frecuencia;
         precargar();
         alContinuar();
       },
       onAdFailedToShowFullScreenContent: (ad, error) {
         ad.dispose();
         _ad = null;
+        _cargadoEn = null;
         _pendiente = true;
         debugPrint('Error mostrando interstitial: $error');
         precargar();
@@ -158,7 +214,7 @@ class InterstitialAdsService {
   /// El `Future` se completa cuando el anuncio se cierra, o de inmediato si no
   /// hubo anuncio que mostrar. Quien llamó nunca se queda esperando.
   Future<void> mostrarPorAccion() {
-    final ad = _ad;
+    final ad = _vigente();
     if (ad == null) {
       precargar();
       return Future.value();
@@ -174,12 +230,14 @@ class InterstitialAdsService {
       onAdDismissedFullScreenContent: (ad) {
         ad.dispose();
         _ad = null;
+        _cargadoEn = null;
         precargar();
         if (!cerrado.isCompleted) cerrado.complete();
       },
       onAdFailedToShowFullScreenContent: (ad, error) {
         ad.dispose();
         _ad = null;
+        _cargadoEn = null;
         // No llegó a verse: no tiene por qué gastar el cooldown del siguiente.
         _ultimoMostrado = null;
         debugPrint('Error mostrando interstitial: $error');
@@ -199,11 +257,13 @@ class InterstitialAdsService {
     _timerReintento = null;
     _ad?.dispose();
     _ad = null;
+    _cargadoEn = null;
     _cargando = false;
     _pendiente = false;
     _aperturas = 0;
     _proximoEn = _frecuencia;
     _ultimoMostrado = null;
+    _esperaReintento = _reintentoInicial;
   }
 
   /// Reinicia todos los sitios. Se llama al cerrar sesión: la siguiente cuenta
@@ -216,6 +276,10 @@ class InterstitialAdsService {
 
   void _programarReintento() {
     _timerReintento?.cancel();
-    _timerReintento = Timer(_reintento, precargar);
+    _timerReintento = Timer(_esperaReintento, precargar);
+
+    final siguiente = _esperaReintento * 2;
+    _esperaReintento =
+        siguiente > _reintentoMaximo ? _reintentoMaximo : siguiente;
   }
 }
