@@ -11,6 +11,7 @@ import 'package:flips_app/services/acceso_usuario.service.dart';
 import 'package:flips_app/services/diarios_digitales.service.dart';
 import 'package:flips_app/services/interstitial_ads.service.dart';
 import 'package:flips_app/services/session.service.dart';
+import 'package:flips_app/utils/imagen.util.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:syncfusion_flutter_pdfviewer/pdfviewer.dart';
@@ -72,60 +73,27 @@ class _DiariosDigitalesScreenState extends State<DiariosDigitalesScreen> {
     if (acceso.mostrarAnuncios) InterstitialAdsService.diarios.precargar();
   }
 
-  /// Abre la edición pública, renovando la firma si hace falta.
-  ///
-  /// Recargar al entrar no basta: alguien puede dejar la pestaña abierta más de
-  /// los 30 minutos que dura la URL de S3 y tocar la portada después. Acá se
-  /// comprueba justo antes de abrir, que es el único momento en que se sabe de
-  /// verdad si la firma sigue viva.
+  /// Abre la edición pública, renovando la firma si hace falta (ver
+  /// [DiariosDigitalesController.edicionPublicaVigente]).
   Future<void> _abrirUltimaEdicionPublica(DiarioDigitalModel diario) async {
-    var edicion = diario;
+    final edicion = await _controller.edicionPublicaVigente(context, diario);
+    if (!mounted) return;
 
-    if (edicion.firmaVencida()) {
-      await _controller.cargarUltimoPublico(context);
-      if (!mounted) return;
-
-      final renovada = context.read<DiariosDigitalesProvider>().ultimoPublico;
-      if (renovada == null || renovada.firmaVencida()) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text(
-              'No pudimos abrir la edición del día. Revisa tu conexión e '
-              'intenta nuevamente.',
-            ),
-          ),
-        );
-        return;
-      }
-
-      edicion = renovada;
+    if (edicion == null) {
+      mostrarErrorAlAbrirEdicionDelDia(context);
+      return;
     }
 
-    if (!mounted) return;
     _abrirDiario(edicion, publico: true);
   }
 
   void _abrirDiario(DiarioDigitalModel diario, {bool publico = false}) {
-    // El navegador se toma antes del anuncio porque el interstitial se lleva
-    // la pantalla y el `context` puede no seguir montado al volver.
-    final navigator = Navigator.of(context);
-
-    void abrir() {
-      if (!navigator.mounted) return;
-
-      navigator.push(
-        MaterialPageRoute(
-          builder: (_) => PdfViewerScreen(diario: diario, publico: publico),
-        ),
-      );
-    }
-
-    if (!_acceso.mostrarAnuncios) {
-      abrir();
-      return;
-    }
-
-    InterstitialAdsService.diarios.registrarAperturaYContinuar(abrir);
+    abrirDiarioDigital(
+      Navigator.of(context),
+      diario,
+      conAnuncio: _acceso.mostrarAnuncios,
+      publico: publico,
+    );
   }
 
   static const _meses = {
@@ -420,7 +388,7 @@ class _DiarioPosterCard extends StatelessWidget {
                 child: Stack(
                   fit: StackFit.expand,
                   children: [
-                    _DiarioPdfCover(diario: diario, publico: publico),
+                    DiarioPdfCover(diario: diario, publico: publico),
                     Positioned.fill(
                       child: DecoratedBox(
                         decoration: BoxDecoration(
@@ -508,8 +476,13 @@ class _DiarioPosterCard extends StatelessWidget {
   }
 }
 
-class _DiarioPdfCover extends StatelessWidget {
-  const _DiarioPdfCover({required this.diario, this.publico = false});
+/// Portada de un diario, con las cabeceras que correspondan a su origen.
+///
+/// Pública porque también la dibuja el aviso del diario del día: la portada
+/// privada lleva credenciales y la pública no puede llevarlas, y esa decisión
+/// tiene que vivir en un solo lugar.
+class DiarioPdfCover extends StatelessWidget {
+  const DiarioPdfCover({super.key, required this.diario, this.publico = false});
 
   final DiarioDigitalModel diario;
   final bool publico;
@@ -538,26 +511,34 @@ class _DiarioPdfCover extends StatelessWidget {
             return _DiarioCoverPlaceholder(colorScheme: colorScheme);
           }
 
-          return Image.network(
-            coverUrl,
-            key: ValueKey(coverUrl),
-            fit: BoxFit.cover,
-            headers: snapshot.data ?? const {},
-            errorBuilder:
-                (_, __, ___) => _DiarioCoverPlaceholder(colorScheme: colorScheme),
-            loadingBuilder: (context, child, loadingProgress) {
-              if (loadingProgress == null) return child;
+          return LayoutBuilder(
+            builder: (context, constraints) => Image.network(
+              coverUrl,
+              key: ValueKey(coverUrl),
+              fit: BoxFit.cover,
+              headers: snapshot.data ?? const {},
+              // La portada es una celda de la grilla, no una página a tamaño
+              // real: se mide acá porque el ancho depende de cuántas columnas
+              // entren, y a ojo se quedaría corto o de más.
+              cacheWidth: anchoDeDecodificacion(
+                context,
+                constraints.hasBoundedWidth ? constraints.maxWidth : null,
+              ),
+              errorBuilder: (_, __, ___) =>
+                  _DiarioCoverPlaceholder(colorScheme: colorScheme),
+              loadingBuilder: (context, child, loadingProgress) {
+                if (loadingProgress == null) return child;
 
-              return Center(
-                child: CircularProgressIndicator(
-                  value:
-                      loadingProgress.expectedTotalBytes == null
-                          ? null
-                          : loadingProgress.cumulativeBytesLoaded /
-                              loadingProgress.expectedTotalBytes!,
-                ),
-              );
-            },
+                return Center(
+                  child: CircularProgressIndicator(
+                    value: loadingProgress.expectedTotalBytes == null
+                        ? null
+                        : loadingProgress.cumulativeBytesLoaded /
+                            loadingProgress.expectedTotalBytes!,
+                  ),
+                );
+              },
+            ),
           );
         },
       ),
@@ -735,6 +716,49 @@ class _DiarioNetwork {
       if (sessionCookie.isNotEmpty) 'Cookie': sessionCookie,
     };
   }
+}
+
+/// Abre el visor de un diario, con el interstitial de diarios delante cuando al
+/// usuario le tocan anuncios.
+///
+/// Lo usan la pestaña de diarios y el aviso del diario del día, para que las
+/// dos entradas cuenten las aperturas en el mismo lugar. El navegador se recibe
+/// ya tomado porque el interstitial se lleva la pantalla, y el `context` de
+/// quien llamó puede no seguir montado cuando el anuncio se cierra.
+void abrirDiarioDigital(
+  NavigatorState navigator,
+  DiarioDigitalModel diario, {
+  required bool conAnuncio,
+  bool publico = false,
+}) {
+  void abrir() {
+    if (!navigator.mounted) return;
+
+    navigator.push(
+      MaterialPageRoute(
+        builder: (_) => PdfViewerScreen(diario: diario, publico: publico),
+      ),
+    );
+  }
+
+  if (!conAnuncio) {
+    abrir();
+    return;
+  }
+
+  InterstitialAdsService.diarios.registrarAperturaYContinuar(abrir);
+}
+
+/// El aviso cuando la firma de la edición del día venció y no se pudo renovar.
+void mostrarErrorAlAbrirEdicionDelDia(BuildContext context) {
+  ScaffoldMessenger.of(context).showSnackBar(
+    const SnackBar(
+      content: Text(
+        'No pudimos abrir la edición del día. Revisa tu conexión e '
+        'intenta nuevamente.',
+      ),
+    ),
+  );
 }
 
 class PdfViewerScreen extends StatelessWidget {

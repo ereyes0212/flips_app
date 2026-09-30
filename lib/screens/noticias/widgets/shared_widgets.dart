@@ -41,6 +41,15 @@ class _NewsImage extends StatelessWidget {
       child: LayoutBuilder(
         builder: (context, constraints) {
           final canExpand = constraints.hasBoundedWidth && constraints.hasBoundedHeight;
+
+          // La miniatura del listado es la imagen que más se repite en la app.
+          // Sin decodificarla al tamaño en que se dibuja, cada tarjeta viva se
+          // queda con la foto entera en memoria.
+          final anchoDecodificado = anchoDeDecodificacion(
+            context,
+            size ?? (constraints.hasBoundedWidth ? constraints.maxWidth : null),
+          );
+
           return Stack(
             fit: canExpand ? StackFit.expand : StackFit.loose,
             children: [
@@ -53,6 +62,7 @@ class _NewsImage extends StatelessWidget {
                   height: size,
                   fit: BoxFit.cover,
                   gaplessPlayback: true,
+                  cacheWidth: anchoDecodificado,
                   errorBuilder: (_, __, ___) => placeholder,
                 )
               else
@@ -63,6 +73,7 @@ class _NewsImage extends StatelessWidget {
                   height: size,
                   fit: BoxFit.cover,
                   gaplessPlayback: true,
+                  cacheWidth: anchoDecodificado,
                   errorBuilder: (_, __, ___) => placeholder,
                   frameBuilder: (context, child, frame, wasSynchronouslyLoaded) {
                     if (wasSynchronouslyLoaded) return child;

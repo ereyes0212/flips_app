@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:google_mobile_ads/google_mobile_ads.dart';
 import 'package:webview_flutter/webview_flutter.dart';
+import 'package:webview_flutter_android/webview_flutter_android.dart';
 
 class SitioWebScreen extends StatefulWidget {
   const SitioWebScreen({
@@ -25,14 +27,52 @@ class _SitioWebScreenState extends State<SitioWebScreen> {
   void initState() {
     super.initState();
     _controller = WebViewController()
-      ..setJavaScriptMode(JavaScriptMode.unrestricted)
       ..setNavigationDelegate(
         NavigationDelegate(
-          onPageStarted: (_) => setState(() => _cargando = true),
-          onPageFinished: (_) => setState(() => _cargando = false),
+          onPageStarted: (_) {
+            if (mounted) setState(() => _cargando = true);
+          },
+          onPageFinished: (_) {
+            if (mounted) setState(() => _cargando = false);
+          },
         ),
-      )
-      ..loadRequest(Uri.parse(widget.url));
+      );
+
+    _prepararYCargar();
+  }
+
+  /// Deja el navegador listo para los anuncios del sitio y recién ahí carga.
+  ///
+  /// El sitio muestra sus propios anuncios de Ad Manager (`Tiempohn_mobile`,
+  /// `Tiempohn_Richmedia`). Sin registrar este navegador, para Google son una
+  /// visita web cualquiera; registrado, el SDK de la app les suma sus señales
+  /// —que es una app instalada, en un equipo real— y los compradores pujan con
+  /// más confianza. Es la WebView API for Ads.
+  ///
+  /// El orden es el que exige Google: JavaScript, cookies de terceros en
+  /// Android, registro, y la página al final. Registrar con la página ya
+  /// cargada no surte efecto sobre esa carga.
+  Future<void> _prepararYCargar() async {
+    await _controller.setJavaScriptMode(JavaScriptMode.unrestricted);
+
+    // iOS no lo necesita; en Android el registro no funciona sin esto.
+    final plataforma = _controller.platform;
+    if (plataforma is AndroidWebViewController) {
+      await AndroidWebViewCookieManager(
+        const PlatformWebViewCookieManagerCreationParams(),
+      ).setAcceptThirdPartyCookies(plataforma, true);
+    }
+
+    try {
+      await MobileAds.instance.registerWebView(_controller);
+    } catch (error) {
+      // Mejora de monetización, no requisito: si el SDK no está listo o falla,
+      // la página se abre igual, con sus anuncios de siempre.
+      debugPrint('[sitio web] no se pudo registrar el navegador: $error');
+    }
+
+    if (!mounted) return;
+    await _controller.loadRequest(Uri.parse(widget.url));
   }
 
   @override

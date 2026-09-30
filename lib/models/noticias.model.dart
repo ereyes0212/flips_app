@@ -21,7 +21,7 @@ class CategoriaNoticiaModel {
   }
 }
 
-enum NoticiaContentBlockType { text, image, link, gallery, video }
+enum NoticiaContentBlockType { text, image, link, gallery, video, tweet }
 
 class NoticiaGalleryItem {
   const NoticiaGalleryItem({required this.imageUrl, this.caption = ''});
@@ -50,9 +50,12 @@ class NoticiaContentBlock {
     this.caption = '',
     this.linkUrl = '',
     this.videoUrl = '',
+    this.videoAspectRatio = _proporcionHorizontal,
     this.galleryItems = const [],
     this.sourceHtml = '',
   });
+
+  static const double _proporcionHorizontal = 16 / 9;
 
   const NoticiaContentBlock.text(String value, {String sourceHtml = ''})
     : this._(type: NoticiaContentBlockType.text, text: value, sourceHtml: sourceHtml);
@@ -75,8 +78,24 @@ class NoticiaContentBlock {
   const NoticiaContentBlock.gallery(List<NoticiaGalleryItem> items)
     : this._(type: NoticiaContentBlockType.gallery, galleryItems: items);
 
-  const NoticiaContentBlock.video(String url)
-    : this._(type: NoticiaContentBlockType.video, videoUrl: url);
+  /// [aspectRatio] es ancho sobre alto: 16/9 para el video de siempre, menos de
+  /// 1 para los verticales como los reels de Facebook.
+  const NoticiaContentBlock.video(
+    String url, {
+    double aspectRatio = _proporcionHorizontal,
+  }) : this._(
+         type: NoticiaContentBlockType.video,
+         videoUrl: url,
+         videoAspectRatio: aspectRatio,
+       );
+
+  /// Una publicación de X insertada en la nota.
+  ///
+  /// [url] es la de la publicación (`https://twitter.com/usuario/status/id`) y
+  /// [text] su texto, que se muestra solo si la inserción de X no carga: sin
+  /// red, con la publicación borrada o con X caído.
+  const NoticiaContentBlock.tweet({required String url, String text = ''})
+    : this._(type: NoticiaContentBlockType.tweet, linkUrl: url, text: text);
 
   final NoticiaContentBlockType type;
   final String text;
@@ -84,6 +103,7 @@ class NoticiaContentBlock {
   final String caption;
   final String linkUrl;
   final String videoUrl;
+  final double videoAspectRatio;
   final List<NoticiaGalleryItem> galleryItems;
   final String sourceHtml;
 
@@ -95,6 +115,7 @@ class NoticiaContentBlock {
       caption: caption,
       linkUrl: linkUrl,
       videoUrl: videoUrl,
+      videoAspectRatio: videoAspectRatio,
       galleryItems: galleryItems,
       sourceHtml: value,
     );
@@ -105,6 +126,7 @@ class NoticiaContentBlock {
   bool get isLink => type == NoticiaContentBlockType.link;
   bool get isGallery => type == NoticiaContentBlockType.gallery;
   bool get isVideo => type == NoticiaContentBlockType.video;
+  bool get isTweet => type == NoticiaContentBlockType.tweet;
 
   Map<String, dynamic> toJson() => {
     'type': type.name,
@@ -113,6 +135,7 @@ class NoticiaContentBlock {
     'caption': caption,
     'linkUrl': linkUrl,
     'videoUrl': videoUrl,
+    'videoAspectRatio': videoAspectRatio,
     'galleryItems': galleryItems.map((e) => e.toJson()).toList(),
     'sourceHtml': sourceHtml,
   };
@@ -140,7 +163,20 @@ class NoticiaContentBlock {
             .toList();
         return NoticiaContentBlock.gallery(items);
       case NoticiaContentBlockType.video:
-        return NoticiaContentBlock.video(json['videoUrl']?.toString() ?? '');
+        // Las noticias guardadas sin conexión antes de este campo no lo traen:
+        // eran todas de MOW, horizontales.
+        final proporcion = json['videoAspectRatio'];
+        return NoticiaContentBlock.video(
+          json['videoUrl']?.toString() ?? '',
+          aspectRatio: proporcion is num && proporcion > 0
+              ? proporcion.toDouble()
+              : _proporcionHorizontal,
+        );
+      case NoticiaContentBlockType.tweet:
+        return NoticiaContentBlock.tweet(
+          url: json['linkUrl']?.toString() ?? '',
+          text: json['text']?.toString() ?? '',
+        );
       case NoticiaContentBlockType.text:
         return NoticiaContentBlock.text(
           json['text']?.toString() ?? '',
@@ -378,7 +414,7 @@ class NoticiaModel {
 
     final blocks = <NoticiaContentBlock>[];
     final mediaRegex = RegExp(
-      r'''(?:<style\b[\s\S]*?<\/style>\s*)?<div\b(?=[^>]*class\s*=\s*(['"])[^'"]*\btd-gallery\b[^'"]*\1)[\s\S]*?(?=<p\b|<h[1-6]\b|$)|<div\b(?=[^>]*data-mow_video\s*=)[^>]*>\s*<\/div>|<amp-iframe\b[^>]*src\s*=\s*(['"])[^'"]*mowplayer\.com/watch/[^'"]*\2[\s\S]*?<\/amp-iframe>|<iframe\b[^>]*src\s*=\s*(['"])[^'"]*mowplayer\.com/watch/[^'"]*\3[\s\S]*?<\/iframe>|<figure\b[\s\S]*?<\/figure>|<img\b[^>]*>''',
+      r'''(?:<style\b[\s\S]*?<\/style>\s*)?<div\b(?=[^>]*class\s*=\s*(['"])[^'"]*\btd-gallery\b[^'"]*\1)[\s\S]*?(?=<p\b|<h[1-6]\b|$)|<div\b(?=[^>]*data-mow_video\s*=)[^>]*>\s*<\/div>|<amp-iframe\b[^>]*src\s*=\s*(['"])[^'"]*mowplayer\.com/watch/[^'"]*\2[\s\S]*?<\/amp-iframe>|<iframe\b[^>]*src\s*=\s*(['"])[^'"]*mowplayer\.com/watch/[^'"]*\3[\s\S]*?<\/iframe>|<iframe\b[^>]*src\s*=\s*(['"])[^'"]*facebook\.com/plugins/video\.php[^'"]*\4[\s\S]*?<\/iframe>|<blockquote\b(?=[^>]*class\s*=\s*(['"])[^'"]*\btwitter-tweet\b[^'"]*\5)[\s\S]*?<\/blockquote>(?:\s*(?:<p\b[^>]*>\s*)?<script\b[^>]*widgets\.js[^>]*>\s*<\/script>(?:\s*<\/p>)?)?|<figure\b[\s\S]*?<\/figure>|<img\b[^>]*>''',
       caseSensitive: false,
     );
     var currentIndex = 0;
@@ -414,9 +450,29 @@ class NoticiaModel {
         continue;
       }
 
+      // Va antes que las imágenes: WordPress a veces envuelve la inserción de X
+      // en un `<figure>`, y como imagen no tiene `src` y se perdía entera.
+      if (_esPublicacionDeX(fragment)) {
+        final tweet = _extractTweet(fragment);
+        if (tweet != null) {
+          blocks.add(tweet);
+        } else {
+          // Sin enlace a la publicación no hay qué insertar; al menos que el
+          // texto no se pierda.
+          addText(fragment);
+        }
+        currentIndex = match.end;
+        continue;
+      }
+
       final videoUrl = _extractVideoUrl(fragment);
       if (videoUrl.isNotEmpty) {
-        blocks.add(NoticiaContentBlock.video(videoUrl));
+        blocks.add(
+          NoticiaContentBlock.video(
+            videoUrl,
+            aspectRatio: _proporcionDeVideo(fragment),
+          ),
+        );
         currentIndex = match.end;
         continue;
       }
@@ -451,7 +507,92 @@ class NoticiaModel {
     final uri = Uri.tryParse(normalizedSrc);
     if (uri == null) return '';
 
-    return uri.host.endsWith('mowplayer.com') ? normalizedSrc : '';
+    if (uri.host.endsWith('mowplayer.com')) return normalizedSrc;
+
+    // El reproductor oficial de Facebook para insertar videos y reels. Antes
+    // el lector no lo reconocía, descartaba el iframe y el video directamente
+    // no aparecía en la nota: ni reproductor ni enlace.
+    if (esReproductorDeFacebook(normalizedSrc)) return normalizedSrc;
+
+    return '';
+  }
+
+  /// `true` si [url] es el reproductor de Facebook para insertar videos.
+  ///
+  /// Pública porque la usa también el bloque de video, que a este reproductor
+  /// le cuida hacia dónde navega.
+  static bool esReproductorDeFacebook(String url) {
+    final uri = Uri.tryParse(url);
+    if (uri == null) return false;
+
+    return (uri.host == 'facebook.com' || uri.host.endsWith('.facebook.com')) &&
+        uri.path.startsWith('/plugins/video.php');
+  }
+
+  /// Ancho sobre alto de un video insertado, leído de su `width` y `height`.
+  ///
+  /// Un reel de Facebook viene como `265×476`: meterlo en un 16:9 lo dejaba
+  /// como una franja angosta en medio de dos bandas negras. Sin medidas —el
+  /// `div` de MOW no las trae— o con valores absurdos se asume 16:9.
+  static double _proporcionDeVideo(String html) {
+    final ancho = double.tryParse(_extractAttribute(html, 'width'));
+    final alto = double.tryParse(_extractAttribute(html, 'height'));
+    if (ancho == null || alto == null || ancho <= 0 || alto <= 0) {
+      return _proporcionHorizontalDeVideo;
+    }
+
+    final proporcion = ancho / alto;
+    // Entre un vertical muy alto y un panorámico: fuera de eso es un error de
+    // quien pegó el código, no un video.
+    if (proporcion < 0.4 || proporcion > 2.5) {
+      return _proporcionHorizontalDeVideo;
+    }
+
+    return proporcion;
+  }
+
+  static const double _proporcionHorizontalDeVideo = 16 / 9;
+
+  static final _claseTwitterTweet = RegExp(
+    r'\btwitter-tweet\b',
+    caseSensitive: false,
+  );
+
+  static final _urlDePublicacionDeX = RegExp(
+    r'https?://(?:www\.|mobile\.)?(?:twitter|x)\.com/(\w+)/status(?:es)?/(\d+)',
+    caseSensitive: false,
+  );
+
+  static bool _esPublicacionDeX(String html) =>
+      _claseTwitterTweet.hasMatch(html);
+
+  /// Una publicación de X pegada con el código de inserción oficial.
+  ///
+  /// La redacción la pega tal como la da X: un `blockquote.twitter-tweet` con
+  /// el texto y un enlace a la publicación, más el `<script>` de `widgets.js`.
+  /// Sin esto el lector la tomaba como un párrafo más con enlaces, y tocarla
+  /// sacaba al usuario de la app hacia x.com en vez de reproducir el video.
+  static NoticiaContentBlock? _extractTweet(String html) {
+    final estado = _urlDePublicacionDeX.firstMatch(html);
+    if (estado == null) return null;
+
+    // Sin los parámetros de rastreo que agrega X (`?ref_src=…`) y en el
+    // dominio clásico, que `widgets.js` reconoce desde siempre.
+    final url =
+        'https://twitter.com/${estado.group(1)}/status/${estado.group(2)}';
+
+    // El primer párrafo es el texto de la publicación; lo que sigue es la firma
+    // ("— Diario Tiempo de Honduras (@TiempoHonduras) September 28, 2026").
+    final parrafo = RegExp(
+      r'<p\b[^>]*>([\s\S]*?)<\/p>',
+      caseSensitive: false,
+    ).firstMatch(html);
+    final texto = _cleanHtml(parrafo?.group(1) ?? '')
+        .replaceAll(RegExp(r'pic\.(?:twitter|x)\.com/\S+'), '')
+        .replaceAll(RegExp(r'https?://t\.co/\S+'), '')
+        .trim();
+
+    return NoticiaContentBlock.tweet(url: url, text: texto);
   }
 
   static bool _isGalleryFragment(String html) {

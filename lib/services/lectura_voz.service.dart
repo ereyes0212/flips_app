@@ -23,10 +23,6 @@ class LecturaVozService {
   /// genérica. Muchos equipos solo traen `es-ES` instalado de fábrica.
   static const _idiomasPreferidos = ['es-HN', 'es-MX', 'es-US', 'es-ES', 'es'];
 
-  /// Las voces en español de Google suenan bastante mejor que las de Samsung,
-  /// que es el motor que trae de fábrica buena parte de los equipos.
-  static const _motorPreferido = 'com.google.android.tts';
-
   final FlutterTts _tts = FlutterTts();
 
   bool _listo = false;
@@ -69,9 +65,22 @@ class LecturaVozService {
       // sin esto la cola de párrafos se dispara toda de golpe.
       await _tts.awaitSpeakCompletion(true);
 
-      // Va primero: cambiar de motor recrea el `TextToSpeech` de Android y se
-      // lleva por delante idioma, voz y volumen.
-      if (Platform.isAndroid) await _elegirMotor();
+      // Acá iba `_elegirMotor()`, que forzaba el motor de Google porque sus
+      // voces en español suenan mejor que las de Samsung. Se quitó: `setEngine`
+      // recrea el `TextToSpeech` de Android, y `flutter_tts` guarda un solo
+      // `Result` para contestarle a Dart cuando termina de inicializar. Como
+      // `dispatchOnInit` puede dispararse más de una vez, el plugin contesta
+      // dos veces sobre el mismo canal y Flutter lanza
+      // `IllegalStateException: Reply already submitted`, que cierra la app.
+      //
+      // Es un bug del plugin (4.2.5 es la última versión y no lo arregla) y no
+      // se puede atrapar desde Dart: la excepción se lanza en el hilo principal
+      // de Android, no vuelve por el `await`. Se dispara solo donde Google TTS
+      // está instalado pero no es el motor por defecto —Samsung, Huawei—, que
+      // es buena parte del parque en Honduras.
+      //
+      // Lo que se pierde es calidad de voz en esos equipos, no la lectura:
+      // `_elegirVoz()` igual busca la mejor voz en español del motor activo.
 
       final idioma = await _buscarIdioma();
       if (idioma.isEmpty) return false;
@@ -90,23 +99,6 @@ class LecturaVozService {
         debugPrint('[lectura] no se pudo preparar el motor: $error');
       }
       return false;
-    }
-  }
-
-  Future<void> _elegirMotor() async {
-    try {
-      final motores = await _tts.getEngines;
-      if (motores is! List) return;
-      if (!motores.any((motor) => motor.toString() == _motorPreferido)) return;
-
-      final actual = (await _tts.getDefaultEngine)?.toString() ?? '';
-      if (actual == _motorPreferido) return;
-
-      await _tts.setEngine(_motorPreferido);
-    } catch (error) {
-      // Si el motor preferido no arranca se sigue con el del sistema: suena
-      // peor, pero suena.
-      if (kDebugMode) debugPrint('[lectura] no se pudo fijar el motor: $error');
     }
   }
 

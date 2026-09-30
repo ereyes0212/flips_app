@@ -741,6 +741,7 @@ class _ArticleBlock extends StatelessWidget {
     if (block.isImage) return _ArticleImage(block: block);
     if (block.isGallery) return _ArticleGallery(block: block);
     if (block.isVideo) return _ArticleVideo(block: block);
+    if (block.isTweet) return _ArticleTweet(block: block);
     if (block.isLink) return _ArticleLink(block: block, acceso: acceso);
 
     return _ArticleTextBlock(block: block);
@@ -968,6 +969,7 @@ class _ArticleVideoState extends State<_ArticleVideo> {
       ..setJavaScriptMode(JavaScriptMode.unrestricted)
       ..setNavigationDelegate(
         NavigationDelegate(
+          onNavigationRequest: _alNavegar,
           onPageStarted: (_) {
             if (mounted) setState(() => _loading = true);
           },
@@ -982,9 +984,62 @@ class _ArticleVideoState extends State<_ArticleVideo> {
       ..loadRequest(Uri.parse(widget.block.videoUrl));
   }
 
+  /// El reproductor de Facebook trae enlaces a la página y al reel completo, y
+  /// sin esto se abrían dentro del recuadro: Facebook entero metido a media
+  /// nota. Lo que sale de `/plugins/` va afuera, a la app o al navegador.
+  ///
+  /// Solo se vigila a Facebook: el de MOW funciona así desde siempre y no hay
+  /// motivo para tocarle el comportamiento.
+  NavigationDecision _alNavegar(NavigationRequest pedido) {
+    if (!pedido.isMainFrame ||
+        !NoticiaModel.esReproductorDeFacebook(widget.block.videoUrl)) {
+      return NavigationDecision.navigate;
+    }
+
+    final uri = Uri.tryParse(pedido.url);
+    if (uri == null || uri.path.startsWith('/plugins/')) {
+      return NavigationDecision.navigate;
+    }
+
+    launchUrl(uri, mode: LaunchMode.externalApplication);
+    return NavigationDecision.prevent;
+  }
+
+  /// Alto máximo del recuadro. Un reel vertical a todo el ancho mediría más que
+  /// la pantalla; con este tope se angosta y se centra, como en Facebook.
+  static const double _altoMaximo = 520;
+
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
+    final proporcion = widget.block.videoAspectRatio;
+
+    final reproductor = LayoutBuilder(
+      builder: (context, constraints) {
+        final ancho = constraints.maxWidth.isFinite
+            ? math.min(constraints.maxWidth, _altoMaximo * proporcion)
+            : _altoMaximo * proporcion;
+
+        return Center(
+          child: SizedBox(
+            width: ancho,
+            child: AspectRatio(
+              aspectRatio: proporcion,
+              child: Stack(
+                children: [
+                  WebViewWidget(controller: _controller),
+                  if (_loading)
+                    Container(
+                      color: colorScheme.surfaceVariant.withOpacity(0.75),
+                      child: const Center(child: CircularProgressIndicator()),
+                    ),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
+    );
 
     return Card(
       margin: EdgeInsets.zero,
@@ -992,19 +1047,7 @@ class _ArticleVideoState extends State<_ArticleVideo> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          AspectRatio(
-            aspectRatio: 16 / 9,
-            child: Stack(
-              children: [
-                WebViewWidget(controller: _controller),
-                if (_loading)
-                  Container(
-                    color: colorScheme.surfaceVariant.withOpacity(0.75),
-                    child: const Center(child: CircularProgressIndicator()),
-                  ),
-              ],
-            ),
-          ),
+          reproductor,
           Padding(
             padding: const EdgeInsets.fromLTRB(14, 10, 14, 12),
             child: Row(
@@ -1029,6 +1072,268 @@ class _ArticleVideoState extends State<_ArticleVideo> {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+/// Publicación de X insertada en la nota, que se reproduce dentro de la app.
+///
+/// Se dibuja con la inserción oficial de X (`widgets.js`), la misma que usa
+/// tiempo.hn: es la forma permitida de mostrar una publicación con su video, y
+/// el reproductor es el de X. Sacar el MP4 para pasarlo por un reproductor
+/// propio iría contra sus condiciones, y se rompería con cualquier cambio de
+/// su lado.
+///
+/// Tres cosas que el bloque de video de MOW no necesita:
+///
+/// * **Alto variable.** Una publicación es texto más video, no un 16:9. La
+///   página avisa su alto real por un canal de JavaScript y el bloque se ajusta.
+/// * **Enlaces afuera.** Tocar el nombre de la cuenta o la fecha abre X aparte;
+///   si se abriera en este recuadro quedaría x.com metido a media nota.
+/// * **Respaldo.** Sin red, con la publicación borrada o con X caído se muestra
+///   el texto y un botón para verla en X, en vez de un hueco.
+class _ArticleTweet extends StatefulWidget {
+  const _ArticleTweet({required this.block});
+
+  final NoticiaContentBlock block;
+
+  @override
+  State<_ArticleTweet> createState() => _ArticleTweetState();
+}
+
+class _ArticleTweetState extends State<_ArticleTweet> {
+  /// Lo que se reserva mientras X arma la publicación: más o menos lo que mide
+  /// una con video, para que al terminar no empuje de golpe el resto de la nota.
+  static const double _altoProvisorio = 420;
+
+  /// Si en este tiempo X no avisó que terminó, se da por caída.
+  static const Duration _plazo = Duration(seconds: 15);
+
+  late final WebViewController _controller;
+  Timer? _vencimiento;
+  double? _alto;
+  bool _lista = false;
+  bool _fallo = false;
+
+  @override
+  void initState() {
+    super.initState();
+
+    _controller = WebViewController()
+      ..setJavaScriptMode(JavaScriptMode.unrestricted)
+      ..setBackgroundColor(Colors.transparent)
+      ..addJavaScriptChannel('Publicacion', onMessageReceived: _alRecibir)
+      ..setNavigationDelegate(
+        NavigationDelegate(
+          onNavigationRequest: _alNavegar,
+          onWebResourceError: (error) {
+            // Un recurso suelto que falla (un píxel de X, una miniatura) no
+            // tumba la publicación; solo la página principal.
+            if (error.isForMainFrame ?? false) _marcarFallo();
+          },
+        ),
+      )
+      // El origen de la nota: X arma la inserción igual que en tiempo.hn.
+      ..loadHtmlString(
+        _htmlDeInsercion(widget.block.linkUrl),
+        baseUrl: 'https://tiempo.hn',
+      );
+
+    _vencimiento = Timer(_plazo, () {
+      if (!_lista) _marcarFallo();
+    });
+  }
+
+  @override
+  void dispose() {
+    _vencimiento?.cancel();
+    super.dispose();
+  }
+
+  void _marcarFallo() {
+    _vencimiento?.cancel();
+    if (mounted && !_fallo) setState(() => _fallo = true);
+  }
+
+  void _alRecibir(JavaScriptMessage mensaje) {
+    if (!mounted) return;
+
+    if (mensaje.message == 'lista') {
+      _vencimiento?.cancel();
+      setState(() => _lista = true);
+      return;
+    }
+
+    final alto = double.tryParse(mensaje.message);
+    if (alto == null || alto <= 0) return;
+    setState(() => _alto = alto);
+  }
+
+  NavigationDecision _alNavegar(NavigationRequest pedido) {
+    // Lo que X carga dentro de sus marcos —el reproductor, las imágenes— se
+    // deja pasar. Solo interesa lo que intenta reemplazar la página entera.
+    if (!pedido.isMainFrame) return NavigationDecision.navigate;
+
+    final uri = Uri.tryParse(pedido.url);
+    if (uri == null ||
+        uri.scheme == 'about' ||
+        uri.scheme == 'data' ||
+        uri.host == 'tiempo.hn') {
+      return NavigationDecision.navigate;
+    }
+
+    // Un toque en la cuenta, la fecha o "Ver en X": afuera, a la app de X o
+    // al navegador.
+    launchUrl(uri, mode: LaunchMode.externalApplication);
+    return NavigationDecision.prevent;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_fallo) return _ArticleTweetRespaldo(block: widget.block);
+
+    final colorScheme = Theme.of(context).colorScheme;
+    // El alto que avisa la página solo se toma cuando X terminó: antes mide lo
+    // que ocupa el enlace crudo, unos pocos píxeles, y el bloque se encogería
+    // para volver a crecer un segundo después.
+    final alto = _lista ? (_alto ?? _altoProvisorio) : _altoProvisorio;
+
+    return AnimatedSize(
+      duration: const Duration(milliseconds: 220),
+      curve: Curves.easeOut,
+      alignment: Alignment.topCenter,
+      child: SizedBox(
+        height: alto,
+        child: Stack(
+          children: [
+            WebViewWidget(controller: _controller),
+            if (!_lista)
+              Positioned.fill(
+                child: ColoredBox(
+                  color: colorScheme.surface,
+                  child: const Center(child: CircularProgressIndicator()),
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// La página mínima que arma la publicación.
+  ///
+  /// [url] sale de una expresión que solo acepta letras, números, guion bajo y
+  /// dígitos en usuario e id, así que va directo al atributo sin escapar.
+  ///
+  /// `data-dnt` le pide a X que no use la visita para personalizar publicidad,
+  /// y `data-conversation="none"` evita que arrastre la publicación a la que
+  /// responde. El cargador es el que X publica para sitios web; el aviso de
+  /// `rendered` es lo que confirma que la publicación existe y se dibujó.
+  static String _htmlDeInsercion(String url) => '''
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<style>
+  html, body { margin: 0; padding: 0; background: transparent; }
+  .twitter-tweet { margin: 0 auto !important; }
+</style>
+</head>
+<body>
+<blockquote class="twitter-tweet" data-dnt="true" data-lang="es" data-theme="light" data-conversation="none" data-media-max-width="560"><a href="$url"></a></blockquote>
+<script>
+  function avisarAlto() {
+    Publicacion.postMessage(String(Math.ceil(document.body.getBoundingClientRect().height)));
+  }
+  new ResizeObserver(avisarAlto).observe(document.body);
+
+  window.twttr = (function (d, s, id) {
+    var js, fjs = d.getElementsByTagName(s)[0], t = window.twttr || {};
+    if (d.getElementById(id)) return t;
+    js = d.createElement(s);
+    js.id = id;
+    js.src = 'https://platform.twitter.com/widgets.js';
+    fjs.parentNode.insertBefore(js, fjs);
+    t._e = [];
+    t.ready = function (f) { t._e.push(f); };
+    return t;
+  }(document, 'script', 'twitter-wjs'));
+
+  twttr.ready(function (t) {
+    t.events.bind('rendered', function () {
+      avisarAlto();
+      Publicacion.postMessage('lista');
+    });
+  });
+</script>
+</body>
+</html>
+''';
+}
+
+/// Lo que queda de una publicación de X cuando la inserción no carga.
+class _ArticleTweetRespaldo extends StatelessWidget {
+  const _ArticleTweetRespaldo({required this.block});
+
+  final NoticiaContentBlock block;
+
+  Future<void> _verEnX(BuildContext context) async {
+    final uri = Uri.tryParse(block.linkUrl);
+    if (uri == null) return;
+
+    final abierta = await launchUrl(uri, mode: LaunchMode.externalApplication);
+    if (!abierta && context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('No se pudo abrir la publicación.')),
+      );
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+
+    return Card(
+      margin: EdgeInsets.zero,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 14, 16, 8),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(
+                  Icons.play_circle_outline_rounded,
+                  size: 20,
+                  color: colorScheme.primary,
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  'Publicación en X',
+                  style: theme.textTheme.labelLarge?.copyWith(
+                    color: colorScheme.onSurfaceVariant,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ],
+            ),
+            if (block.text.isNotEmpty) ...[
+              const SizedBox(height: 10),
+              Text(block.text, style: theme.textTheme.bodyMedium),
+            ],
+            Align(
+              alignment: Alignment.centerRight,
+              child: TextButton.icon(
+                onPressed: () => _verEnX(context),
+                icon: const Icon(Icons.open_in_new_rounded, size: 18),
+                label: const Text('Ver en X'),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

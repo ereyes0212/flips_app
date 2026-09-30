@@ -5,6 +5,7 @@ import 'package:flips_app/screens/onboarding/onboarding_flow.dart';
 import 'package:flips_app/screens/shared/section_card.widget.dart';
 import 'package:flips_app/services/acceso_usuario.service.dart';
 import 'package:flips_app/services/push_notifications.service.dart';
+import 'package:flips_app/utils/imagen.util.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
@@ -638,6 +639,7 @@ class _NotificationAvatar extends StatelessWidget {
         width: _tamano,
         height: _tamano,
         fit: BoxFit.cover,
+        cacheWidth: anchoDeDecodificacion(context, _tamano),
         loadingBuilder: (context, child, progreso) {
           if (progreso == null) return child;
           return _MarcoDeMiniatura(

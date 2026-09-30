@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:flips_app/models/diarios_digitales.model.dart';
 import 'package:flips_app/providers/diarios_digitales.provider.dart';
 import 'package:flips_app/services/diarios_digitales.service.dart';
 import 'package:flips_app/services/session.service.dart';
@@ -68,6 +69,32 @@ class DiariosDigitalesController {
     return _ultimoEnVuelo = _cargarUltimoPublico(context).whenComplete(() {
       _ultimoEnVuelo = null;
     });
+  }
+
+  /// La edición pública lista para abrir: la misma si su firma sigue viva, una
+  /// recién pedida si venció, o `null` si no se pudo renovar.
+  ///
+  /// Recargar al entrar a una pantalla no basta: alguien puede dejarla abierta
+  /// más de los 30 minutos que dura la URL de S3 y tocar la portada después.
+  /// Se comprueba justo antes de abrir, que es el único momento en que se sabe
+  /// de verdad si la firma sigue viva. Lo usan la pestaña de diarios y el aviso
+  /// del diario del día; por eso vive acá y no en una de las dos pantallas.
+  Future<DiarioDigitalModel?> edicionPublicaVigente(
+    BuildContext context,
+    DiarioDigitalModel diario,
+  ) async {
+    if (!diario.firmaVencida()) return diario;
+
+    await cargarUltimoPublico(context);
+    if (!context.mounted) return null;
+
+    final renovada = Provider.of<DiariosDigitalesProvider>(
+      context,
+      listen: false,
+    ).ultimoPublico;
+    if (renovada == null || renovada.firmaVencida()) return null;
+
+    return renovada;
   }
 
   Future<void> _cargarUltimoPublico(BuildContext context) async {

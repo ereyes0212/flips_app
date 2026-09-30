@@ -20,14 +20,19 @@ import 'package:google_mobile_ads/google_mobile_ads.dart';
 /// va por [kDebugMode] y no por plataforma: probar en el teléfono propio es
 /// justo el caso que el SDK no cubre solo.
 ///
-/// Son las unidades de ejemplo que publica Google para Ad Manager. Siempre
-/// tienen inventario, así que además sirven para distinguir "no llega el
-/// anuncio" de "no hay anuncio que llegue".
+/// Son las unidades de ejemplo que publica Google para Ad Manager, las mismas
+/// en Android e iOS. Siempre tienen inventario, así que además sirven para
+/// distinguir "no llega el anuncio" de "no hay anuncio que llegue".
+///
+/// Ojo con las viejas `/6499/example/…`, que siguen apareciendo en ejemplos
+/// por internet: Google las reemplazó por las de `/21775744923/` y ya no
+/// llenan. Devuelven `No fill` (código 3), que se confunde con falta de
+/// inventario real.
 class AdUnits {
   const AdUnits._();
 
-  static const String _bannerPrueba = '/6499/example/banner';
-  static const String _interstitialPrueba = '/6499/example/interstitial';
+  static const String _bannerPrueba = '/21775744923/example/fixed-size-banner';
+  static const String _interstitialPrueba = '/21775744923/example/interstitial';
 
   /// Banner fijo al pie de la pantalla.
   static const String bannerFijo =
@@ -149,6 +154,8 @@ class _AdManagerBannerViewState extends State<AdManagerBannerView>
   Widget build(BuildContext context) {
     super.build(context); // Lo exige AutomaticKeepAliveClientMixin.
 
+    // Si el anuncio falla se va todo, rótulo incluido: un "PUBLICIDAD" sobre un
+    // hueco se leería como un error de la app.
     if (_fallo || widget.sizes.isEmpty) return const SizedBox.shrink();
 
     final ad = _ad;
@@ -167,10 +174,53 @@ class _AdManagerBannerViewState extends State<AdManagerBannerView>
       // un sliver) no cambia nada.
       heightFactor: 1,
       alignment: widget.alignment,
-      child: SizedBox(
-        width: medida.width.toDouble(),
-        height: medida.height.toDouble(),
-        child: cargado ? AdWidget(ad: ad) : const _EspacioDeAnuncio(),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          // Desde que se reserva el espacio, no desde que llega el anuncio: así
+          // el rótulo es parte del alto apartado y nada salta al cargar.
+          const _RotuloDePublicidad(),
+          SizedBox(
+            width: medida.width.toDouble(),
+            height: medida.height.toDouble(),
+            child: cargado ? AdWidget(ad: ad) : const _EspacioDeAnuncio(),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// El rótulo que aclara que lo que sigue es un anuncio.
+///
+/// Las palabras están acotadas por la política de Google: permite rotular
+/// "Advertisements" o "Sponsored links" y prohíbe los rótulos que disfrazan al
+/// anuncio de contenido, como "Sitios favoritos" u "Ofertas del día". Por eso
+/// "Publicidad" y no algo más amable como "Te puede interesar" —que además es
+/// casi el "Le puede interesar" que usan las notas para las relacionadas.
+///
+/// Va arriba y afuera del anuncio porque tapar o alterar la creatividad también
+/// está prohibido. Chico y gris a propósito: aclara, no invita a tocar.
+class _RotuloDePublicidad extends StatelessWidget {
+  const _RotuloDePublicidad();
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 3),
+      child: Text(
+        'PUBLICIDAD',
+        // En mayúsculas algunos lectores de pantalla lo deletrean.
+        semanticsLabel: 'Publicidad',
+        style: theme.textTheme.labelSmall?.copyWith(
+          fontSize: 10,
+          height: 1.2,
+          letterSpacing: 1,
+          fontWeight: FontWeight.w600,
+          color: theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.75),
+        ),
       ),
     );
   }

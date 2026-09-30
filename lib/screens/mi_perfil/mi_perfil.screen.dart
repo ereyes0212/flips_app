@@ -2,6 +2,7 @@ import 'package:flips_app/controllers/mi_perfil.controller.dart';
 import 'package:flips_app/models/mi_perfil.model.dart';
 import 'package:flips_app/providers/mi_perfil.provider.dart';
 import 'package:flips_app/screens/paquetes/paquetes.screen.dart';
+import 'package:flips_app/utils/imagen.util.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -175,6 +176,7 @@ class _ProfileHero extends StatelessWidget {
                         width: 84,
                         height: 84,
                         fit: BoxFit.cover,
+                        cacheWidth: anchoDeDecodificacion(context, 84),
                         errorBuilder: (_, __, ___) => inicial,
                         loadingBuilder: (context, child, progress) {
                           if (progress == null) return child;

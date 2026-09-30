@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:io';
+import 'dart:math' as math;
 
 import 'package:flips_app/constants.dart';
 import 'package:flips_app/controllers/noticias.controller.dart';
@@ -17,6 +18,7 @@ import 'package:flips_app/globals/widgets/skeleton.widget.dart';
 import 'package:flips_app/services/acceso_usuario.service.dart';
 import 'package:flips_app/services/interstitial_ads.service.dart';
 import 'package:flips_app/utils/html_texto.util.dart';
+import 'package:flips_app/utils/imagen.util.dart';
 import 'package:flips_app/utils/lectura_noticia.util.dart';
 import 'package:flips_app/utils/noticia_link.util.dart';
 import 'package:flutter/gestures.dart';
