@@ -74,6 +74,22 @@
         <intent>
             <action android:name="android.intent.action.TTS_SERVICE"/>
         </intent>
+        <!-- url_launcher en Android 11+ solo abre los esquemas que la app
+             declara. Sin estos, el correo, el telefono y los enlaces de la
+             pantalla de contacto (y la politica de privacidad) fallan en
+             silencio: justo lo que el revisor prueba. -->
+        <intent>
+            <action android:name="android.intent.action.VIEW"/>
+            <data android:scheme="https"/>
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.VIEW"/>
+            <data android:scheme="mailto"/>
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.VIEW"/>
+            <data android:scheme="tel"/>
+        </intent>
     </queries>
 
 </manifest>

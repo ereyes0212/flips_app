@@ -413,6 +413,8 @@ class _MasOpcionesScreen extends StatelessWidget {
                   ],
           ),
           const SizedBox(height: 14),
+          const _ContactoSection(),
+          const SizedBox(height: 14),
           _OptionsSectionCard(
             title: 'Legal',
             children: const [_PoliticaPrivacidadTile()],
@@ -509,6 +511,79 @@ class _PoliticaPrivacidadTile extends StatelessWidget {
       funcion: () => _abrir(context),
       texto: 'Política de privacidad',
       subtitulo: 'Cómo tratamos tus datos.',
+    );
+  }
+}
+
+/// Datos de contacto del medio, dentro de "Más opciones" y visibles también
+/// para un invitado.
+///
+/// La política de Noticias y Revistas de Google Play exige una sección de
+/// contacto fácil de encontrar *dentro de la app*, con un correo o teléfono en
+/// texto —las redes sociales no cuentan—. Los mismos datos están publicados en
+/// https://tiempo.hn/contacto y en la ficha de Play Store; tienen que coincidir
+/// con lo que se muestra aquí.
+class _ContactoSection extends StatelessWidget {
+  const _ContactoSection();
+
+  static const String _correo = 'diariotiempodevelop@tiempo.hn';
+  static const String _telefonoVisible = '+504 3290-9977';
+  // Lo que se marca de verdad: sin espacios ni guiones.
+  static const String _telefonoMarcado = '+50432909977';
+  static const String _direccion =
+      'Plaza Nova Prisa, Barrio Guamilito, San Pedro Sula, Cortés';
+
+  Future<void> _abrir(BuildContext context, Uri uri) async {
+    final messenger = ScaffoldMessenger.of(context);
+    var abierto = false;
+
+    try {
+      abierto = await launchUrl(uri, mode: LaunchMode.externalApplication);
+    } catch (_) {
+      abierto = false;
+    }
+
+    if (!abierto) {
+      messenger.showSnackBar(
+        const SnackBar(
+          backgroundColor: Colors.red,
+          content: Text('No pudimos abrir esta opción en tu dispositivo.'),
+        ),
+      );
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return _OptionsSectionCard(
+      title: 'Contacto',
+      children: [
+        GridItem(
+          icono: Icons.email_outlined,
+          funcion: () => _abrir(context, Uri(scheme: 'mailto', path: _correo)),
+          texto: 'Correo',
+          subtitulo: _correo,
+        ),
+        GridItem(
+          icono: Icons.call_outlined,
+          funcion: () =>
+              _abrir(context, Uri(scheme: 'tel', path: _telefonoMarcado)),
+          texto: 'Teléfono',
+          subtitulo: _telefonoVisible,
+        ),
+        GridItem(
+          icono: Icons.location_on_outlined,
+          funcion: () => _abrir(
+            context,
+            Uri.https('www.google.com', '/maps/search/', {
+              'api': '1',
+              'query': '$_direccion, Honduras',
+            }),
+          ),
+          texto: 'Dirección',
+          subtitulo: _direccion,
+        ),
+      ],
     );
   }
 }
