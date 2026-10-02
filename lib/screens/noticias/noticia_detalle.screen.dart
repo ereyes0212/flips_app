@@ -265,6 +265,15 @@ class _NoticiaDetalleScreenState extends State<_NoticiaDetalleScreen> {
                     ),
                   ),
                   const SizedBox(height: 14),
+                  // El autor solo viene en el detalle, no en la tarjeta del
+                  // listado. Mostrar la firma antes de que cargue el detalle
+                  // haría parpadear "Redacción" y luego el autor real, así que
+                  // se espera a tener el contenido; ahí sí, sin autor, cae a
+                  // "Redacción".
+                  if (noticia.tieneContenido) ...[
+                    _AuthorLabel(author: noticia.author),
+                    const SizedBox(height: 8),
+                  ],
                   _DateLabel(date: noticia.date),
                   const SizedBox(height: 16),
                   _CategoryPills(
@@ -1538,10 +1547,23 @@ class _ArticleGalleryState extends State<_ArticleGallery> {
                     setState(() => _currentIndex = value);
                   },
                   itemBuilder: (context, index) {
-                    return _NewsImage(
-                      url: _items[index].imageUrl,
-                      borderRadius: BorderRadius.zero,
-                      iconSize: 48,
+                    final item = _items[index];
+                    final heroTag = 'gallery-image-${item.imageUrl}';
+                    return GestureDetector(
+                      onTap: item.imageUrl.isEmpty
+                          ? null
+                          : () => _abrirImagenCompleta(
+                                context,
+                                imageUrl: item.imageUrl,
+                                heroTag: heroTag,
+                                caption: item.caption,
+                              ),
+                      child: _NewsImage(
+                        url: item.imageUrl,
+                        borderRadius: BorderRadius.zero,
+                        iconSize: 48,
+                        heroTag: item.imageUrl.isEmpty ? null : heroTag,
+                      ),
                     );
                   },
                 ),
@@ -1898,10 +1920,12 @@ class _FullscreenImageViewer extends StatelessWidget {
   /// Las noticias guardadas para leer sin conexión traen la imagen en disco,
   /// así que hay que distinguirla de una URL remota igual que hace `_NewsImage`.
   Widget _buildImage() {
-    const fallback = Icon(
-      Icons.broken_image_outlined,
-      color: Colors.white70,
-      size: 56,
+    const fallback = Center(
+      child: Icon(
+        Icons.broken_image_outlined,
+        color: Colors.white70,
+        size: 56,
+      ),
     );
 
     if (imageUrl.startsWith('/') || imageUrl.startsWith('file://')) {
@@ -1916,9 +1940,26 @@ class _FullscreenImageViewer extends StatelessWidget {
       );
     }
 
+    // La versión grande se baja de cero (la miniatura se decodificó en chico
+    // por el cacheWidth), así que mientras llega se muestra un indicador en vez
+    // de dejar la pantalla en negro.
     return Image.network(
       imageUrl,
       fit: BoxFit.contain,
+      gaplessPlayback: true,
+      loadingBuilder: (context, child, progress) {
+        if (progress == null) return child;
+        return const Center(
+          child: SizedBox(
+            width: 36,
+            height: 36,
+            child: CircularProgressIndicator(
+              strokeWidth: 2.5,
+              color: Colors.white70,
+            ),
+          ),
+        );
+      },
       errorBuilder: (_, __, ___) => fallback,
     );
   }
@@ -1935,14 +1976,16 @@ class _FullscreenImageViewer extends StatelessWidget {
         child: Column(
           children: [
             Expanded(
-              child: Center(
+              // El InteractiveViewer va directo bajo el Expanded para recibir el
+              // tamaño completo de la pantalla; antes un Center lo envolvía y lo
+              // encogía al tamaño de la imagen, así que no llenaba la pantalla y
+              // al hacer zoom el paneo quedaba atrapado en ese recuadro.
+              child: InteractiveViewer(
+                minScale: 1,
+                maxScale: 5,
                 child: Hero(
                   tag: heroTag,
-                  child: InteractiveViewer(
-                    minScale: 1,
-                    maxScale: 4,
-                    child: _buildImage(),
-                  ),
+                  child: _buildImage(),
                 ),
               ),
             ),

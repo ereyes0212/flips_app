@@ -20,12 +20,17 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_analytics/firebase_analytics.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
 import 'package:flips_app/services/push_notifications.service.dart';
 import 'package:provider/provider.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  // Toda la UI está pensada para vertical; en horizontal las pantallas se
+  // descuadran. Como la mayoría de apps de noticias, se fija en vertical.
+  await SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
 
   var firebaseReady = false;
   try {

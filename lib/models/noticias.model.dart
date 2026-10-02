@@ -200,6 +200,7 @@ class NoticiaModel {
     required this.imageAlt,
     this.localImagePath = '',
     required this.categories,
+    this.author = '',
   });
 
   final int id;
@@ -214,6 +215,10 @@ class NoticiaModel {
   final String imageAlt;
   final String localImagePath;
   final List<int> categories;
+
+  /// Autor de la nota. Puede venir vacío: no todas las notas van firmadas y el
+  /// listado (`/api/noticias`) no lo trae, solo el detalle (`by-link`).
+  final String author;
 
   bool get hasImage => imageUrl.isNotEmpty;
 
@@ -234,6 +239,7 @@ class NoticiaModel {
     String? imageAlt,
     String? localImagePath,
     List<int>? categories,
+    String? author,
   }) {
     return NoticiaModel(
       id: id ?? this.id,
@@ -248,6 +254,7 @@ class NoticiaModel {
       imageAlt: imageAlt ?? this.imageAlt,
       localImagePath: localImagePath ?? this.localImagePath,
       categories: categories ?? this.categories,
+      author: author ?? this.author,
     );
   }
 
@@ -266,6 +273,7 @@ class NoticiaModel {
       imageUrl: detalle.imageUrl.isNotEmpty ? detalle.imageUrl : imageUrl,
       imageAlt: detalle.imageAlt.isNotEmpty ? detalle.imageAlt : imageAlt,
       categories: detalle.categories.isNotEmpty ? detalle.categories : categories,
+      author: detalle.author.isNotEmpty ? detalle.author : author,
     );
   }
 
@@ -283,6 +291,7 @@ class NoticiaModel {
       'localImagePath': localImagePath,
       'contentBlocks': contentBlocks.map((e) => e.toJson()).toList(),
       'categories': categories,
+      'author': author,
     };
   }
 
@@ -306,6 +315,7 @@ class NoticiaModel {
               .map((e) => int.tryParse(e.toString()) ?? 0)
               .where((e) => e > 0)
               .toList(),
+      author: json['author']?.toString() ?? '',
     );
   }
 
@@ -334,7 +344,53 @@ class NoticiaModel {
       imageAlt: _cleanHtml(_imagenAlt(json)),
       localImagePath: '',
       categories: _categorias(json),
+      author: _autor(json),
     );
+  }
+
+  /// Nombre del autor de la nota.
+  ///
+  /// La API lo trae en `seo.author` (texto). Se acepta además el formato viejo
+  /// de WordPress, donde el nombre va en `_embedded.author[0].name` —el
+  /// `author` de primer nivel ahí es solo el id numérico, que no sirve—. Si no
+  /// hay nada, queda vacío y la pantalla cae a "Redacción".
+  static String _autor(Map<String, dynamic> json) {
+    final seo = json['seo'];
+    if (seo is Map) {
+      final autor = _campoTexto(
+        seo.cast<String, dynamic>(),
+        const ['author', 'autor'],
+      );
+      if (autor.isNotEmpty) return _limpiarAutor(autor);
+    }
+
+    final embedded = json['_embedded'];
+    if (embedded is Map) {
+      final autores = embedded['author'];
+      if (autores is List && autores.isNotEmpty) {
+        final primero = autores.first;
+        if (primero is Map) {
+          final nombre = _campoTexto(
+            primero.cast<String, dynamic>(),
+            const ['name'],
+          );
+          if (nombre.isNotEmpty) return _limpiarAutor(nombre);
+        }
+      }
+    }
+
+    final directo = _campoTexto(json, const ['autor']);
+    return directo.isNotEmpty ? _limpiarAutor(directo) : '';
+  }
+
+  /// Limpia el nombre del autor sin el tratamiento que se le da al cuerpo.
+  ///
+  /// Decodifica entidades (para las tildes) y quita cualquier etiqueta, pero a
+  /// diferencia de [_cleanHtml] **no** descarta el "Redacción" inicial: es una
+  /// firma válida ("Redacción Deportes"), no el prefijo de relleno del texto.
+  static String _limpiarAutor(String value) {
+    final sinTags = value.replaceAll(RegExp(r'<[^>]*>'), ' ');
+    return _decodeHtmlEntities(sinTags).replaceAll(RegExp(r'\s+'), ' ').trim();
   }
 
   /// Devuelve la primera llave con valor. Soporta el envoltorio `{rendered: …}`

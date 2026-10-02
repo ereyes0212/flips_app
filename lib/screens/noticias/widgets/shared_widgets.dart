@@ -125,6 +125,42 @@ class _DateLabel extends StatelessWidget {
   }
 }
 
+/// Firma de la nota: el autor, o "Redacción" cuando la nota no va firmada.
+///
+/// Siempre muestra algo. La política de Noticias y Revistas de Google pide
+/// dejar clara la fuente (autor o editor) de cada nota; cuando el backend no
+/// da autor, "Redacción" es la fuente real —de hecho el cuerpo suele venir con
+/// ese prefijo, que la app le quita al texto—.
+class _AuthorLabel extends StatelessWidget {
+  const _AuthorLabel({required this.author});
+
+  final String author;
+
+  @override
+  Widget build(BuildContext context) {
+    final textColor = Theme.of(context).colorScheme.onSurfaceVariant;
+    final nombre = author.trim().isEmpty ? 'Redacción' : author.trim();
+
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(Icons.person_outline, size: 14, color: textColor),
+        const SizedBox(width: 6),
+        Flexible(
+          child: Text(
+            'Por $nombre',
+            style: TextStyle(
+              color: textColor,
+              fontSize: 12,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
 class _Badge extends StatelessWidget {
   const _Badge({required this.text});
 
