@@ -178,28 +178,37 @@ class _PreferenciasCategoriasScreenState
               ),
             )
           else
-            Card(
-              clipBehavior: Clip.antiAlias,
-              child: Column(
-                children: [
-                  for (final categoria in _categorias)
-                    CheckboxListTile(
-                      value: _seleccion.contains(categoria.id),
-                      onChanged: (marcado) {
-                        setState(() {
-                          if (marcado == true) {
-                            _seleccion.add(categoria.id);
-                          } else {
-                            _seleccion.remove(categoria.id);
-                          }
-                        });
-                      },
-                      title: Text(categoria.name),
-                      dense: true,
-                      controlAffinity: ListTileControlAffinity.leading,
-                    ),
-                ],
-              ),
+            LayoutBuilder(
+              builder: (context, constraints) {
+                // Dos por fila: cada chip ocupa la mitad del ancho menos la
+                // separación. Se adapta solo a cualquier ancho de pantalla.
+                const separacion = 10.0;
+                final anchoItem = (constraints.maxWidth - separacion) / 2;
+
+                return Wrap(
+                  spacing: separacion,
+                  runSpacing: separacion,
+                  children: [
+                    for (final categoria in _categorias)
+                      SizedBox(
+                        width: anchoItem,
+                        child: _CategoriaChip(
+                          nombre: categoria.name,
+                          seleccionada: _seleccion.contains(categoria.id),
+                          onTap: () {
+                            setState(() {
+                              if (_seleccion.contains(categoria.id)) {
+                                _seleccion.remove(categoria.id);
+                              } else {
+                                _seleccion.add(categoria.id);
+                              }
+                            });
+                          },
+                        ),
+                      ),
+                  ],
+                );
+              },
             ),
           if (_sinSeleccion)
             Padding(
@@ -291,6 +300,70 @@ class _VistaError extends StatelessWidget {
             const SizedBox(height: 12),
             ElevatedButton(onPressed: onReintentar, child: const Text('Reintentar')),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Chip seleccionable de una categoría. Va en una grilla de dos columnas; al
+/// marcarse se tiñe con el color primario y muestra el check.
+class _CategoriaChip extends StatelessWidget {
+  const _CategoriaChip({
+    required this.nombre,
+    required this.seleccionada,
+    required this.onTap,
+  });
+
+  final String nombre;
+  final bool seleccionada;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(14),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 150),
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+          decoration: BoxDecoration(
+            color: seleccionada
+                ? colors.primary.withValues(alpha: 0.10)
+                : colors.surface,
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(
+              color: seleccionada ? colors.primary : colors.outlineVariant,
+              width: seleccionada ? 1.5 : 1,
+            ),
+          ),
+          child: Row(
+            children: [
+              Icon(
+                seleccionada ? Icons.check_circle : Icons.circle_outlined,
+                size: 20,
+                color: seleccionada ? colors.primary : colors.outline,
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  nombre,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: 13,
+                    height: 1.2,
+                    fontWeight: seleccionada ? FontWeight.w700 : FontWeight.w500,
+                    color: seleccionada ? colors.primary : colors.onSurface,
+                  ),
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
