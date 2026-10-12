@@ -24,6 +24,9 @@ import 'package:url_launcher/url_launcher.dart';
 const String _kStorageKey = 'push_notifications_history';
 const String _kNewsAlertsKey = 'push_news_alerts_enabled';
 const String _kPendingAlertsSyncKey = 'push_alerts_pending_sync';
+// Modo "elegir categorías": el reparto lo hace el backend por token, así que el
+// dispositivo sale del topic `flips` para no recibir además todas las noticias.
+const String _kModoCategoriasKey = 'push_news_mode_categorias';
 const int _kMaxStoredNotifications = 100;
 
 @pragma('vm:entry-point')
@@ -284,6 +287,7 @@ class PushNotificationsService extends ChangeNotifier {
 
   bool _initialized = false;
   bool _newsAlertsEnabled = true;
+  bool _modoCategorias = false;
 
   bool get _firebaseReady => Firebase.apps.isNotEmpty;
 
@@ -296,6 +300,10 @@ class PushNotificationsService extends ChangeNotifier {
   /// Es independiente del permiso del sistema: permite apagar los avisos desde
   /// la app sin tener que ir a los ajustes del teléfono.
   bool get newsAlertsEnabled => _newsAlertsEnabled;
+
+  /// `true` si el usuario eligió recibir solo ciertas categorías. En ese modo el
+  /// dispositivo no está en el topic `flips`: el backend reparte por token.
+  bool get modoCategorias => _modoCategorias;
 
   Future<void> init() async {
     if (_initialized) return;
@@ -318,12 +326,12 @@ class PushNotificationsService extends ChangeNotifier {
     FirebaseMessaging.onMessageOpenedApp.listen(_onNotificationOpened);
     _messaging.onTokenRefresh.listen((token) async {
       await _syncTokenWithBackend(token, activo: _newsAlertsEnabled);
-      await _subscribeToFlipsTopic();
+      await _aplicarTopicSegunModo();
     });
 
     final settings = await _messaging.getNotificationSettings();
     if (settings.authorizationStatus == AuthorizationStatus.authorized) {
-      await _subscribeToFlipsTopic();
+      await _aplicarTopicSegunModo();
     }
 
     // Si apagar o encender los avisos falló por red, se reintenta ahora: de lo
@@ -399,6 +407,30 @@ class PushNotificationsService extends ChangeNotifier {
     await _applyAlertsPreference(prefs);
   }
 
+  /// Cambia entre "todas las noticias" y "elegir categorías".
+  ///
+  /// La selección concreta de categorías la guarda la pantalla contra el backend
+  /// (`NotificacionPreferenciasService`); acá solo entra el modo, que es lo que
+  /// decide si el dispositivo está en el topic `flips` o fuera de él.
+  Future<void> setModoCategorias(bool porCategoria) async {
+    if (_modoCategorias == porCategoria) return;
+
+    _modoCategorias = porCategoria;
+    notifyListeners();
+
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setBool(_kModoCategoriasKey, porCategoria);
+    } catch (_) {}
+
+    // Solo hay topic que mover si los avisos están encendidos; apagados, el
+    // dispositivo no está en ningún lado y el modo se aplicará al reactivarlos.
+    if (_newsAlertsEnabled && _firebaseReady) {
+      await _updateTokenActivo(true);
+      await _aplicarTopicSegunModo();
+    }
+  }
+
   /// Propaga la preferencia a FCM y al backend.
   ///
   /// Desuscribirse del topic no alcanza: el backend también envía a los tokens
@@ -414,9 +446,11 @@ class PushNotificationsService extends ChangeNotifier {
 
   Future<bool> _enableDelivery() async {
     if (!_firebaseReady) return false;
-    final suscrito = await _subscribeToFlipsTopic();
+    // El token queda activo en los dos modos: en "todas" recibe por `flips`, en
+    // "categorías" lo necesita para que el backend le reparta por token.
     final registrado = await _updateTokenActivo(true);
-    return suscrito && registrado;
+    final topicOk = await _aplicarTopicSegunModo();
+    return registrado && topicOk;
   }
 
   Future<bool> _disableDelivery() async {
@@ -438,7 +472,16 @@ class PushNotificationsService extends ChangeNotifier {
     try {
       final prefs = await SharedPreferences.getInstance();
       _newsAlertsEnabled = prefs.getBool(_kNewsAlertsKey) ?? true;
+      _modoCategorias = prefs.getBool(_kModoCategoriasKey) ?? false;
     } catch (_) {}
+  }
+
+  /// Suscribe o desuscribe del topic `flips` según el modo. En modo categorías
+  /// el reparto lo hace el backend por token, así que estar en `flips` traería
+  /// además todas las noticias (duplicado); por eso ahí se sale del topic.
+  Future<bool> _aplicarTopicSegunModo() async {
+    if (!_firebaseReady) return false;
+    return _modoCategorias ? _unsubscribeFromFlipsTopic() : _subscribeToFlipsTopic();
   }
 
   Future<bool> _subscribeToFlipsTopic() async {

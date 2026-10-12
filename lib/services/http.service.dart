@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:flips_app/constants.dart';
 import 'package:flips_app/services/session.service.dart';
 import 'package:http/http.dart' as http;
 
@@ -237,6 +238,12 @@ class HttpService {
     return {
       'Accept': 'application/json',
       if (useJson) 'Content-Type': 'application/json',
+      // Identifican a la app en el backend. Van en toda petición porque es el
+      // único punto donde se arman las cabeceras; quien llame puede pisarlas
+      // con `headers` si hiciera falta.
+      'X-Client-Platform': Platform.isIOS ? 'ios' : 'android',
+      'X-Client-App': clientApp,
+      'X-App-Version': version,
       if (token.isNotEmpty) 'Authorization': 'Bearer $token',
       if (sessionCookie.isNotEmpty) 'Cookie': sessionCookie,
       ...?headers,

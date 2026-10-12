@@ -16,6 +16,7 @@ import 'package:flips_app/screens/mis_facturas/mis_facturas.screen.dart';
 import 'package:flips_app/screens/mis_pagos/mis_pagos.screen.dart';
 import 'package:flips_app/screens/mis_suscripcion/mis_suscripcion.screen.dart';
 import 'package:flips_app/screens/notificaciones/notificaciones.screen.dart';
+import 'package:flips_app/screens/notificaciones/preferencias_categorias.screen.dart';
 import 'package:flips_app/screens/onboarding/onboarding_flow.dart';
 import 'package:flips_app/screens/paquetes/paquetes.screen.dart';
 import 'package:flips_app/screens/sitio_web/sitio_web.screen.dart';
@@ -345,6 +346,19 @@ class _MasOpcionesScreen extends StatelessWidget {
                         : null,
                   );
                 },
+              ),
+              GridItem(
+                icono: Icons.tune_rounded,
+                funcion: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => const PreferenciasCategoriasScreen(),
+                    ),
+                  );
+                },
+                texto: 'Avisos por categoría',
+                subtitulo: 'Elige los temas que quieres recibir',
               ),
               GridItem(
                 icono: Icons.school_outlined,

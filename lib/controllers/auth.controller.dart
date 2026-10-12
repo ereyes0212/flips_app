@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:flips_app/config/google_sign_in.config.dart';
@@ -306,6 +307,14 @@ class AuthController {
     // Iniciar sesión es el momento natural para preguntar por las
     // notificaciones: el Home lo consume al entrar.
     await OnboardingService.markFreshLogin();
+
+    // Simétrico al `unregisterTokenOnLogout` del logout: ahora que la sesión ya
+    // es válida, se registra el token de FCM contra el usuario. Sin esto, quien
+    // aceptó avisos como invitado (registrado solo por topic, sin backend) e
+    // inicia sesión no quedaba asociado a su cuenta hasta apagar y volver a
+    // encender los avisos. Sin await para no colgar el login de una llamada de
+    // red; si falla, el reintento de arranque y el switch de avisos lo cubren.
+    unawaited(PushNotificationsService.instance.syncTokenForLoggedInUser());
   }
 
   /// Vuelve a la portada ya autenticado.

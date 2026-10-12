@@ -9,7 +9,15 @@ String apiUrl = urlBase;
 
 // String apiUrl = 'http://10.16.42.157:8080/api/';
 
-String version = '1.0.0';
+/// Versión de la app para la cabecera `X-App-Version`.
+///
+/// Mantener en sync con `version:` de pubspec.yaml en cada release. Es un dato
+/// informativo para los logs del backend, así que un desfase no rompe nada.
+String version = '1.1.5';
+
+/// Identifica la petición como originada en la app (cabecera `X-Client-App`),
+/// para distinguirla en el backend del tráfico del sitio web.
+const String clientApp = 'tiempo-app';
 
 GlobalKey<ScaffoldMessengerState> snackbarKey =
     GlobalKey<ScaffoldMessengerState>();
