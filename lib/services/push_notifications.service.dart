@@ -65,8 +65,14 @@ String? _primerTextoNoVacio(Map<String, dynamic> data, List<String> claves) {
 /// Se descarta el vacío además del nulo: un `notification` con el título en
 /// blanco dejaba la tarjeta sin encabezado en vez de caer al respaldo.
 String? _tituloDeMensaje(RemoteMessage message) {
-  final delBloque = message.notification?.title?.trim();
-  if (delBloque != null && delBloque.isNotEmpty) return delBloque;
+  // Con bloque `notification` se respeta su título tal cual —incluso vacío—. Los
+  // push de noticias mandan el titular en el CUERPO y el título a propósito en
+  // blanco; caer al `data` (que sí trae `titulo`) duplicaría el titular en
+  // primer plano. El respaldo por `data` queda solo para mensajes sin bloque.
+  if (message.notification != null) {
+    final delBloque = message.notification?.title?.trim();
+    return (delBloque != null && delBloque.isNotEmpty) ? delBloque : null;
+  }
   return _primerTextoNoVacio(message.data, _kClavesTitulo);
 }
 
@@ -123,12 +129,22 @@ int _idDeAvisoLocal(RemoteMessage message) =>
     (message.messageId ?? message.hashCode.toString()).hashCode;
 
 PushNotificationItem _itemFromMessage(RemoteMessage message) {
+  final titulo = _tituloDeMensaje(message);
+  final cuerpo = _cuerpoDeMensaje(message);
+
+  // Los avisos de noticias mandan el titular en el CUERPO y el título vacío (así
+  // se ve completo en la notificación). Para que la tarjeta del historial no
+  // quede sin encabezado, ahí el titular se usa como título.
+  final hayTitulo = titulo != null && titulo.isNotEmpty;
+  final tituloTarjeta = hayTitulo ? titulo : cuerpo;
+  final cuerpoTarjeta = hayTitulo ? cuerpo : null;
+
   return PushNotificationItem(
     id:
         message.messageId ??
         DateTime.now().microsecondsSinceEpoch.toString(),
-    title: _tituloDeMensaje(message) ?? 'Notificación',
-    body: _cuerpoDeMensaje(message) ?? 'Toque para ver detalles.',
+    title: tituloTarjeta ?? 'Notificación',
+    body: cuerpoTarjeta ?? 'Toque para ver detalles.',
     data: message.data,
     receivedAt: DateTime.now().toUtc(),
   );
