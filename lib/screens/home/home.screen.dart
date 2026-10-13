@@ -4,6 +4,7 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:animated_bottom_navigation_bar/animated_bottom_navigation_bar.dart';
+import 'package:flips_app/constants.dart';
 import 'package:flips_app/controllers/auth.controller.dart';
 import 'package:flips_app/globals/widgets/widgets.dart';
 import 'package:flips_app/providers/auth.provider.dart';
@@ -19,6 +20,8 @@ import 'package:flips_app/screens/notificaciones/notificaciones.screen.dart';
 import 'package:flips_app/screens/notificaciones/preferencias_categorias.screen.dart';
 import 'package:flips_app/screens/onboarding/onboarding_flow.dart';
 import 'package:flips_app/screens/paquetes/paquetes.screen.dart';
+import 'package:flips_app/screens/shared/actualizacion_disponible.sheet.dart';
+import 'package:flips_app/services/actualizacion.service.dart';
 import 'package:flips_app/screens/sitio_web/sitio_web.screen.dart';
 import 'package:flips_app/services/acceso_usuario.service.dart';
 import 'package:flips_app/services/auth.service.dart';
@@ -38,7 +41,7 @@ class HomeScreen extends StatefulWidget {
   State<HomeScreen> createState() => _HomeScreenState();
 }
 
-class _HomeScreenState extends State<HomeScreen> {
+class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   static const String _bannerAdUnitId = AdUnits.bannerFijo;
   static const List<AdSize> _bannerSizes = [
     AdSize(width: 300, height: 50),
@@ -48,22 +51,43 @@ class _HomeScreenState extends State<HomeScreen> {
   /// Objetivos del tour guiado. Son de instancia (no estáticos) para que dos
   /// `HomeScreen` montados a la vez no colisionen con la misma `GlobalKey`.
   final GlobalKey _bellKey = GlobalKey(debugLabel: 'onboarding_news_bell');
-  final GlobalKey _bottomNavKey = GlobalKey(debugLabel: 'onboarding_bottom_nav');
+  final GlobalKey _bottomNavKey = GlobalKey(
+    debugLabel: 'onboarding_bottom_nav',
+  );
 
   int _currentIndex = 0;
   bool _dialogoSuscripcionMostrado = false;
   AccesoUsuario _acceso = const AccesoUsuario.sinResolver();
+  bool _actualizacionEnCurso = false;
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _resolverAcceso();
     Future.microtask(_iniciarBienvenida);
   }
 
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  /// Quien deja la app abierta días enteros también se entera de la versión
+  /// nueva, pero sin preguntar al backend en cada regreso: el servicio respeta
+  /// un intervalo entre consultas.
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      _ofrecerActualizacion(respetarIntervalo: true);
+    }
+  }
+
   /// El onboarding tiene prioridad sobre el resto de avisos: si se muestra,
   /// el diálogo de suscripción se pospone para no encadenar dos interrupciones
-  /// en el primer ingreso (el propio tour ya invita a suscribirse).
+  /// en el primer ingreso (el propio tour ya invita a suscribirse). Mismo
+  /// criterio con el banner de versión nueva: una sola interrupción por arranque.
   Future<void> _iniciarBienvenida() async {
     final mostroOnboarding = await OnboardingFlow.runIfNeeded(
       context,
@@ -71,7 +95,33 @@ class _HomeScreenState extends State<HomeScreen> {
       bottomNavKey: _bottomNavKey,
     );
     if (!mounted || mostroOnboarding) return;
+    if (await _ofrecerActualizacion()) return;
     await _validarSuscripcionActiva();
+  }
+
+  /// Banner "Hay una nueva versión", si corresponde. Devuelve `true` si se
+  /// mostró (o ya se está resolviendo), para no apilar otro aviso encima.
+  Future<bool> _ofrecerActualizacion({bool respetarIntervalo = false}) async {
+    if (_actualizacionEnCurso) return true;
+    _actualizacionEnCurso = true;
+
+    try {
+      final disponible = await ActualizacionService.instance.buscar(
+        respetarIntervalo: respetarIntervalo,
+      );
+      // Solo sobre el Home: encima de una nota abierta o de un diálogo sería
+      // interrumpir a la mitad de algo.
+      if (disponible == null ||
+          !mounted ||
+          !(ModalRoute.of(context)?.isCurrent ?? false)) {
+        return false;
+      }
+
+      await mostrarActualizacionDisponible(context, disponible);
+      return true;
+    } finally {
+      _actualizacionEnCurso = false;
+    }
   }
 
   Future<void> _resolverAcceso() async {
@@ -103,32 +153,35 @@ class _HomeScreenState extends State<HomeScreen> {
     await showDialog<void>(
       context: context,
       barrierDismissible: false,
-      builder: (dialogContext) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(22)),
-        title: const Text('Contenido para suscriptores'),
-        content: const Text(
-          '''Los anuarios desde 2008 a la fecha y la lectura sin anuncios están disponibles para cuentas con suscripción activa.
+      builder:
+          (dialogContext) => AlertDialog(
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(22),
+            ),
+            title: const Text('Contenido para suscriptores'),
+            content: const Text(
+              '''Los anuarios desde 2008 a la fecha y la lectura sin anuncios están disponibles para cuentas con suscripción activa.
 
 Tu cuenta no tiene una suscripción activa en este momento.''',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(dialogContext),
-            child: const Text('Ahora no'),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(dialogContext),
+                child: const Text('Ahora no'),
+              ),
+              ElevatedButton.icon(
+                onPressed: () {
+                  Navigator.pop(dialogContext);
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => const PaquetesScreen()),
+                  );
+                },
+                icon: const Icon(Icons.manage_accounts_outlined),
+                label: const Text('Gestionar mi cuenta'),
+              ),
+            ],
           ),
-          ElevatedButton.icon(
-            onPressed: () {
-              Navigator.pop(dialogContext);
-              Navigator.push(
-                context,
-                MaterialPageRoute(builder: (_) => const PaquetesScreen()),
-              );
-            },
-            icon: const Icon(Icons.manage_accounts_outlined),
-            label: const Text('Gestionar mi cuenta'),
-          ),
-        ],
-      ),
     );
   }
 
@@ -257,7 +310,8 @@ class _MasOpcionesScreen extends StatelessWidget {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
     final nombre = context.watch<AuthProvider>().nombreUsuario;
-    final offlineCount = context.watch<NoticiasProvider>().noticiasOffline.length;
+    final offlineCount =
+        context.watch<NoticiasProvider>().noticiasOffline.length;
 
     return SafeArea(
       child: ListView(
@@ -272,21 +326,28 @@ class _MasOpcionesScreen extends StatelessWidget {
                   CircleAvatar(
                     radius: 30,
                     backgroundColor: colorScheme.primaryContainer,
-                    child: Icon(Icons.more_horiz_rounded, color: colorScheme.onPrimaryContainer),
+                    child: Icon(
+                      Icons.more_horiz_rounded,
+                      color: colorScheme.onPrimaryContainer,
+                    ),
                   ),
                   const SizedBox(height: 12),
                   Text(
                     'Más opciones',
-                    style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800),
+                    style: theme.textTheme.titleLarge?.copyWith(
+                      fontWeight: FontWeight.w800,
+                    ),
                   ),
                   const SizedBox(height: 4),
                   Text(
                     !sesionIniciada
                         ? 'Estás leyendo como invitado.'
                         : nombre.isEmpty
-                            ? 'Selecciona una opción.'
-                            : 'Hola, $nombre.',
-                    style: theme.textTheme.bodyMedium?.copyWith(color: colorScheme.onSurfaceVariant),
+                        ? 'Selecciona una opción.'
+                        : 'Hola, $nombre.',
+                    style: theme.textTheme.bodyMedium?.copyWith(
+                      color: colorScheme.onSurfaceVariant,
+                    ),
                   ),
                 ],
               ),
@@ -301,14 +362,23 @@ class _MasOpcionesScreen extends StatelessWidget {
                 funcion: () {
                   Navigator.push(
                     context,
-                    MaterialPageRoute(builder: (_) => const NoticiasOfflineScreen()),
+                    MaterialPageRoute(
+                      builder: (_) => const NoticiasOfflineScreen(),
+                    ),
                   );
                 },
                 texto: 'Noticias sin conexión',
-                subtitulo: offlineCount > 0 ? '$offlineCount guardadas' : 'Sin noticias guardadas',
-                trailing: offlineCount > 0
-                    ? Icon(Icons.download_done_rounded, color: colorScheme.primary)
-                    : null,
+                subtitulo:
+                    offlineCount > 0
+                        ? '$offlineCount guardadas'
+                        : 'Sin noticias guardadas',
+                trailing:
+                    offlineCount > 0
+                        ? Icon(
+                          Icons.download_done_rounded,
+                          color: colorScheme.primary,
+                        )
+                        : null,
               ),
               GridItem(
                 icono: Icons.public,
@@ -336,14 +406,17 @@ class _MasOpcionesScreen extends StatelessWidget {
                     funcion: () {
                       Navigator.push(
                         context,
-                        MaterialPageRoute(builder: (_) => const NotificacionesScreen()),
+                        MaterialPageRoute(
+                          builder: (_) => const NotificacionesScreen(),
+                        ),
                       );
                     },
                     texto: 'Historial de notificaciones',
                     subtitulo: unread > 0 ? '$unread nuevas' : 'Todo al día',
-                    trailing: unread > 0
-                        ? _NotificationUnreadBadge(count: unread)
-                        : null,
+                    trailing:
+                        unread > 0
+                            ? _NotificationUnreadBadge(count: unread)
+                            : null,
                   );
                 },
               ),
@@ -374,57 +447,66 @@ class _MasOpcionesScreen extends StatelessWidget {
           // lugar ve una sola entrada, que es la que sí le sirve.
           _OptionsSectionCard(
             title: 'Cuenta y servicios',
-            children: sesionIniciada
-                ? [
-                    GridItem(
-                      icono: Icons.manage_accounts_outlined,
-                      funcion: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(builder: (_) => const PaquetesScreen()),
-                        );
-                      },
-                      texto: 'Mi cuenta',
-                    ),
-                    GridItem(
-                      icono: Icons.payments_outlined,
-                      funcion: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(builder: (_) => const MisPagosScreen()),
-                        );
-                      },
-                      texto: 'Mis pagos',
-                    ),
-                    GridItem(
-                      icono: Icons.workspace_premium_outlined,
-                      funcion: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(builder: (_) => const MisSuscripcionScreen()),
-                        );
-                      },
-                      texto: 'Mi suscripción',
-                    ),
-                    GridItem(
-                      icono: Icons.receipt_long_outlined,
-                      funcion: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(builder: (_) => const MisFacturasScreen()),
-                        );
-                      },
-                      texto: 'Mis facturas',
-                    ),
-                  ]
-                : [
-                    GridItem(
-                      icono: Icons.login_rounded,
-                      funcion: () => abrirLogin(context),
-                      texto: 'Iniciar sesión',
-                      subtitulo: 'Suscripción, pagos y diario digital',
-                    ),
-                  ],
+            children:
+                sesionIniciada
+                    ? [
+                      GridItem(
+                        icono: Icons.manage_accounts_outlined,
+                        funcion: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => const PaquetesScreen(),
+                            ),
+                          );
+                        },
+                        texto: 'Mi cuenta',
+                      ),
+                      GridItem(
+                        icono: Icons.payments_outlined,
+                        funcion: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => const MisPagosScreen(),
+                            ),
+                          );
+                        },
+                        texto: 'Mis pagos',
+                      ),
+                      GridItem(
+                        icono: Icons.workspace_premium_outlined,
+                        funcion: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => const MisSuscripcionScreen(),
+                            ),
+                          );
+                        },
+                        texto: 'Mi suscripción',
+                      ),
+                      GridItem(
+                        icono: Icons.receipt_long_outlined,
+                        funcion: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => const MisFacturasScreen(),
+                            ),
+                          );
+                        },
+                        texto: 'Mis facturas',
+                      ),
+                    ]
+                    : [
+                      GridItem(
+                        icono: Icons.login_rounded,
+                        funcion: () => abrirLogin(context),
+                        texto: 'Iniciar sesión',
+                        subtitulo: 'Suscripción, pagos y diario digital',
+                      ),
+                    ],
           ),
           const SizedBox(height: 14),
           const _ContactoSection(),
@@ -450,9 +532,39 @@ class _MasOpcionesScreen extends StatelessWidget {
             const SizedBox(height: 8),
             const _EliminarCuentaTile(),
           ],
+          const SizedBox(height: 20),
+          const _VersionAppPie(),
           const SizedBox(height: 8),
         ],
       ),
+    );
+  }
+}
+
+/// Pie con la versión instalada, al final de "Más opciones". Es lo primero que
+/// se pregunta en soporte y en las pruebas internas.
+class _VersionAppPie extends StatelessWidget {
+  const _VersionAppPie();
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final estilo = theme.textTheme.bodySmall?.copyWith(
+      color: theme.colorScheme.onSurfaceVariant,
+    );
+
+    return Column(
+      children: [
+        Text(
+          'Diario Tiempo HN',
+          style: estilo?.copyWith(fontWeight: FontWeight.w700),
+        ),
+        const SizedBox(height: 2),
+        Text(
+          'Versión $version',
+          style: estilo,
+        ),
+      ],
     );
   }
 }
@@ -475,7 +587,9 @@ class _OptionsSectionCard extends StatelessWidget {
           children: [
             Text(
               title,
-              style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w800),
+              style: theme.textTheme.titleSmall?.copyWith(
+                fontWeight: FontWeight.w800,
+              ),
             ),
             const SizedBox(height: 8),
             ...children,
@@ -485,7 +599,6 @@ class _OptionsSectionCard extends StatelessWidget {
     );
   }
 }
-
 
 /// Enlace a la política de privacidad.
 ///
@@ -580,20 +693,21 @@ class _ContactoSection extends StatelessWidget {
         ),
         GridItem(
           icono: Icons.call_outlined,
-          funcion: () =>
-              _abrir(context, Uri(scheme: 'tel', path: _telefonoMarcado)),
+          funcion:
+              () => _abrir(context, Uri(scheme: 'tel', path: _telefonoMarcado)),
           texto: 'Teléfono',
           subtitulo: _telefonoVisible,
         ),
         GridItem(
           icono: Icons.location_on_outlined,
-          funcion: () => _abrir(
-            context,
-            Uri.https('www.google.com', '/maps/search/', {
-              'api': '1',
-              'query': '$_direccion, Honduras',
-            }),
-          ),
+          funcion:
+              () => _abrir(
+                context,
+                Uri.https('www.google.com', '/maps/search/', {
+                  'api': '1',
+                  'query': '$_direccion, Honduras',
+                }),
+              ),
           texto: 'Dirección',
           subtitulo: _direccion,
         ),
@@ -628,7 +742,9 @@ class _EliminarCuentaTileState extends State<_EliminarCuentaTile> {
       context: context,
       builder:
           (dialogContext) => AlertDialog(
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(22)),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(22),
+            ),
             title: const Text('Eliminar cuenta'),
             content: const Text(
               '''La eliminación se gestiona desde nuestro sitio web. Te llevaremos ahí con tu sesión ya iniciada.
@@ -725,13 +841,14 @@ Al completarla se borran tu cuenta y tus datos de forma permanente, y pierdes el
           foregroundColor: theme.colorScheme.onSurfaceVariant,
           textStyle: theme.textTheme.bodySmall,
         ),
-        child: _abriendo
-            ? const SizedBox(
-                height: 14,
-                width: 14,
-                child: CircularProgressIndicator(strokeWidth: 2),
-              )
-            : const Text('Eliminar mi cuenta'),
+        child:
+            _abriendo
+                ? const SizedBox(
+                  height: 14,
+                  width: 14,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
+                : const Text('Eliminar mi cuenta'),
       ),
     );
   }
@@ -756,7 +873,8 @@ class _NewsAlertsSwitchState extends State<_NewsAlertsSwitch> {
 
   Future<void> _refrescarPermiso() async {
     final granted =
-        await PushNotificationsService.instance.isNotificationPermissionGranted();
+        await PushNotificationsService.instance
+            .isNotificationPermissionGranted();
     if (!mounted) return;
     setState(() {
       _permissionGranted = granted;
@@ -790,7 +908,8 @@ class _NewsAlertsSwitchState extends State<_NewsAlertsSwitch> {
     return AnimatedBuilder(
       animation: PushNotificationsService.instance,
       builder: (context, _) {
-        final active = _permissionGranted &&
+        final active =
+            _permissionGranted &&
             PushNotificationsService.instance.newsAlertsEnabled;
 
         return Container(
@@ -801,7 +920,11 @@ class _NewsAlertsSwitchState extends State<_NewsAlertsSwitch> {
             borderRadius: BorderRadius.circular(18),
             border: Border.all(color: colors.primary.withOpacity(0.08)),
             boxShadow: const [
-              BoxShadow(color: Colors.black12, blurRadius: 10, spreadRadius: -6),
+              BoxShadow(
+                color: Colors.black12,
+                blurRadius: 10,
+                spreadRadius: -6,
+              ),
             ],
           ),
           child: Row(

@@ -36,6 +36,9 @@ class _PreferenciasCategoriasScreenState
   final Set<int> _seleccion = {};
   List<CategoriaNoticiaModel> _categorias = const [];
 
+  /// Tope que manda el servidor; el backend recorta igual si llegan de más.
+  int _max = kMaxCategoriasNotificacionDefault;
+
   @override
   void initState() {
     super.initState();
@@ -61,15 +64,16 @@ class _PreferenciasCategoriasScreenState
         categorias = (await NoticiasService().obtenerCategorias()).items;
       }
 
-      final elegidas = await _service.obtener();
+      final preferencia = await _service.obtener();
       if (!mounted) return;
 
       setState(() {
         _categorias = categorias;
+        _max = preferencia.maxCategorias;
         _seleccion
           ..clear()
-          ..addAll(elegidas);
-        _porCategoria = elegidas.isNotEmpty;
+          ..addAll(preferencia.categorias);
+        _porCategoria = preferencia.categorias.isNotEmpty;
         _cargando = false;
       });
     } catch (_) {
@@ -83,19 +87,51 @@ class _PreferenciasCategoriasScreenState
 
   bool get _sinSeleccion => _porCategoria && _seleccion.isEmpty;
 
+  bool get _enTope => _seleccion.length >= _max;
+
+  /// Cuentas que guardaron más de la cuenta antes de que existiera el tope: se
+  /// les muestran todas, pero tienen que quitar hasta quedar en `_max`.
+  bool get _excede => _porCategoria && _seleccion.length > _max;
+
+  void _alternar(int categoriaId) {
+    if (_seleccion.contains(categoriaId)) {
+      setState(() => _seleccion.remove(categoriaId));
+      return;
+    }
+
+    if (_enTope) {
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(
+          SnackBar(
+            content: Text(
+              'Podés elegir hasta $_max categorías. Quitá una para elegir otra.',
+            ),
+          ),
+        );
+      return;
+    }
+
+    setState(() => _seleccion.add(categoriaId));
+  }
+
   Future<void> _guardar() async {
-    if (_guardando || _sinSeleccion) return;
+    if (_guardando || _sinSeleccion || _excede) return;
 
     setState(() => _guardando = true);
     final messenger = ScaffoldMessenger.of(context);
 
     try {
       final elegidas = _porCategoria ? _seleccion.toList() : <int>[];
-      final guardadas = await _service.guardar(elegidas);
-      await PushNotificationsService.instance.setModoCategorias(guardadas.isNotEmpty);
+      final guardada = await _service.guardar(elegidas);
+      final guardadas = guardada.categorias;
+      await PushNotificationsService.instance.setModoCategorias(
+        guardadas.isNotEmpty,
+      );
 
       if (!mounted) return;
       setState(() {
+        _max = guardada.maxCategorias;
         _seleccion
           ..clear()
           ..addAll(guardadas);
@@ -109,7 +145,7 @@ class _PreferenciasCategoriasScreenState
             guardadas.isEmpty
                 ? 'Listo. Recibirás todas las noticias.'
                 : 'Listo. Recibirás por hora la última nota de '
-                      '${guardadas.length} categoría${guardadas.length == 1 ? "" : "s"}.',
+                    '${guardadas.length} categoría${guardadas.length == 1 ? "" : "s"}.',
           ),
         ),
       );
@@ -131,13 +167,14 @@ class _PreferenciasCategoriasScreenState
 
     return Scaffold(
       appBar: AppBar(title: const Text('Avisos por categoría')),
-      body: !sesionIniciada
-          ? _VistaInvitado(onIniciarSesion: _iniciarSesion)
-          : _cargando
-          ? const Center(child: CircularProgressIndicator())
-          : _error.isNotEmpty
-          ? _VistaError(mensaje: _error, onReintentar: _cargar)
-          : _contenido(context),
+      body:
+          !sesionIniciada
+              ? _VistaInvitado(onIniciarSesion: _iniciarSesion)
+              : _cargando
+              ? const Center(child: CircularProgressIndicator())
+              : _error.isNotEmpty
+              ? _VistaError(mensaje: _error, onReintentar: _cargar)
+              : _contenido(context),
     );
   }
 
@@ -159,13 +196,16 @@ class _PreferenciasCategoriasScreenState
             title: const Text('Elegir categorías'),
             subtitle: Text(
               _porCategoria
-                  ? 'Recibís cada hora la última noticia de las categorías marcadas.'
+                  ? 'Recibís cada hora la última noticia de las categorías marcadas (hasta $_max).'
                   : 'Apagado: recibís todas las noticias, como hasta ahora.',
             ),
           ),
         ),
         if (_porCategoria) ...[
-          const SizedBox(height: 8),
+          const SizedBox(height: 12),
+          if (_categorias.isNotEmpty)
+            _EncabezadoTope(elegidas: _seleccion.length, max: _max),
+          const SizedBox(height: 10),
           if (_categorias.isEmpty)
             Padding(
               padding: const EdgeInsets.symmetric(vertical: 24),
@@ -195,26 +235,25 @@ class _PreferenciasCategoriasScreenState
                         child: _CategoriaChip(
                           nombre: categoria.name,
                           seleccionada: _seleccion.contains(categoria.id),
-                          onTap: () {
-                            setState(() {
-                              if (_seleccion.contains(categoria.id)) {
-                                _seleccion.remove(categoria.id);
-                              } else {
-                                _seleccion.add(categoria.id);
-                              }
-                            });
-                          },
+                          // Sigue respondiendo al toque (para explicar el
+                          // tope), pero se ve apagada.
+                          bloqueada:
+                              _enTope && !_seleccion.contains(categoria.id),
+                          onTap: () => _alternar(categoria.id),
                         ),
                       ),
                   ],
                 );
               },
             ),
-          if (_sinSeleccion)
+          if (_sinSeleccion || _excede)
             Padding(
               padding: const EdgeInsets.only(top: 8),
               child: Text(
-                'Elegí al menos una categoría, o apagá el interruptor para recibir todas.',
+                _excede
+                    ? 'Tenés ${_seleccion.length} categorías y el máximo es $_max. '
+                        'Quitá ${_seleccion.length - _max} para poder guardar.'
+                    : 'Elegí al menos una categoría, o apagá el interruptor para recibir todas.',
                 style: theme.textTheme.bodySmall?.copyWith(
                   color: theme.colorScheme.error,
                 ),
@@ -223,14 +262,15 @@ class _PreferenciasCategoriasScreenState
         ],
         const SizedBox(height: 16),
         FilledButton(
-          onPressed: _guardando || _sinSeleccion ? null : _guardar,
-          child: _guardando
-              ? const SizedBox(
-                  height: 18,
-                  width: 18,
-                  child: CircularProgressIndicator(strokeWidth: 2),
-                )
-              : const Text('Guardar'),
+          onPressed: _guardando || _sinSeleccion || _excede ? null : _guardar,
+          child:
+              _guardando
+                  ? const SizedBox(
+                    height: 18,
+                    width: 18,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                  : const Text('Guardar'),
         ),
       ],
     );
@@ -274,7 +314,10 @@ class _VistaInvitado extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 16),
-            FilledButton(onPressed: onIniciarSesion, child: const Text('Iniciar sesión')),
+            FilledButton(
+              onPressed: onIniciarSesion,
+              child: const Text('Iniciar sesión'),
+            ),
           ],
         ),
       ),
@@ -298,7 +341,10 @@ class _VistaError extends StatelessWidget {
           children: [
             Text(mensaje, textAlign: TextAlign.center),
             const SizedBox(height: 12),
-            ElevatedButton(onPressed: onReintentar, child: const Text('Reintentar')),
+            ElevatedButton(
+              onPressed: onReintentar,
+              child: const Text('Reintentar'),
+            ),
           ],
         ),
       ),
@@ -306,63 +352,119 @@ class _VistaError extends StatelessWidget {
   }
 }
 
+/// "Elegí hasta 3" con el contador `N/3`, que se tiñe al llegar al tope.
+class _EncabezadoTope extends StatelessWidget {
+  const _EncabezadoTope({required this.elegidas, required this.max});
+
+  final int elegidas;
+  final int max;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colors = theme.colorScheme;
+    final completo = elegidas >= max;
+
+    return Row(
+      children: [
+        Expanded(
+          child: Text(
+            completo
+                ? 'Llegaste al máximo de $max categorías'
+                : 'Elegí hasta $max categorías',
+            style: theme.textTheme.bodyMedium?.copyWith(
+              color: colors.onSurfaceVariant,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ),
+        AnimatedContainer(
+          duration: const Duration(milliseconds: 150),
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+          decoration: BoxDecoration(
+            color: completo ? colors.primary : colors.surfaceContainerHighest,
+            borderRadius: BorderRadius.circular(999),
+          ),
+          child: Text(
+            '$elegidas/$max',
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w800,
+              color: completo ? colors.onPrimary : colors.onSurfaceVariant,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
 /// Chip seleccionable de una categoría. Va en una grilla de dos columnas; al
-/// marcarse se tiñe con el color primario y muestra el check.
+/// marcarse se tiñe con el color primario y muestra el check. `bloqueada` la
+/// apaga cuando ya se llegó al tope (el toque igual llega, para avisar).
 class _CategoriaChip extends StatelessWidget {
   const _CategoriaChip({
     required this.nombre,
     required this.seleccionada,
     required this.onTap,
+    this.bloqueada = false,
   });
 
   final String nombre;
   final bool seleccionada;
+  final bool bloqueada;
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
 
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(14),
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 150),
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-          decoration: BoxDecoration(
-            color: seleccionada
-                ? colors.primary.withValues(alpha: 0.10)
-                : colors.surface,
-            borderRadius: BorderRadius.circular(14),
-            border: Border.all(
-              color: seleccionada ? colors.primary : colors.outlineVariant,
-              width: seleccionada ? 1.5 : 1,
-            ),
-          ),
-          child: Row(
-            children: [
-              Icon(
-                seleccionada ? Icons.check_circle : Icons.circle_outlined,
-                size: 20,
-                color: seleccionada ? colors.primary : colors.outline,
+    return AnimatedOpacity(
+      duration: const Duration(milliseconds: 150),
+      opacity: bloqueada ? 0.45 : 1,
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(14),
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 150),
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+            decoration: BoxDecoration(
+              color:
+                  seleccionada
+                      ? colors.primary.withValues(alpha: 0.10)
+                      : colors.surface,
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(
+                color: seleccionada ? colors.primary : colors.outlineVariant,
+                width: seleccionada ? 1.5 : 1,
               ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Text(
-                  nombre,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    fontSize: 13,
-                    height: 1.2,
-                    fontWeight: seleccionada ? FontWeight.w700 : FontWeight.w500,
-                    color: seleccionada ? colors.primary : colors.onSurface,
+            ),
+            child: Row(
+              children: [
+                Icon(
+                  seleccionada ? Icons.check_circle : Icons.circle_outlined,
+                  size: 20,
+                  color: seleccionada ? colors.primary : colors.outline,
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    nombre,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontSize: 13,
+                      height: 1.2,
+                      fontWeight:
+                          seleccionada ? FontWeight.w700 : FontWeight.w500,
+                      color: seleccionada ? colors.primary : colors.onSurface,
+                    ),
                   ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
       ),

@@ -14,6 +14,7 @@ import 'package:flips_app/providers/mis_suscripcion.provider.dart';
 import 'package:flips_app/providers/paquetes.provider.dart';
 import 'package:flips_app/screens/home/home.screen.dart';
 import 'package:flips_app/screens/login/login.screen.dart';
+import 'package:flips_app/services/actualizacion.service.dart';
 import 'package:flips_app/services/ads_consent.service.dart';
 import 'package:flips_app/services/app_analytics_route_observer.dart';
 import 'package:firebase_core/firebase_core.dart';
@@ -31,6 +32,10 @@ Future<void> main() async {
   // Toda la UI está pensada para vertical; en horizontal las pantallas se
   // descuadran. Como la mayoría de apps de noticias, se fija en vertical.
   await SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
+
+  // Antes de cualquier petición: la cabecera X-App-Version y el banner de
+  // nueva versión usan la versión real instalada, no la escrita a mano.
+  await cargarVersionInstalada();
 
   var firebaseReady = false;
   try {

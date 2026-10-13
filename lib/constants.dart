@@ -6,14 +6,20 @@ String apiUrl = urlBase;
 
 // String apiUrl = 'http://192.168.0.33:7781/api/';
 
-
 // String apiUrl = 'http://10.16.42.157:8080/api/';
 
-/// Versión de la app para la cabecera `X-App-Version`.
+/// Versión instalada: la usan la cabecera `X-App-Version` y el banner de nueva
+/// versión.
 ///
-/// Mantener en sync con `version:` de pubspec.yaml en cada release. Es un dato
-/// informativo para los logs del backend, así que un desfase no rompe nada.
-String version = '1.1.5';
+/// Al arrancar, `cargarVersionInstalada()` la reemplaza por la real (la de
+/// pubspec.yaml, leída con package_info_plus). Este valor solo queda si esa
+/// lectura falla; conviene igual mantenerlo en sync en cada release.
+String version = '1.1.6';
+
+/// Número de compilación (el `+15` de pubspec.yaml). Lo carga
+/// `cargarVersionInstalada()`; vacío si no se pudo leer. Sirve para distinguir
+/// compilaciones de una misma versión en las pruebas internas.
+String compilacion = '';
 
 /// Identifica la petición como originada en la app (cabecera `X-Client-App`),
 /// para distinguirla en el backend del tráfico del sitio web.

@@ -44,17 +44,13 @@ class AnalyticsService {
     );
   }
 
-  static Future<void> logNewsSearch({
-    required String query,
-  }) async {
+  static Future<void> logNewsSearch({required String query}) async {
     final trimmedQuery = query.trim();
     if (trimmedQuery.isEmpty) return;
 
     await _logEvent(
       name: 'search',
-      parameters: {
-        'search_term': _sanitize(trimmedQuery),
-      },
+      parameters: {'search_term': _sanitize(trimmedQuery)},
     );
   }
 
@@ -84,23 +80,21 @@ class AnalyticsService {
     try {
       final screenName = _sanitize(_normalizeNewsTitle(title));
       final normalizedSlug = _sanitize(slug);
-      final fallbackName = normalizedSlug.isEmpty ? 'noticia_detalle' : normalizedSlug;
+      final fallbackName =
+          normalizedSlug.isEmpty ? 'noticia_detalle' : normalizedSlug;
       final resolvedScreenName = screenName.isEmpty ? fallbackName : screenName;
       final normalizedPath = _sanitize(path);
       await _analytics.logScreenView(
         screenName: resolvedScreenName,
-        screenClass: normalizedPath.isEmpty ? 'NoticiaDetalleScreen' : normalizedPath,
+        screenClass:
+            normalizedPath.isEmpty ? 'NoticiaDetalleScreen' : normalizedPath,
       );
-
     } catch (error) {
       if (kDebugMode) {
         debugPrint('No se pudo registrar screen_view de noticia: $error');
       }
     }
-
   }
-
-
 
   /// Igual que [logNewsScreen]: la ruta va en `screen_class` para que la
   /// pantalla sume con su equivalente del sitio. `title` es el `page_title` que
@@ -113,10 +107,13 @@ class AnalyticsService {
     if (normalizedPath.isEmpty) return false;
 
     final normalizedTitle = _sanitize(title ?? '');
-    final screenName = normalizedTitle.isEmpty ? normalizedPath : normalizedTitle;
+    final screenName =
+        normalizedTitle.isEmpty ? normalizedPath : normalizedTitle;
 
     if (kDebugMode) {
-      debugPrint('[AnalyticsService][send] screen_view path=$normalizedPath name=$screenName');
+      debugPrint(
+        '[AnalyticsService][send] screen_view path=$normalizedPath name=$screenName',
+      );
     }
 
     try {
@@ -131,7 +128,9 @@ class AnalyticsService {
       return true;
     } catch (error) {
       if (kDebugMode) {
-        debugPrint('[AnalyticsService][error] screen_view/page_view path=$normalizedPath error=$error');
+        debugPrint(
+          '[AnalyticsService][error] screen_view/page_view path=$normalizedPath error=$error',
+        );
       }
       return false;
     }
@@ -178,6 +177,22 @@ class AnalyticsService {
     );
   }
 
+  /// Banner de nueva versión: `visto`, `tienda` (tocó actualizar) o `despues`.
+  /// Van como eventos separados para contarlos en GA4 sin dimensiones a medida.
+  static Future<void> logActualizacionBanner({
+    required String accion,
+    required String versionNueva,
+    required String versionInstalada,
+  }) async {
+    await _logEvent(
+      name: 'actualizacion_banner_$accion',
+      parameters: {
+        'version_nueva': versionNueva,
+        'version_instalada': versionInstalada,
+      },
+    );
+  }
+
   static Future<void> _logEvent({
     required String name,
     required Map<String, Object?> parameters,
@@ -201,7 +216,6 @@ class AnalyticsService {
       }
     }
   }
-
 
   static String _normalizeNewsTitle(String value) {
     final trimmed = value.trim();
