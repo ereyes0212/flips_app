@@ -97,6 +97,27 @@ class DiariosDigitalesController {
     return renovada;
   }
 
+  /// Petición de las ediciones anteriores en vuelo, si hay alguna.
+  Future<void>? _anterioresEnVuelo;
+
+  /// Carga las portadas de los 3 días anteriores (bloqueadas). Como la edición
+  /// pública, es de cortesía: si falla, se queda lo que había y no se avisa.
+  Future<void> cargarAnteriores(BuildContext context) {
+    final enVuelo = _anterioresEnVuelo;
+    if (enVuelo != null) return enVuelo;
+
+    final provider = Provider.of<DiariosDigitalesProvider>(
+      context,
+      listen: false,
+    );
+    return _anterioresEnVuelo = _service
+        .obtenerDiariosAnteriores()
+        .then((anteriores) {
+          if (anteriores != null) provider.setAnteriores(anteriores);
+        })
+        .whenComplete(() => _anterioresEnVuelo = null);
+  }
+
   Future<void> _cargarUltimoPublico(BuildContext context) async {
     final provider = Provider.of<DiariosDigitalesProvider>(
       context,

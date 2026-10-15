@@ -123,4 +123,30 @@ class DiariosDigitalesService {
       return const UltimoDiarioResult(status: UltimoDiarioStatus.error);
     }
   }
+
+  /// Las ediciones de los 3 días anteriores, para mostrarlas bloqueadas.
+  ///
+  /// Pública y sin sesión: solo trae portadas reducidas. `null` si falló, para
+  /// que quien llama conserve lo que ya tenía en pantalla.
+  Future<List<DiarioAnteriorModel>?> obtenerDiariosAnteriores() async {
+    try {
+      final response = await _httpService.get(
+        '${apiUrl}diarios-digitales/anteriores',
+        auth: ModoAuth.ninguna,
+      );
+      if (response.statusCode != 200) return null;
+
+      final body = jsonDecode(response.body);
+      final data = body is Map<String, dynamic> ? body['data'] : null;
+      if (data is! List) return const [];
+
+      return data
+          .whereType<Map<String, dynamic>>()
+          .map(DiarioAnteriorModel.fromJson)
+          .whereType<DiarioAnteriorModel>()
+          .toList();
+    } catch (_) {
+      return null;
+    }
+  }
 }

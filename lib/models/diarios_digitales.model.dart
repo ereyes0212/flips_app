@@ -71,6 +71,8 @@ class DiarioDigitalModel {
     this.pdfSignedUrlExpiresAt,
     this.coverUrl = '',
     this.coverContentType = '',
+    this.fechaEdicion,
+    this.publicacion = '',
   });
 
   final String id;
@@ -91,6 +93,14 @@ class DiarioDigitalModel {
   final DateTime? pdfSignedUrlExpiresAt;
   final String coverUrl;
   final String coverContentType;
+
+  /// Fecha real de la edición (a medianoche UTC), si ya está confirmada.
+  /// El archivo se recuperó ordenado solo por año y mes; los servidores
+  /// anteriores a la búsqueda por día no la mandan.
+  final DateTime? fechaEdicion;
+
+  /// Tiempo, Cronómetro, Máxima Velocidad… Vacía si el servidor no la manda.
+  final String publicacion;
 
   String get pdfViewerUrl =>
       pdfSignedUrl.isNotEmpty ? pdfSignedUrl : pdfUrl;
@@ -136,8 +146,53 @@ class DiarioDigitalModel {
         pdfSignedUrlExpiresAt: _parseDate(json['pdfSignedUrlExpiresAt']),
         coverUrl: json['coverUrl'] ?? '',
         coverContentType: json['coverContentType'] ?? '',
+        fechaEdicion: fechaDeCalendario(json['fechaEdicion']),
+        publicacion: json['publicacion']?.toString() ?? '',
       );
 
   static DateTime? _parseDate(dynamic value) =>
       value == null ? null : DateTime.tryParse(value.toString());
+}
+
+/// `"2025-07-22"` → `DateTime.utc(2025, 7, 22)`. Una fecha de calendario no
+/// tiene hora: en UTC, el día de la semana y el número no se corren con la zona
+/// del teléfono.
+DateTime? fechaDeCalendario(dynamic valor) {
+  final m = RegExp(r'^(\d{4})-(\d{2})-(\d{2})$').firstMatch(valor?.toString().trim() ?? '');
+  if (m == null) return null;
+  return DateTime.utc(int.parse(m.group(1)!), int.parse(m.group(2)!), int.parse(m.group(3)!));
+}
+
+/// Una edición de días anteriores que se muestra **bloqueada** a quien no tiene
+/// suscripción: solo su portada reducida, nunca el PDF.
+///
+/// Viene de `/api/diarios-digitales/anteriores`, que no entrega ids ni rutas:
+/// lo único que se puede hacer con esto es mostrar la portada difuminada.
+class DiarioAnteriorModel {
+  const DiarioAnteriorModel({
+    required this.fecha,
+    required this.titulo,
+    required this.publicacion,
+    required this.coverUrl,
+  });
+
+  /// Fecha de calendario de la edición, a medianoche UTC.
+  final DateTime fecha;
+  final String titulo;
+  final String publicacion;
+  final String coverUrl;
+
+  /// `null` si le falta la fecha o la portada: sin eso no hay nada que mostrar.
+  static DiarioAnteriorModel? fromJson(Map<String, dynamic> json) {
+    final fecha = fechaDeCalendario(json['fecha']);
+    final coverUrl = json['coverUrl']?.toString().trim() ?? '';
+    if (fecha == null || coverUrl.isEmpty) return null;
+
+    return DiarioAnteriorModel(
+      fecha: fecha,
+      titulo: json['titulo']?.toString() ?? '',
+      publicacion: json['publicacion']?.toString() ?? '',
+      coverUrl: coverUrl,
+    );
+  }
 }

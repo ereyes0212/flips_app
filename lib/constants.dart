@@ -14,7 +14,7 @@ String apiUrl = urlBase;
 /// Al arrancar, `cargarVersionInstalada()` la reemplaza por la real (la de
 /// pubspec.yaml, leída con package_info_plus). Este valor solo queda si esa
 /// lectura falla; conviene igual mantenerlo en sync en cada release.
-String version = '1.1.6';
+String version = '1.1.7';
 
 /// Número de compilación (el `+15` de pubspec.yaml). Lo carga
 /// `cargarVersionInstalada()`; vacío si no se pudo leer. Sirve para distinguir

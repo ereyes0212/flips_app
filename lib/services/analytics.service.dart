@@ -193,6 +193,19 @@ class AnalyticsService {
     );
   }
 
+  /// Ediciones anteriores bloqueadas: `toque` (abrió el aviso), `cuenta` (fue a
+  /// gestionar su cuenta) o `login` (fue a iniciar sesión). Separados, como el
+  /// banner de versión, para contar la conversión en GA4 sin dimensiones.
+  static Future<void> logDiarioBloqueado({
+    required String accion,
+    required String fecha,
+  }) async {
+    await _logEvent(
+      name: 'diario_bloqueado_$accion',
+      parameters: {'fecha_edicion': fecha},
+    );
+  }
+
   static Future<void> _logEvent({
     required String name,
     required Map<String, Object?> parameters,

@@ -10,6 +10,7 @@ import 'package:flips_app/globals/widgets/widgets.dart';
 import 'package:flips_app/providers/auth.provider.dart';
 import 'package:flips_app/providers/noticias.provider.dart';
 import 'package:flips_app/screens/diarios_digitales/diarios_digitales.screen.dart';
+import 'package:flips_app/screens/home/icono_diario_del_dia.widget.dart';
 import 'package:flips_app/screens/noticias/noticias.screen.dart';
 import 'package:flips_app/screens/noticias/noticias_offline.screen.dart';
 import 'package:flips_app/screens/mi_perfil/mi_perfil.screen.dart';
@@ -25,6 +26,7 @@ import 'package:flips_app/services/actualizacion.service.dart';
 import 'package:flips_app/screens/sitio_web/sitio_web.screen.dart';
 import 'package:flips_app/services/acceso_usuario.service.dart';
 import 'package:flips_app/services/auth.service.dart';
+import 'package:flips_app/services/portada_del_dia.service.dart';
 import 'package:flips_app/services/suscripcion_checkout.service.dart';
 import 'package:flips_app/services/push_notifications.service.dart';
 import 'package:flutter/material.dart';
@@ -65,6 +67,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     _resolverAcceso();
+    unawaited(PortadaDelDiaService.instance.actualizar());
     Future.microtask(_iniciarBienvenida);
   }
 
@@ -81,6 +84,10 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) {
       _ofrecerActualizacion(respetarIntervalo: true);
+      // Quien deja la app abierta de un día para otro ve la edición nueva.
+      unawaited(
+        PortadaDelDiaService.instance.actualizar(respetarIntervalo: true),
+      );
     }
   }
 
@@ -266,26 +273,33 @@ Tu cuenta no tiene una suscripción activa en este momento.''',
               adUnitId: _bannerAdUnitId,
               sizes: _bannerSizes,
             ),
-          AnimatedBottomNavigationBar(
+          AnimatedBottomNavigationBar.builder(
             key: _bottomNavKey,
-            icons: [
-              Icons.article_outlined,
-              Icons.collections_bookmark_outlined,
-              // Sin cuenta el icono invita a crearla en vez de prometer un
-              // perfil que todavía no existe.
-              sesionIniciada
-                  ? Icons.person_outline
-                  : Icons.person_add_alt_1_outlined,
-              Icons.more_horiz,
-            ],
+            itemCount: 4,
+            tabBuilder: (index, activa) {
+              final color = activa ? tema.primary : tema.secondary;
+              if (index == 1) {
+                return IconoDiarioDelDia(activa: activa, color: color);
+              }
+
+              final icono = switch (index) {
+                0 => Icons.article_outlined,
+                // Sin cuenta el icono invita a crearla en vez de prometer un
+                // perfil que todavía no existe.
+                2 =>
+                  sesionIniciada
+                      ? Icons.person_outline
+                      : Icons.person_add_alt_1_outlined,
+                _ => Icons.more_horiz,
+              };
+              return Center(child: Icon(icono, color: color));
+            },
             activeIndex: _currentIndex,
             gapLocation: GapLocation.none,
             notchSmoothness: NotchSmoothness.defaultEdge,
             leftCornerRadius: 32,
             rightCornerRadius: 32,
             onTap: (index) => setState(() => _currentIndex = index),
-            activeColor: tema.primary,
-            inactiveColor: tema.secondary,
             backgroundColor: Colors.white,
           ),
         ],

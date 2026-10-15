@@ -33,14 +33,16 @@ class _HeaderShell extends StatelessWidget {
   const _HeaderShell({
     required this.leading,
     required this.title,
-    required this.subtitle,
+    this.subtitle,
     this.action,
     this.useGradient = false,
   });
 
   final Widget leading;
   final String title;
-  final String subtitle;
+
+  /// Sin subtítulo, el título queda solo y centrado en el alto del header.
+  final String? subtitle;
   final Widget? action;
 
   /// `true` → degradado (portada). `false` → color sólido (categoría).
@@ -83,15 +85,16 @@ class _HeaderShell extends StatelessWidget {
                         fontWeight: FontWeight.w800,
                       ),
                     ),
-                    Text(
-                      subtitle,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: theme.textTheme.labelMedium?.copyWith(
-                        color: _HeaderTokens.onHeaderMuted(context),
-                        fontWeight: FontWeight.w600,
+                    if (subtitle?.isNotEmpty ?? false)
+                      Text(
+                        subtitle!,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: theme.textTheme.labelMedium?.copyWith(
+                          color: _HeaderTokens.onHeaderMuted(context),
+                          fontWeight: FontWeight.w600,
+                        ),
                       ),
-                    ),
                   ],
                 ),
               ),
@@ -189,12 +192,10 @@ class _HeaderAction extends StatelessWidget {
 // ============================================================================
 class _NoticiasAppBar extends StatelessWidget {
   const _NoticiasAppBar({
-    required this.total,
     required this.usingCache,
     this.bellKey,
   });
 
-  final int total;
   final bool usingCache;
   final GlobalKey? bellKey;
 
@@ -211,7 +212,6 @@ class _NoticiasAppBar extends StatelessWidget {
       elevation: 0,
       scrolledUnderElevation: 0,
       flexibleSpace: _NoticiasHeader(
-        total: total,
         usingCache: usingCache,
         bellKey: bellKey,
       ),
@@ -221,12 +221,10 @@ class _NoticiasAppBar extends StatelessWidget {
 
 class _NoticiasHeader extends StatelessWidget {
   const _NoticiasHeader({
-    required this.total,
     required this.usingCache,
     this.bellKey,
   });
 
-  final int total;
   final bool usingCache;
   final GlobalKey? bellKey;
 
@@ -242,7 +240,9 @@ class _NoticiasHeader extends StatelessWidget {
         ),
       ),
       title: 'Diario Tiempo HN',
-      subtitle: usingCache ? 'Modo sin conexión' : '$total noticias disponibles',
+      // Sin el conteo de noticias: con el scroll infinito ese número solo decía
+      // cuántas había cargado la app, no cuántas hay. El aviso sin conexión sí sirve.
+      subtitle: usingCache ? 'Modo sin conexión' : null,
       action: _HeaderAction(
         key: bellKey,
         icon: Icons.notifications_none_rounded,

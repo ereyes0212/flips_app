@@ -6,6 +6,7 @@ import 'package:flips_app/globals/widgets/muro_login.widget.dart';
 import 'package:flips_app/models/diarios_digitales.model.dart';
 import 'package:flips_app/providers/auth.provider.dart';
 import 'package:flips_app/providers/diarios_digitales.provider.dart';
+import 'package:flips_app/screens/diarios_digitales/ediciones_anteriores.widget.dart';
 import 'package:flips_app/screens/paquetes/paquetes.screen.dart';
 import 'package:flips_app/services/acceso_usuario.service.dart';
 import 'package:flips_app/services/diarios_digitales.service.dart';
@@ -29,6 +30,13 @@ class _DiariosDigitalesScreenState extends State<DiariosDigitalesScreen> {
   late int _anioSeleccionado;
   late int _mesSeleccionado;
   AccesoUsuario _acceso = const AccesoUsuario.sinResolver();
+
+  /// Mes de los diarios en pantalla. No es lo mismo que el seleccionado: los
+  /// desplegables pueden cambiar antes de tocar "Buscar".
+  ({int anio, int mes})? _mesCargado;
+
+  /// Día elegido dentro del mes cargado; `null` = todos.
+  int? _diaSeleccionado;
 
   @override
   void initState() {
@@ -54,10 +62,19 @@ class _DiariosDigitalesScreenState extends State<DiariosDigitalesScreen> {
     // un `403` en el archivo, y sin esto vería menos que un invitado — que es
     // justo al revés de lo que uno esperaría al iniciar sesión.
     unawaited(_controller.cargarUltimoPublico(context));
+    // Las anteriores bloqueadas solo se ven sin suscripción, pero la lista es
+    // un JSON chico y las portadas se piden solo si se muestran.
+    unawaited(_controller.cargarAnteriores(context));
 
     if (!mounted || !context.read<AuthProvider>().sesionIniciada) return;
     await _buscarDiarios();
   }
+
+  /// Lo que ve un invitado: la edición del día y las anteriores bloqueadas.
+  Future<void> _recargarPublico() => Future.wait([
+        _controller.cargarUltimoPublico(context),
+        _controller.cargarAnteriores(context),
+      ]);
 
   /// Los diarios son contenido de suscriptor, así que el anuncio le toca solo
   /// a quien entra sin suscripción a leer la edición del día. Quien paga no ve
@@ -112,11 +129,44 @@ class _DiariosDigitalesScreenState extends State<DiariosDigitalesScreen> {
   };
 
   Future<void> _buscarDiarios() {
-    return _controller.cargarDiarios(
-      context,
-      anio: _anioSeleccionado,
-      mes: _mesSeleccionado,
-    );
+    final periodo = (anio: _anioSeleccionado, mes: _mesSeleccionado);
+    // Otro mes, otros días: el día elegido no tiene sentido en el nuevo. Al
+    // recargar el mismo mes (tirar hacia abajo) se conserva.
+    setState(() {
+      if (_mesCargado != periodo) _diaSeleccionado = null;
+      _mesCargado = periodo;
+    });
+    return _controller.cargarDiarios(context, anio: periodo.anio, mes: periodo.mes);
+  }
+
+  /// Días del mes cargado que tienen al menos un diario con fecha confirmada.
+  ///
+  /// Se filtra en el teléfono y no en el servidor: el mes ya está en pantalla
+  /// completo, así que elegir un día es instantáneo y no gasta otra petición.
+  List<int> _diasConDiarios(List<DiarioDigitalModel> diarios) {
+    final periodo = _mesCargado;
+    if (periodo == null) return const [];
+    final dias = {
+      for (final d in diarios)
+        if (d.fechaEdicion case final fecha?
+            when fecha.year == periodo.anio && fecha.month == periodo.mes)
+          fecha.day,
+    }.toList()
+      ..sort();
+    return dias;
+  }
+
+  List<DiarioDigitalModel> _diariosDelDia(List<DiarioDigitalModel> diarios) {
+    final dia = _diaSeleccionado;
+    final periodo = _mesCargado;
+    if (dia == null || periodo == null) return diarios;
+    return diarios
+        .where((d) =>
+            d.fechaEdicion != null &&
+            d.fechaEdicion!.year == periodo.anio &&
+            d.fechaEdicion!.month == periodo.mes &&
+            d.fechaEdicion!.day == dia)
+        .toList();
   }
 
   @override
@@ -131,7 +181,7 @@ class _DiariosDigitalesScreenState extends State<DiariosDigitalesScreen> {
       return Scaffold(
         appBar: AppBar(title: const Text('Diarios digitales')),
         body: RefreshIndicator(
-          onRefresh: () => _controller.cargarUltimoPublico(context),
+          onRefresh: _recargarPublico,
           child: ListView(
             physics: const AlwaysScrollableScrollPhysics(),
             padding: const EdgeInsets.all(16),
@@ -141,6 +191,8 @@ class _DiariosDigitalesScreenState extends State<DiariosDigitalesScreen> {
                 mes: _meses[provider.ultimoPublico?.mes] ?? '',
                 onAbrir: _abrirUltimaEdicionPublica,
               ),
+              const SizedBox(height: 24),
+              EdicionesAnterioresBloqueadas(diarios: provider.anteriores, sesionIniciada: false),
               const SizedBox(height: 16),
               const MuroLoginCard(
                 titulo: 'Ediciones anteriores',
@@ -207,6 +259,8 @@ class _DiariosDigitalesScreenState extends State<DiariosDigitalesScreen> {
                       mes: _meses[provider.ultimoPublico?.mes] ?? '',
                       onAbrir: _abrirUltimaEdicionPublica,
                     ),
+                    const SizedBox(height: 24),
+                    EdicionesAnterioresBloqueadas(diarios: provider.anteriores, sesionIniciada: true),
                     const SizedBox(height: 16),
                     _SubscriptionUpsellCard(
                       onVerPaquetes: () {
@@ -226,30 +280,93 @@ class _DiariosDigitalesScreenState extends State<DiariosDigitalesScreen> {
                   child: Text('No hay diarios para mostrar.'),
                 ),
               )
-            else
+            else ...[
+              if (_diasConDiarios(provider.diarios) case final dias when dias.isNotEmpty)
+                SliverToBoxAdapter(
+                  child: _FiltroDia(
+                    anio: _mesCargado!.anio,
+                    mes: _mesCargado!.mes,
+                    dias: dias,
+                    seleccionado: _diaSeleccionado,
+                    onChanged: (dia) => setState(() => _diaSeleccionado = dia),
+                  ),
+                ),
               SliverPadding(
                 padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
-                sliver: SliverGrid.builder(
-                  itemCount: provider.diarios.length,
-                  gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
-                    maxCrossAxisExtent: 220,
-                    mainAxisSpacing: 18,
-                    crossAxisSpacing: 14,
-                    childAspectRatio: 0.56,
-                  ),
-                  itemBuilder: (context, index) {
-                    final diario = provider.diarios[index];
-                    return _DiarioPosterCard(
-                      diario: diario,
-                      mes: _meses[diario.mes] ?? diario.mes.toString(),
-                      onTap:
-                          !diario.hasPdf ? null : () => _abrirDiario(diario),
+                sliver: Builder(
+                  builder: (context) {
+                    final diarios = _diariosDelDia(provider.diarios);
+                    return SliverGrid.builder(
+                      itemCount: diarios.length,
+                      gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
+                        maxCrossAxisExtent: 220,
+                        mainAxisSpacing: 18,
+                        crossAxisSpacing: 14,
+                        childAspectRatio: 0.56,
+                      ),
+                      itemBuilder: (context, index) {
+                        final diario = diarios[index];
+                        return _DiarioPosterCard(
+                          diario: diario,
+                          mes: _meses[diario.mes] ?? diario.mes.toString(),
+                          onTap: !diario.hasPdf ? null : () => _abrirDiario(diario),
+                        );
+                      },
                     );
                   },
                 ),
               ),
+            ],
           ],
         ),
+      ),
+    );
+  }
+}
+
+/// Días del mes cargado, para quedarse con uno. Solo aparecen los que tienen
+/// un diario con fecha confirmada; "Todos" vuelve al mes completo.
+class _FiltroDia extends StatelessWidget {
+  const _FiltroDia({
+    required this.anio,
+    required this.mes,
+    required this.dias,
+    required this.seleccionado,
+    required this.onChanged,
+  });
+
+  final int anio;
+  final int mes;
+  final List<int> dias;
+  final int? seleccionado;
+  final ValueChanged<int?> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      height: 52,
+      child: ListView.separated(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
+        itemCount: dias.length + 1,
+        separatorBuilder: (_, __) => const SizedBox(width: 8),
+        itemBuilder: (context, index) {
+          if (index == 0) {
+            return ChoiceChip(
+              label: const Text('Todos'),
+              selected: seleccionado == null,
+              onSelected: (_) => onChanged(null),
+            );
+          }
+          final dia = dias[index - 1];
+          // "mar 22": el día de la semana ayuda a ubicarse más que el número.
+          final etiqueta = fechaCortaDiario(DateTime.utc(anio, mes, dia)).split(' ').take(2).join(' ');
+          return ChoiceChip(
+            label: Text(etiqueta),
+            selected: seleccionado == dia,
+            onSelected: (marcado) => onChanged(marcado ? dia : null),
+          );
+        },
       ),
     );
   }
@@ -418,7 +535,11 @@ class _DiarioPosterCard extends StatelessWidget {
                             vertical: 6,
                           ),
                           child: Text(
-                            '$mes ${diario.anio}',
+                            // La fecha real si ya está confirmada; si no, el mes.
+                            switch (diario.fechaEdicion) {
+                              final fecha? => '${fechaCortaDiario(fecha)} ${fecha.year}',
+                              null => '$mes ${diario.anio}',
+                            },
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                             style: theme.textTheme.labelSmall?.copyWith(

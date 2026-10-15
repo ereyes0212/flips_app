@@ -304,7 +304,6 @@ class _NoticiasScreenState extends State<NoticiasScreen>
           physics: const AlwaysScrollableScrollPhysics(),
           slivers: [
             _NoticiasAppBar(
-              total: provider.noticias.length,
               usingCache: provider.usingCache,
               bellKey: widget.notificationsButtonKey,
             ),
@@ -387,6 +386,11 @@ class _NoticiasContentSlivers extends StatelessWidget {
       );
     }
 
+    // La primera va en la tarjeta grande de portada; el listado sigue desde la
+    // segunda para no mostrarla dos veces seguidas.
+    final portada = provider.noticias.first;
+    final resto = provider.noticias.sublist(1);
+
     return SliverMainAxisGroup(
       slivers: [
         if (provider.errorMessage.isNotEmpty || provider.usingCache)
@@ -404,36 +408,37 @@ class _NoticiasContentSlivers extends StatelessWidget {
           child: Padding(
             padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
             child: _PortadaCard(
-              noticia: provider.noticias.first,
+              noticia: portada,
               acceso: acceso,
             ),
           ),
         ),
-        SliverToBoxAdapter(
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(16, 4, 16, 10),
-            child: Row(
-              children: [
-                Text(
-                  'Últimas noticias',
-                  style: theme.textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.w700,
-                    letterSpacing: -0.1,
+        if (resto.isNotEmpty)
+          SliverToBoxAdapter(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(16, 4, 16, 10),
+              child: Row(
+                children: [
+                  Text(
+                    'Últimas noticias',
+                    style: theme.textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: -0.1,
+                    ),
                   ),
-                ),
-                const Spacer(),
-                if (provider.loading)
-                  const SizedBox(
-                    width: 18,
-                    height: 18,
-                    child: CircularProgressIndicator(strokeWidth: 2),
-                  ),
-              ],
+                  const Spacer(),
+                  if (provider.loading)
+                    const SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    ),
+                ],
+              ),
             ),
           ),
-        ),
         _NoticiasList(
-          noticias: provider.noticias,
+          noticias: resto,
           onTapNoticia: onTapNoticia,
           acceso: acceso,
         ),

@@ -61,4 +61,20 @@ class DiariosDigitalesProvider with ChangeNotifier {
     _sinEdicionPublica = sinEdicion;
     notifyListeners();
   }
+
+  // ---------------------------------------------------------------------------
+  // Ediciones anteriores (bloqueadas)
+  // ---------------------------------------------------------------------------
+  //
+  // Solo portadas: se muestran difuminadas con un candado a quien no tiene
+  // suscripción, para que vea lo que se está perdiendo.
+
+  List<DiarioAnteriorModel> _anteriores = const [];
+
+  List<DiarioAnteriorModel> get anteriores => _anteriores;
+
+  void setAnteriores(List<DiarioAnteriorModel> value) {
+    _anteriores = value;
+    notifyListeners();
+  }
 }
